@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "lib": ["ES2021"],
+    "types": ["node"],
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "composite": true
+  },
+  "references": [{ "path": "../shared" }],
+  "include": ["src/**/*"]
+}
