@@ -18,7 +18,7 @@ export interface SkaterRender {
 
 export interface FrameRender {
   skaters: SkaterRender[];
-  puck: { x: number; z: number };
+  puck: { x: number; z: number; carrier: string };
 }
 
 function lerp(a: number, b: number, t: number): number {
@@ -70,7 +70,7 @@ export function sampleAt(buffer: Snapshot[], renderTime: number): FrameRender | 
   }
   return {
     skaters,
-    puck: { x: lerp(a.puck.px, b.puck.px, t), z: lerp(a.puck.pz, b.puck.pz, t) },
+    puck: { x: lerp(a.puck.px, b.puck.px, t), z: lerp(a.puck.pz, b.puck.pz, t), carrier: b.puck.carrier },
   };
 }
 
@@ -90,6 +90,6 @@ function frameFrom(s: Snapshot): FrameRender {
       staggered: sk.staggeredUntil > now,
       intangible: sk.intangibleUntil > now,
     })),
-    puck: { x: s.puck.px, z: s.puck.pz },
+    puck: { x: s.puck.px, z: s.puck.pz, carrier: s.puck.carrier },
   };
 }

@@ -34,6 +34,7 @@ export class MatchState extends Schema {
   @type('uint8') period = 1;
   @type('float32') clock = 0;
   @type('float32') phaseTimer = 0;
+  @type('float32') pauseUntil = 0;
   @type('uint8') score0 = 0;
   @type('uint8') score1 = 0;
   @type({ map: SkaterSchema }) skaters = new MapSchema<SkaterSchema>();
@@ -47,6 +48,7 @@ export function syncState(state: MatchState, world: WorldState): void {
   state.period = world.period;
   state.clock = world.clock;
   state.phaseTimer = world.phaseTimer;
+  state.pauseUntil = world.pauseUntil;
   state.score0 = world.score[0];
   state.score1 = world.score[1];
 

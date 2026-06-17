@@ -46,4 +46,21 @@ describe('world simulation', () => {
     for (let i = 0; i < 30; i++) step(w, {}, DT);
     expect(w.score[0]).toBe(before + 1);
   });
+
+  it('freezes the clock during the goal celebration pause', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const gx = attackingGoalX(0);
+    w.puck.carrier = null;
+    w.puck.lastTouch = 'a';
+    w.puck.pos = { x: gx - 1, z: 0 };
+    w.puck.vel = { x: 20, z: 0 };
+    w.puck.pickupCooldownUntil = w.time + 10000;
+    for (let i = 0; i < 30 && w.score[0] === 0; i++) step(w, {}, DT);
+    expect(w.score[0]).toBe(1);
+    expect(w.pauseUntil).toBeGreaterThan(w.time);
+    const clockAtGoal = w.clock;
+    for (let i = 0; i < 10; i++) step(w, {}, DT); // still within the pause window
+    expect(w.clock).toBe(clockAtGoal); // clock did not tick while paused
+  });
 });

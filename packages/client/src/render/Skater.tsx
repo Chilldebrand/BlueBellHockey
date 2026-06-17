@@ -23,6 +23,8 @@ export function Skater({
   const group = useRef<THREE.Group>(null);
   const body = useRef<THREE.Group>(null);
   const ring = useRef<THREE.Mesh>(null);
+  const carrierRing = useRef<THREE.Mesh>(null);
+  const aura = useRef<THREE.Mesh>(null);
   const glow = useRef<THREE.PointLight>(null);
   const phase = useRef(Math.random() * Math.PI * 2);
 
@@ -44,7 +46,16 @@ export function Skater({
       body.current.position.y = s.staggered ? 0.4 : 0.9 + Math.abs(Math.sin(phase.current)) * 0.05;
     }
     if (ring.current) ring.current.visible = isLocal;
-    if (glow.current) glow.current.intensity = s.ultActive ? 6 : 0;
+    if (carrierRing.current) carrierRing.current.visible = frameStore.carrier() === id;
+    if (glow.current) glow.current.intensity = s.ultActive ? 9 : 0;
+    if (aura.current) {
+      aura.current.visible = s.ultActive;
+      if (s.ultActive) {
+        aura.current.rotation.z += dt * 3;
+        const pulse = 1 + Math.sin(phase.current * 2) * 0.12;
+        aura.current.scale.setScalar(pulse);
+      }
+    }
   });
 
   return (
@@ -53,7 +64,15 @@ export function Skater({
         <ringGeometry args={[0.7, 0.9, 24]} />
         <meshBasicMaterial color="#ffd23c" transparent opacity={0.9} />
       </mesh>
-      <pointLight ref={glow} color={jersey} intensity={0} distance={5} position={[0, 1.2, 0]} />
+      <mesh ref={carrierRing} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]} visible={false}>
+        <ringGeometry args={[0.92, 1.08, 24]} />
+        <meshBasicMaterial color={trim} transparent opacity={0.85} />
+      </mesh>
+      <mesh ref={aura} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]} visible={false}>
+        <ringGeometry args={[1.1, 1.45, 6]} />
+        <meshBasicMaterial color={jersey} transparent opacity={0.6} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </mesh>
+      <pointLight ref={glow} color={jersey} intensity={0} distance={6} position={[0, 1.2, 0]} />
       <group ref={body}>
         <mesh castShadow>
           <capsuleGeometry args={[0.42, 0.7, 6, 12]} />

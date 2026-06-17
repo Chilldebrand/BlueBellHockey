@@ -63,6 +63,7 @@ export function createWorld(roster: RosterEntry[]): WorldState {
     period: 1,
     clock: PERIOD_MS,
     phaseTimer: 0,
+    pauseUntil: 0,
     score: [0, 0],
     skaters,
     puck: {
@@ -168,6 +169,7 @@ function detectGoal(world: WorldState): void {
       if (assist) awardCharge(world.skaters[assist], 'assist');
       world.events.push({ type: 'goal', team, scorer: scorer ?? '', assist });
       resetFaceoff(world);
+      world.pauseUntil = world.time + 1800; // brief celebration before play resumes
       return;
     }
   }
@@ -239,8 +241,9 @@ export function step(
 
   const playing = advancePhase(world, dtMs);
   expireStatuses(world);
+  const paused = world.time < world.pauseUntil; // goal celebration freeze
 
-  if (playing) {
+  if (playing && !paused) {
     // sudden-death overtime ends instantly on a goal
     const otStartScore: [number, number] = [world.score[0], world.score[1]];
 
@@ -276,5 +279,5 @@ export function step(
     }
   }
 
-  tickClock(world, dtMs);
+  if (!paused) tickClock(world, dtMs);
 }

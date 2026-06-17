@@ -1,0 +1,152 @@
+import { useEffect, useMemo, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
+import * as THREE from 'three';
+import { attackingGoalX, getCharacter } from '@bbh/shared';
+import { particles, cameraShake } from './fx.js';
+import { frameStore } from './frameStore.js';
+import { net } from '../net/client.js';
+
+const dummy = new THREE.Object3D();
+const col = new THREE.Color();
+
+function jerseyColor(characterId: string): THREE.Color {
+  try {
+    return new THREE.Color(getCharacter(characterId).jersey);
+  } catch {
+    return new THREE.Color('#ffffff');
+  }
+}
+
+export function Vfx() {
+  const mesh = useRef<THREE.InstancedMesh>(null);
+  const lastPuck = useRef({ x: 0, z: 0 });
+  const sprayAccum = useRef(0);
+
+  const geom = useMemo(() => new THREE.SphereGeometry(0.5, 6, 6), []);
+  const mat = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
+    [],
+  );
+
+  useEffect(() => {
+    const offGoal = net.events.on('goal', (e: { team: number }) => {
+      const gx = attackingGoalX((e.team as 0 | 1) ?? 0);
+      particles.burst(gx, 1, 0, {
+        count: 120,
+        speed: 9,
+        spread: 2.5,
+        up: 4,
+        size: 0.25,
+        life: 1.1,
+        color: new THREE.Color('#ffd23c'),
+        gravity: 6,
+      });
+      cameraShake.add(0.6);
+    });
+    const offHit = net.events.on('hit', (e: { target: string }) => {
+      const t = frameStore.skater(e.target);
+      if (!t) return;
+      particles.burst(t.x, 0.9, t.z, {
+        count: 28,
+        speed: 6,
+        spread: 1.5,
+        up: 1.5,
+        size: 0.18,
+        life: 0.5,
+        color: new THREE.Color('#ffffff'),
+      });
+      cameraShake.add(0.35);
+    });
+    const offUlt = net.events.on('ult', (e: { by: string }) => {
+      const s = frameStore.skater(e.by);
+      if (!s) return;
+      particles.burst(s.x, 1, s.z, {
+        count: 90,
+        speed: 8,
+        spread: 2,
+        up: 3,
+        size: 0.22,
+        life: 0.9,
+        color: jerseyColor(s.characterId),
+        gravity: 4,
+      });
+      cameraShake.add(0.45);
+    });
+    return () => {
+      offGoal();
+      offHit();
+      offUlt();
+    };
+  }, []);
+
+  useFrame((_, dt) => {
+    const m = mesh.current;
+    if (!m) return;
+
+    // continuous emitters: ice spray behind fast skaters
+    sprayAccum.current += dt;
+    if (sprayAccum.current > 0.03) {
+      sprayAccum.current = 0;
+      for (const id of rosterIds()) {
+        const s = frameStore.skater(id);
+        if (!s || s.speed < 6) continue;
+        const bx = s.x - Math.cos(s.facing) * 0.5;
+        const bz = s.z - Math.sin(s.facing) * 0.5;
+        particles.spawnOne(bx, 0.08, bz, {
+          speed: 1.2,
+          spread: 0.6,
+          up: 0.8,
+          size: 0.12,
+          life: 0.35,
+          color: col.set('#dff1ff'),
+          gravity: 3,
+          drag: 3,
+        });
+      }
+    }
+
+    // puck trail
+    const p = frameStore.puck();
+    const pd = Math.hypot(p.x - lastPuck.current.x, p.z - lastPuck.current.z);
+    if (pd > 0.18) {
+      particles.spawnOne(p.x, 0.12, p.z, {
+        speed: 0.2,
+        spread: 0.2,
+        size: 0.1,
+        life: 0.25,
+        color: col.set('#7fc4ff'),
+        gravity: 0,
+        drag: 2,
+      });
+    }
+    lastPuck.current = { x: p.x, z: p.z };
+
+    particles.update(dt);
+
+    // write instances
+    for (let i = 0; i < particles.max; i++) {
+      const pt = particles.pool[i];
+      const t = pt.life > 0 ? pt.life / pt.max : 0;
+      const scale = pt.size * t;
+      dummy.position.set(pt.x, pt.y, pt.z);
+      dummy.scale.setScalar(scale);
+      dummy.updateMatrix();
+      m.setMatrixAt(i, dummy.matrix);
+      m.setColorAt(i, col.setRGB(pt.r * t, pt.g * t, pt.b * t));
+    }
+    m.instanceMatrix.needsUpdate = true;
+    if (m.instanceColor) m.instanceColor.needsUpdate = true;
+  });
+
+  return <instancedMesh ref={mesh} args={[geom, mat, particles.max]} frustumCulled={false} />;
+}
+
+function rosterIds(): string[] {
+  // ids are stable s0..s5,g0,g1 — read live from the frame store via a small probe
+  return ['s0', 's1', 's2', 's3', 's4', 's5', 'g0', 'g1'];
+}

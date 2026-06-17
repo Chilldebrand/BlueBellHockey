@@ -1,4 +1,5 @@
 import { net } from '../net/client.js';
+import { sfx } from '../audio/sfx.js';
 import { useUi } from '../store.js';
 
 export function Lobby() {
@@ -23,7 +24,10 @@ export function Lobby() {
       {status === 'error' && <p style={{ color: '#ff6b6b' }}>Connection failed: {error}</p>}
       <button
         disabled={status === 'connecting'}
-        onClick={() => net.connect()}
+        onClick={() => {
+          sfx.init();
+          net.connect();
+        }}
         style={{
           padding: '14px 44px',
           fontSize: 20,

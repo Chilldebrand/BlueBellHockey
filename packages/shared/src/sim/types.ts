@@ -99,6 +99,7 @@ export interface WorldState {
   period: number; // 1..3 (or 4 for OT)
   clock: number; // ms remaining in current period
   phaseTimer: number; // ms remaining for countdown/intermission/overtime
+  pauseUntil: number; // gameplay/clock frozen until this sim-time (goal celebration)
   score: [number, number];
   skaters: Record<string, SkaterState>;
   puck: PuckState;

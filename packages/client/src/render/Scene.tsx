@@ -7,12 +7,15 @@ import { inputManager } from '../input/inputState.js';
 import { sampleAt, INTERP_DELAY_MS } from '../game/interpolation.js';
 import { predictLocal, applyPrediction } from '../game/prediction.js';
 import { frameStore } from './frameStore.js';
+import { cameraShake } from './fx.js';
 import { Skater } from './Skater.js';
 import { Puck } from './Puck.js';
 import { Rink } from './Rink.js';
+import { Vfx } from './Vfx.js';
 
 const SEND_INTERVAL = 1000 / 30;
 const GROUND = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const shakeOffset = new THREE.Vector3();
 
 function Driver() {
   const { camera, pointer, raycaster } = useThree();
@@ -57,10 +60,12 @@ function Driver() {
       frameStore.set(frame);
     }
 
-    // broadcast camera: side view that drifts with the puck
+    // broadcast camera: side view that drifts with the puck, plus shake impulses
     const px = frameStore.puck().x;
     const camX = THREE.MathUtils.clamp(px * 0.4, -12, 12);
     camera.position.lerp(new THREE.Vector3(camX, 24, -36), Math.min(1, dt * 3));
+    cameraShake.sample(dt, shakeOffset);
+    camera.position.add(shakeOffset);
     camera.lookAt(camX, 0, 2);
   });
 
@@ -92,6 +97,7 @@ export function Scene() {
       {roster.map((r) => (
         <Skater key={r.id} id={r.id} team={r.team} characterId={r.characterId} isLocal={r.id === myId} />
       ))}
+      <Vfx />
       <Driver />
     </Canvas>
   );

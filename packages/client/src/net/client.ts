@@ -30,7 +30,7 @@ export interface Snapshot {
 
 // Low-frequency UI state lives in zustand; the high-frequency snapshot buffer is a
 // plain singleton read directly by the render loop (avoids re-rendering React at 30Hz).
-type GameEvent = 'goal' | 'hit' | 'ult';
+type GameEvent = 'goal' | 'hit' | 'ult' | 'shot';
 
 class EventBus {
   private handlers: Record<string, Array<(e: any) => void>> = {};
@@ -69,6 +69,7 @@ class NetClient {
       room.onMessage('goal', (e: any) => this.events.emit('goal', e));
       room.onMessage('hit', (e: any) => this.events.emit('hit', e));
       room.onMessage('ult', (e: any) => this.events.emit('ult', e));
+      room.onMessage('shot', (e: any) => this.events.emit('shot', e));
 
       room.onStateChange((state: any) => this.onState(state));
       room.onLeave(() => useUi.getState().set({ status: 'idle' }));

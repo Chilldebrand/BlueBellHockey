@@ -156,7 +156,7 @@ export class MatchRoom extends Room<MatchState> {
 
     // forward one-shot events for VFX / SFX
     for (const e of this.world.events) {
-      if (e.type === 'goal' || e.type === 'hit' || e.type === 'ult') {
+      if (e.type === 'goal' || e.type === 'hit' || e.type === 'ult' || e.type === 'shot') {
         this.broadcast(e.type, e);
       }
     }
