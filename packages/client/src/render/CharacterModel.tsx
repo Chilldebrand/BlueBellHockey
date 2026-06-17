@@ -14,10 +14,13 @@ const MODEL_SCALE = 1.15;
 const TEAM_EMISSIVE = ['#3c6bff', '#ff5a3c'];
 
 // Hockey stick mounts on the KayKit `handslot.r` weapon bone (falls back to hand.r).
-// These transforms are in the bone's local space — tune if the stick sits oddly.
+// NOTE: GLTFLoader sanitizes node names and strips the dot, so the loaded bones
+// are actually "handslotr"/"handr"; findBone() matches by a normalized name.
+// The hand bone's local -Y points up in world, so STICK_ROT flips the shaft down
+// (~Math.PI) and tilts it forward so the blade rests on the ice ahead of the skater.
 const STICK_BONE = ['handslot.r', 'hand.r'];
 const STICK_POS = new THREE.Vector3(0, 0, 0);
-const STICK_ROT = new THREE.Euler(Math.PI * 0.15, 0, Math.PI * 0.08);
+const STICK_ROT = new THREE.Euler(Math.PI - 0.5, 0, 0);
 const STICK_SCALE = 1;
 
 // preload every distinct model up front
@@ -47,12 +50,20 @@ function buildStick(): THREE.Group {
   return stick;
 }
 
+// Match bone names ignoring case and the separators GLTFLoader strips ("." etc.),
+// so "handslot.r" resolves to the loaded "handslotr".
+const normName = (s: string) => s.replace(/[._\s]/g, '').toLowerCase();
+function findBone(root: THREE.Object3D, names: string[]): THREE.Object3D | undefined {
+  const want = names.map(normName);
+  let found: THREE.Object3D | undefined;
+  root.traverse((o) => {
+    if (!found && want.includes(normName(o.name))) found = o;
+  });
+  return found;
+}
+
 function attachStick(root: THREE.Object3D): void {
-  let bone: THREE.Object3D | undefined;
-  for (const name of STICK_BONE) {
-    bone = root.getObjectByName(name);
-    if (bone) break;
-  }
+  const bone = findBone(root, STICK_BONE);
   (bone ?? root).add(buildStick());
 }
 
