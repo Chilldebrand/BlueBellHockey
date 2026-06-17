@@ -1,26 +1,26 @@
-// KayKit-style animation clip names with fallbacks, for when GLB models are
-// dropped into public/models/chars/. Used by a future GltfSkater; the procedural
-// skater ignores it.
-export const CLIP_CANDIDATES = {
-  idle: ['Idle', 'idle'],
-  walk: ['Walking_A', 'Walk', 'walk'],
-  run: ['Running_A', 'Run', 'run'],
-  attack: ['1H_Melee_Attack_Chop', '1H_Melee_Attack_Slice_Diagonal', 'Attack'],
-  death: ['Death_A', 'Death'],
+// Maps game state/actions to KayKit animation clip names (present in the GLBs:
+// Idle, Walking_A, Running_A, Death_A, Hit_A, 1H_Melee_Attack_*, 2H_Melee_Attack_*, ...).
+export const CLIPS = {
+  idle: 'Idle',
+  walk: 'Walking_A',
+  run: 'Running_A',
+  stagger: 'Hit_A',
+  shoot: '1H_Melee_Attack_Chop',
+  pass: '1H_Melee_Attack_Slice_Diagonal',
+  hit: '2H_Melee_Attack_Chop',
+  cheer: 'Cheer',
 } as const;
 
-export type ClipKey = keyof typeof CLIP_CANDIDATES;
+export type LocoClip = 'idle' | 'walk' | 'run';
 
-export function resolveClip(available: string[], key: ClipKey): string | null {
-  for (const name of CLIP_CANDIDATES[key]) {
-    if (available.includes(name)) return name;
-  }
-  return available[0] ?? null;
-}
-
-export function clipKeyForSpeed(speed: number, staggered: boolean): ClipKey {
-  if (staggered) return 'death';
+export function locoForSpeed(speed: number): LocoClip {
   if (speed > 7) return 'run';
   if (speed > 0.6) return 'walk';
   return 'idle';
+}
+
+/** First candidate that exists in the model's clip list, else a safe fallback. */
+export function resolve(available: string[], name: string, fallback = 'Idle'): string {
+  if (available.includes(name)) return name;
+  return available.includes(fallback) ? fallback : (available[0] ?? name);
 }

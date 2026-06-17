@@ -57,9 +57,15 @@ charge model (zero-play → 7:30, perfect cadence → ~2:00).
 
 ## Art
 
-Skaters currently render as tinted procedural models so the game runs with **no external
-assets**. To use the KayKit-style rigged GLB models, copy humanoid `.glb` files into
-`packages/client/public/models/chars/` (see `packages/client/src/render/clipMap.ts` for the
-expected animation clip names) and point each character's `glb` field at them.
+Skaters render as **rigged KayKit GLB models** (`packages/client/public/models/chars/*.glb`),
+cloned per-instance with `three-stdlib`'s `SkeletonUtils`, tinted with a team-color emissive,
+and animated from their built-in clips via `CharacterModel.tsx` + `clipMap.ts`
+(`Idle`/`Walking_A`/`Running_A` for skating, `Hit_A` for checks, `1H_Melee_Attack_*` /
+`2H_Melee_Attack_*` one-shots on shoot/hit). Each skater also gets a team-colored ground ring
+for readability, a carrier ring, and an ultimate aura. If a model fails to load, a procedural
+body fallback renders instead (`ModelBoundary`).
 
-Model source & licensing for the upstream GLBs: see `CREDITS.md`.
+Two visual constants in `CharacterModel.tsx` are easy to tune if needed: `MODEL_SCALE` and
+`MODEL_YAW` (set `MODEL_YAW = Math.PI` if a model faces away from its travel direction).
+
+Model source & licensing (CC0 KayKit assets via the upstream repo): see `CREDITS.md`.
