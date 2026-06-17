@@ -13,8 +13,48 @@ const MODEL_YAW = 0;
 const MODEL_SCALE = 1.15;
 const TEAM_EMISSIVE = ['#3c6bff', '#ff5a3c'];
 
+// Hockey stick mounts on the KayKit `handslot.r` weapon bone (falls back to hand.r).
+// These transforms are in the bone's local space — tune if the stick sits oddly.
+const STICK_BONE = ['handslot.r', 'hand.r'];
+const STICK_POS = new THREE.Vector3(0, 0, 0);
+const STICK_ROT = new THREE.Euler(Math.PI * 0.15, 0, Math.PI * 0.08);
+const STICK_SCALE = 1;
+
 // preload every distinct model up front
 for (const glb of new Set(CHARACTERS.map((c) => c.glb))) useGLTF.preload('/' + glb);
+
+/** Build a hockey stick: shaft hanging down from the grip, blade at the bottom. */
+function buildStick(): THREE.Group {
+  const stick = new THREE.Group();
+  const shaftMat = new THREE.MeshStandardMaterial({ color: '#caa46a' });
+  const bladeMat = new THREE.MeshStandardMaterial({ color: '#2a2118' });
+
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 1.05, 8), shaftMat);
+  shaft.position.y = -0.5; // grip near origin, shaft extends down
+  shaft.castShadow = true;
+  stick.add(shaft);
+
+  // toe of the blade kicks forward (+Z) at the bottom of the shaft
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.07, 0.3), bladeMat);
+  blade.position.set(0, -1.0, 0.13);
+  blade.rotation.x = 0.35;
+  blade.castShadow = true;
+  stick.add(blade);
+
+  stick.position.copy(STICK_POS);
+  stick.rotation.copy(STICK_ROT);
+  stick.scale.setScalar(STICK_SCALE);
+  return stick;
+}
+
+function attachStick(root: THREE.Object3D): void {
+  let bone: THREE.Object3D | undefined;
+  for (const name of STICK_BONE) {
+    bone = root.getObjectByName(name);
+    if (bone) break;
+  }
+  (bone ?? root).add(buildStick());
+}
 
 export function CharacterModel({ id, glb, team }: { id: string; glb: string; team: number }) {
   const { scene, animations } = useGLTF('/' + glb);
@@ -37,6 +77,7 @@ export function CharacterModel({ id, glb, team }: { id: string; glb: string; tea
       };
       mesh.material = Array.isArray(src) ? src.map(tint) : tint(src);
     });
+    attachStick(clone);
     return clone;
   }, [scene, team]);
 
