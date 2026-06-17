@@ -30,11 +30,16 @@ export class InputManager {
       mx = gp.moveX;
       mz = gp.moveZ;
     }
+    // The broadcast camera views the ice from the -Z side, which mirrors the X
+    // axis on screen. Invert X so pressing left/right (or tilting the stick)
+    // moves the skater the way the player sees it. Mouse aim is already in world
+    // space from the ice raycast, so it needs no correction here.
+    mx = -mx;
     input.move = { x: mx, z: mz };
 
     // aim: gamepad right stick > mouse > movement direction
     if (gp.connected && (gp.aimX || gp.aimZ)) {
-      input.aim = { x: gp.aimX, z: gp.aimZ };
+      input.aim = { x: -gp.aimX, z: gp.aimZ };
     } else if (this.mouseAim) {
       input.aim = this.mouseAim;
     } else {

@@ -1,5 +1,6 @@
-// Tracks raw keyboard + mouse-button state. World-relative controls (fixed
-// broadcast camera): W=+Z (away), S=-Z, A=-X, D=+X.
+// Tracks raw keyboard + mouse-button state. Raw axes are W=+Z (away), S=-Z,
+// A=-X, D=+X; InputManager.gather() then inverts X to match the broadcast
+// camera (which views the ice from -Z and mirrors X on screen).
 export class KeyboardMouse {
   private keys = new Set<string>();
   private mouseButtons = new Set<number>();
