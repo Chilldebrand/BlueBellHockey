@@ -8,6 +8,8 @@ class Sfx {
   private master: GainNode | null = null;
   private noise: AudioBuffer | null = null;
   private started = false;
+  private baseVolume = 0.5; // 0..1 from the player's control
+  private muted = false;
 
   init(): void {
     if (this.started) return;
@@ -16,7 +18,10 @@ class Sfx {
     if (!Ctor) return;
     this.ctx = new Ctor();
     this.master = this.ctx.createGain();
-    this.master.gain.value = 0.35;
+    // seed from the persisted control, then keep it in sync (see wire()).
+    this.baseVolume = useUi.getState().volume;
+    this.muted = useUi.getState().muted;
+    this.applyGain();
     this.master.connect(this.ctx.destination);
 
     // pre-baked white-noise buffer for impacts / whooshes
@@ -30,6 +35,19 @@ class Sfx {
 
   private now(): number {
     return this.ctx!.currentTime;
+  }
+
+  /** Effective master gain reflects the player's volume + mute. */
+  private applyGain(): void {
+    if (this.master) this.master.gain.value = this.muted ? 0 : this.baseVolume * 0.7;
+  }
+  setVolume(v: number): void {
+    this.baseVolume = Math.max(0, Math.min(1, v));
+    this.applyGain();
+  }
+  setMuted(m: boolean): void {
+    this.muted = m;
+    this.applyGain();
   }
 
   private tone(freq: number, dur: number, type: OscillatorType, gain = 0.5, slideTo?: number): void {
@@ -84,16 +102,39 @@ class Sfx {
     this.tone(880, 0.12, 'sine', 0.3);
     setTimeout(() => this.tone(1320, 0.16, 'sine', 0.3), 110);
   }
+  gamebreaker(): void {
+    [261.6, 329.6, 392, 523.3].forEach((f, i) =>
+      setTimeout(() => this.tone(f, 0.7, 'sawtooth', 0.4), i * 70),
+    );
+    this.burst(0.5, 600, 0.4);
+  }
+  ankleBreak(): void {
+    this.burst(0.12, 1800, 0.6); // sharp snap
+    this.tone(420, 0.22, 'square', 0.4, 120); // descending stumble
+  }
+  bankPlay(): void {
+    this.tone(1320, 0.12, 'sine', 0.35);
+    this.burst(0.1, 900, 0.3);
+  }
+  noLook(): void {
+    this.burst(0.14, 2600, 0.25); // quick swish
+  }
 
   private wire(): void {
     net.events.on('goal', () => this.goalHorn());
+    net.events.on('gamebreaker', () => this.gamebreaker());
     net.events.on('hit', () => this.hit());
     net.events.on('shot', () => this.shot());
     net.events.on('ult', () => this.ult());
+    net.events.on('ankle_break', () => this.ankleBreak());
+    net.events.on('bank_play', () => this.bankPlay());
+    net.events.on('nolook_pass', () => this.noLook());
 
-    // derived cues from match state
+    // derived cues + live mixer from match state
     let prevPhase = useUi.getState().phase;
     let wasReady = false;
+    let prevVol = this.baseVolume;
+    let prevMuted = this.muted;
     useUi.subscribe((st) => {
       if (st.phase !== prevPhase) {
         if (st.phase === 'period') this.whistle();
@@ -102,6 +143,15 @@ class Sfx {
       const ready = st.myUltCharge >= 1;
       if (ready && !wasReady) this.ready();
       wasReady = ready;
+      // reflect the player's mute/volume control
+      if (st.volume !== prevVol) {
+        this.setVolume(st.volume);
+        prevVol = st.volume;
+      }
+      if (st.muted !== prevMuted) {
+        this.setMuted(st.muted);
+        prevMuted = st.muted;
+      }
     });
   }
 }

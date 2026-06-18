@@ -48,6 +48,20 @@ export function Vfx() {
       });
       cameraShake.add(0.6);
     });
+    const offGb = net.events.on('gamebreaker', (e: { team: number }) => {
+      const gx = attackingGoalX((e.team as 0 | 1) ?? 0);
+      particles.burst(gx, 1.2, 0, {
+        count: 220,
+        speed: 13,
+        spread: 3,
+        up: 6,
+        size: 0.3,
+        life: 1.4,
+        color: new THREE.Color('#ffd23c'),
+        gravity: 5,
+      });
+      cameraShake.add(1);
+    });
     const offHit = net.events.on('hit', (e: { target: string }) => {
       const t = frameStore.skater(e.target);
       if (!t) return;
@@ -108,6 +122,7 @@ export function Vfx() {
     });
     return () => {
       offGoal();
+      offGb();
       offHit();
       offAnkle();
       offDeke();

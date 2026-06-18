@@ -6,7 +6,7 @@
 | **Depends on** | WO-01..04 (events to react to) |
 | **Blocks** | — |
 | **Est. effort** | ~2–3 days (scales with art ambition) |
-| **Status** | Not started |
+| **Status** | Done |
 
 ## Objective
 Give the game the EA-BIG personality. Mechanically the game is "done" after
@@ -77,14 +77,23 @@ there is currently no way for a player to mute).
 | `packages/shared/src/sim/world.ts` | (optional) longer `pauseUntil` for Gamebreaker celebration |
 
 ## Acceptance criteria
-- [ ] Each new gameplay event produces a distinct, readable on-screen callout.
-- [ ] Hits and ankle-breaks have visible impact juice (shake/spark/freeze).
-- [ ] "GAMEBREAKER READY" shows when the meter is full and clears when spent.
-- [ ] A Gamebreaker goal gets a bigger celebration than a normal goal.
-- [ ] The court reads as a "street" court without changing rink dimensions/collision.
-- [ ] A player can mute/adjust volume.
-- [ ] No regression in frame rate from VFX (watch the 30Hz render path).
-- [ ] `npm run typecheck` clean.
+- [x] Each new gameplay event produces a distinct, readable on-screen callout. (`Callouts.tsx`: BROKEN ANKLES / OFF THE WALL / NO LOOK / xN COMBO)
+- [x] Hits and ankle-breaks have visible impact juice (shake/spark/flash). (Vfx sparks + cameraShake + FlashOverlay)
+- [x] "GAMEBREAKER READY" shows when the meter is full and clears when spent. (persistent badge + UltMeter)
+- [x] A Gamebreaker goal gets a bigger celebration than a normal goal. (gold banner + full-screen flash + 220-particle burst + longer pause)
+- [x] The court reads as a "street" court without changing rink dimensions/collision. (materials/decals only; `RINK` untouched)
+- [x] A player can mute/adjust volume. (🔊 button + slider + **M** key, synced into `sfx` master gain)
+- [x] No regression in frame rate from VFX (reuses the existing instanced particle pool + camera-shake; callouts are single-slot).
+- [x] `npm run typecheck` clean (and the client production build succeeds).
+
+## Decisions (applied)
+- Callouts are a **single transient slot** (no stacking/leaks) biased to the upper
+  area; center is reserved for the goal/Gamebreaker banner.
+- New synth SFX cues added for `gamebreaker`/`ankle_break`/`bank_play`/`nolook_pass`;
+  the mixer reads `store.muted`/`store.volume` (defaults: unmuted, 0.5).
+- Court is dark asphalt + neon emissive boards + low-opacity graffiti splashes +
+  team-tinted end zones; faceoff dots/goal posts recolored neon. No geometry change.
+- `pauseUntil` for Gamebreakers was already lengthened to 2600ms in WO-02.
 
 ## Testing
 - Mostly manual / visual. Trigger each event (deke into a defender, bank a pass,

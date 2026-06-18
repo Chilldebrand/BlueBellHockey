@@ -27,6 +27,9 @@ export interface UiState {
   myCombo: number;
   myComboUntil: number;
   serverTime: number;
+  // audio controls (WO-05)
+  muted: boolean;
+  volume: number; // 0..1
   set: (patch: Partial<UiState>) => void;
 }
 
@@ -47,6 +50,8 @@ export const useUi = create<UiState>((set) => ({
   myUltActiveUntil: 0,
   myCombo: 0,
   myComboUntil: 0,
+  muted: false,
+  volume: 0.5,
   serverTime: 0,
   set: (patch) => set(patch),
 }));
