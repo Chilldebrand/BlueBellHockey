@@ -8,6 +8,13 @@ export function UltMeter() {
   const ready = myUltCharge >= 1;
   const active = myUltActiveUntil > serverTime;
   const pct = Math.round(myUltCharge * 100);
+  const ultName = (ult ? ult.name : 'Gamebreaker').toUpperCase();
+
+  const label = active
+    ? `${ultName} — ACTIVE`
+    : ready
+      ? 'GAMEBREAKER READY (Space)'
+      : `STYLE  ${pct}%`;
 
   return (
     <div
@@ -20,15 +27,25 @@ export function UltMeter() {
         textAlign: 'center',
       }}
     >
-      <div style={{ fontSize: 13, marginBottom: 4, opacity: 0.85 }}>
-        {ult ? ult.name : 'Ultimate'} {active ? '— ACTIVE' : ready ? '— READY (Space)' : `${pct}%`}
+      <div
+        style={{
+          fontSize: 13,
+          marginBottom: 4,
+          letterSpacing: ready ? 2 : 0.5,
+          fontWeight: ready ? 900 : 700,
+          color: ready ? '#ffd23c' : '#dfe6ff',
+          textShadow: ready ? '0 0 14px rgba(255,210,60,0.8)' : 'none',
+          animation: ready && !active ? 'bbhReady 0.9s ease-in-out infinite' : 'none',
+        }}
+      >
+        {label}
       </div>
       <div
         style={{
           height: 14,
           borderRadius: 8,
           background: '#1a2244',
-          border: '1px solid #2a3566',
+          border: `1px solid ${ready ? '#ffd23c' : '#2a3566'}`,
           overflow: 'hidden',
         }}
       >
@@ -42,6 +59,12 @@ export function UltMeter() {
           }}
         />
       </div>
+      {!ready && !active && (
+        <div style={{ fontSize: 10, opacity: 0.55, marginTop: 3 }}>
+          GAMEBREAKER: {ultName} — play with flair to charge
+        </div>
+      )}
+      <style>{`@keyframes bbhReady{0%,100%{opacity:1}50%{opacity:0.55}}`}</style>
     </div>
   );
 }

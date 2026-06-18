@@ -7,7 +7,7 @@
 | **Blocks** | WO-02, WO-03 (feed the meter), WO-04 |
 | **Est. effort** | ~0.5–1 day |
 | **Risk** | Low–Med — reuses existing economy; touches charge tests |
-| **Status** | Not started |
+| **Status** | Done |
 
 ## Objective
 Reframe the ultimate-charge economy so the meter fills from **style** (flashy,
@@ -73,12 +73,20 @@ don't exist yet (WO-03/04 will call `awardCharge` with new keys). Wiring the
 No schema or network change (the field already syncs as `ultCharge`).
 
 ## Acceptance criteria
-- [ ] A player who only skates and takes safe shots charges the meter slowly.
-- [ ] A player who hits, steals, and (later) dekes charges noticeably faster.
-- [ ] Meter still reaches full in a reasonable window with aggressive play (target ~1:30–2:30 of active play).
-- [ ] A totally passive player still eventually charges (no permanent zero).
-- [ ] UI reads "STYLE"/"GAMEBREAKER", and shows a "ready" state at full.
-- [ ] `charge.test.ts` updated and green; `npm run typecheck` clean.
+- [x] A player who only skates and takes safe shots charges the meter slowly. (test: safe play not full in 2:00)
+- [x] A player who hits, steals, and (later) dekes charges noticeably faster. (test: aggressive shift fills in ~2:00)
+- [x] Meter still reaches full in a reasonable window with aggressive play (target ~1:30–2:30 of active play).
+- [x] A totally passive player still eventually charges (no permanent zero). (passive floor 9:00, fills by ~end of regulation)
+- [x] UI reads "STYLE"/"GAMEBREAKER", and shows a pulsing "GAMEBREAKER READY" state at full.
+- [x] `charge.test.ts` updated and green; `npm run typecheck` clean.
+
+## Chosen values (applied)
+- `fullChargeFloorMs` 450000 (7:30) → **540000 (9:00)** passive floor.
+- awards: `goal .20→.14, steal .10→.12, hit .08→.10, block .10→.12, shot .05→.03, pass .03→.02`; `assist .12` kept.
+- dormant style keys added: `deke .06, ankle_break .10, bank_play .06, nolook_pass .05`.
+- Passive gating "only on offense" was **not** taken (would require threading world
+  possession into `tickCharge`); the raised floor achieves the same "earned" feel
+  with less plumbing.
 
 ## Testing
 - Update `charge.test.ts`: the "perfect cadence → ~2:00" and "zero play → floor"
