@@ -57,12 +57,12 @@ export function syncState(state: MatchState, world: WorldState): void {
     if (!row) {
       row = new SkaterSchema();
       row.id = s.id;
-      row.team = s.team;
-      row.characterId = s.characterId;
-      row.isBot = s.isBot;
-      row.isGoalie = s.isGoalie;
       state.skaters.set(s.id, row);
     }
+    row.team = s.team;
+    row.characterId = s.characterId;
+    row.isBot = s.isBot;
+    row.isGoalie = s.isGoalie;
     row.px = s.pos.x;
     row.pz = s.pos.z;
     row.vx = s.vel.x;

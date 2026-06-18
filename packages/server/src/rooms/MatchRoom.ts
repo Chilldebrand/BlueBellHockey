@@ -13,6 +13,7 @@ import {
   type WorldState,
 } from '@bbh/shared';
 import { MatchState, syncState } from './state.js';
+import { sanitizeClientInput, sanitizeInputSeq } from './input.js';
 import { botInput } from '../ai/bot.js';
 import { goalieInput } from '../ai/goalie.js';
 import type {
@@ -59,8 +60,8 @@ export class MatchRoom extends Room<MatchState> {
     this.onMessage<InputMessage>(MSG.INPUT, (client, msg) => {
       const skaterId = this.sessionToSkater.get(client.sessionId);
       if (!skaterId) return;
-      this.inputs[skaterId] = msg.input;
-      this.lastSeq[skaterId] = msg.seq;
+      this.inputs[skaterId] = sanitizeClientInput(msg.input);
+      this.lastSeq[skaterId] = sanitizeInputSeq(msg.seq);
     });
 
     this.onMessage<SelectCharacterMessage>(MSG.SELECT_CHARACTER, (client, msg) => {
