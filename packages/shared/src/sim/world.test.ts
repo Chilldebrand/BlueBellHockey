@@ -6,9 +6,9 @@ import {
   step,
   type RosterEntry,
 } from './world.js';
-import { doDeke, doHit } from './actions.js';
+import { doDeke, doHit, doPass } from './actions.js';
 import { carryAnchor, DEKE_MS, STICK_REACH } from './puck.js';
-import { neutralInput, type InputState, type WorldState } from './types.js';
+import { emptyActions, neutralInput, type InputState, type WorldState } from './types.js';
 import { attackingGoalX } from '../config/rink.js';
 import { v } from './physics.js';
 
@@ -266,5 +266,105 @@ describe('deke / trick system (WO-03)', () => {
     expect(w1.skaters.a.status.dekeDirX).toBe(w2.skaters.a.status.dekeDirX);
     expect(w1.skaters.a.status.dekeDirZ).toBe(w2.skaters.a.status.dekeDirZ);
     expect(w1.events.map((e) => e.type)).toEqual(w2.events.map((e) => e.type));
+  });
+});
+
+describe('combo multiplier integration (WO-04)', () => {
+  function trio(): RosterEntry[] {
+    return [
+      { id: 'a', team: 0, characterId: 'maestro', isBot: false, isGoalie: false }, // passer
+      { id: 'c', team: 0, characterId: 'blaze', isBot: false, isGoalie: false }, // teammate
+      { id: 'b', team: 1, characterId: 'tank', isBot: false, isGoalie: false },
+    ];
+  }
+
+  it('getting checked zeroes the carrier combo', () => {
+    const w = createWorld([
+      { id: 'a', team: 0, characterId: 'trickster', isBot: false, isGoalie: false },
+      { id: 'b', team: 1, characterId: 'tank', isBot: false, isGoalie: false },
+    ]);
+    w.phase = 'period';
+    const a = w.skaters.a;
+    const b = w.skaters.b;
+    a.pos = { x: 0, z: 0 };
+    a.facing = 0;
+    b.pos = { x: 1.4, z: 0 };
+    b.facing = Math.PI; // facing -X, toward a
+    a.combo = 5;
+    a.comboUntil = w.time + 10000;
+    w.puck.carrier = 'a';
+    w.puck.pickupCooldownUntil = w.time + 10000;
+    const hitInput: InputState = { ...neutralInput(), actions: { ...emptyActions(), hit: true } };
+    step(w, { a: neutralInput(), b: hitInput }, DT);
+    expect(a.combo).toBe(0);
+  });
+
+  it('a completed pass to a teammate does not reset the passer combo', () => {
+    const w = createWorld(trio());
+    w.phase = 'period';
+    const a = w.skaters.a;
+    a.pos = { x: 0, z: 0 };
+    a.facing = 0; // facing +X
+    w.skaters.c.pos = { x: 4, z: 0 }; // teammate ahead
+    w.skaters.b.pos = { x: -20, z: 10 };
+    a.combo = 3;
+    a.comboUntil = w.time + 10000;
+    w.puck.carrier = 'a';
+    doPass(w, a, { ...neutralInput(), aim: { x: 1, z: 0 } });
+    expect(a.combo).toBe(3); // a voluntary pass is not a turnover
+  });
+
+  it('a pass to a teammate behind the passer registers nolook_pass; ahead does not', () => {
+    const behind = createWorld(trio());
+    behind.phase = 'period';
+    behind.skaters.a.pos = { x: 0, z: 0 };
+    behind.skaters.a.facing = 0; // facing +X
+    behind.skaters.c.pos = { x: -4, z: 0 }; // teammate behind (-X)
+    behind.skaters.b.pos = { x: -20, z: 10 };
+    behind.puck.carrier = 'a';
+    doPass(behind, behind.skaters.a, { ...neutralInput(), aim: { x: -1, z: 0 } });
+    expect(behind.events.some((e) => e.type === 'nolook_pass')).toBe(true);
+
+    const ahead = createWorld(trio());
+    ahead.phase = 'period';
+    ahead.skaters.a.pos = { x: 0, z: 0 };
+    ahead.skaters.a.facing = 0;
+    ahead.skaters.c.pos = { x: 4, z: 0 }; // teammate ahead
+    ahead.skaters.b.pos = { x: -20, z: 10 };
+    ahead.puck.carrier = 'a';
+    doPass(ahead, ahead.skaters.a, { ...neutralInput(), aim: { x: 1, z: 0 } });
+    expect(ahead.events.some((e) => e.type === 'nolook_pass')).toBe(false);
+  });
+
+  it('a puck banked off the boards back to the same team awards bank_play once', () => {
+    const w = createWorld(roster()); // a team0, b team1
+    w.phase = 'period';
+    w.skaters.b.pos = { x: -20, z: -10 }; // keep the opponent out of it
+    const a = w.skaters.a;
+    a.pos = { x: 0, z: 14 }; // sits in the rebound lane
+    a.vel = { x: 0, z: 0 };
+    w.puck.carrier = null;
+    w.puck.lastTouch = 'a';
+    w.puck.pos = { x: 0, z: 17 };
+    w.puck.vel = { x: 0, z: 30 }; // rocketing into the +Z board
+    w.puck.pickupCooldownUntil = 0;
+    let banks = 0;
+    for (let i = 0; i < 60; i++) {
+      step(w, {}, DT);
+      banks += w.events.filter((e) => e.type === 'bank_play').length;
+      if (w.puck.carrier === 'a') break;
+    }
+    expect(w.puck.carrier).toBe('a');
+    expect(banks).toBe(1); // exactly once, not every frame
+  });
+
+  it('an idle combo expires after its window', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const a = w.skaters.a;
+    a.combo = 3;
+    a.comboUntil = w.time + 50; // expires almost immediately
+    for (let i = 0; i < 5; i++) step(w, {}, DT);
+    expect(a.combo).toBe(0);
   });
 });

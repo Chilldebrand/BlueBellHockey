@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { CHARGE, awardCharge, tickCharge } from './charge.js';
+import {
+  CHARGE,
+  COMBO,
+  awardCharge,
+  awardStyle,
+  breakCombo,
+  comboMultiplier,
+  tickCharge,
+} from './charge.js';
 import { emptyActions, emptyStatus, type SkaterState } from '../sim/types.js';
 
 function skater(): SkaterState {
@@ -15,6 +23,8 @@ function skater(): SkaterState {
     status: emptyStatus(),
     ultCharge: 0,
     ultActiveUntil: 0,
+    combo: 0,
+    comboUntil: 0,
     lastActions: emptyActions(),
   };
 }
@@ -97,5 +107,38 @@ describe('style / gamebreaker charge', () => {
     const before = s.ultCharge;
     awardCharge(s, 'not_a_real_event');
     expect(s.ultCharge).toBe(before);
+  });
+});
+
+describe('combo multiplier (WO-04)', () => {
+  it('awardStyle multiplies the base award by the current combo multiplier and advances', () => {
+    const s = skater();
+    s.combo = 4; // multiplier from the chain so far = 1 + 4*0.25 = 2.0
+    awardStyle(s, 'hit', 1000);
+    expect(s.ultCharge).toBeCloseTo(CHARGE.awards.hit * comboMultiplier(4), 6);
+    expect(s.combo).toBe(5); // advanced one link
+    expect(s.comboUntil).toBe(1000 + COMBO.windowMs); // window refreshed
+  });
+
+  it('the multiplier is capped', () => {
+    expect(comboMultiplier(1000)).toBe(comboMultiplier(COMBO.cap));
+    expect(comboMultiplier(0)).toBe(1);
+  });
+
+  it('plain shot/pass charge does not advance the combo', () => {
+    const s = skater();
+    awardCharge(s, 'shot');
+    awardCharge(s, 'pass');
+    expect(s.combo).toBe(0);
+    expect(s.ultCharge).toBeGreaterThan(0); // but still gave base charge
+  });
+
+  it('breakCombo zeroes the chain', () => {
+    const s = skater();
+    s.combo = 5;
+    s.comboUntil = 9999;
+    breakCombo(s);
+    expect(s.combo).toBe(0);
+    expect(s.comboUntil).toBe(0);
   });
 });

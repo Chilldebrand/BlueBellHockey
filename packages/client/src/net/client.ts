@@ -15,6 +15,8 @@ export interface SkaterSnap {
   facing: number;
   ultCharge: number;
   ultActiveUntil: number;
+  combo: number;
+  comboUntil: number;
   frozenUntil: number;
   staggeredUntil: number;
   intangibleUntil: number;
@@ -33,7 +35,16 @@ export interface Snapshot {
 
 // Low-frequency UI state lives in zustand; the high-frequency snapshot buffer is a
 // plain singleton read directly by the render loop (avoids re-rendering React at 30Hz).
-type GameEvent = 'goal' | 'gamebreaker' | 'hit' | 'ult' | 'shot' | 'deke' | 'ankle_break';
+type GameEvent =
+  | 'goal'
+  | 'gamebreaker'
+  | 'hit'
+  | 'ult'
+  | 'shot'
+  | 'deke'
+  | 'ankle_break'
+  | 'bank_play'
+  | 'nolook_pass';
 
 class EventBus {
   private handlers: Record<string, Array<(e: any) => void>> = {};
@@ -76,6 +87,8 @@ class NetClient {
       room.onMessage('shot', (e: any) => this.events.emit('shot', e));
       room.onMessage('deke', (e: any) => this.events.emit('deke', e));
       room.onMessage('ankle_break', (e: any) => this.events.emit('ankle_break', e));
+      room.onMessage('bank_play', (e: any) => this.events.emit('bank_play', e));
+      room.onMessage('nolook_pass', (e: any) => this.events.emit('nolook_pass', e));
 
       room.onStateChange((state: any) => this.onState(state));
       room.onLeave(() => useUi.getState().set({ status: 'idle' }));
@@ -101,6 +114,8 @@ class NetClient {
         facing: s.facing,
         ultCharge: s.ultCharge,
         ultActiveUntil: s.ultActiveUntil,
+        combo: s.combo,
+        comboUntil: s.comboUntil,
         frozenUntil: s.frozenUntil,
         staggeredUntil: s.staggeredUntil,
         intangibleUntil: s.intangibleUntil,
@@ -147,6 +162,8 @@ class NetClient {
       serverTime: state.time,
       myUltCharge: mine?.ultCharge ?? 0,
       myUltActiveUntil: mine?.ultActiveUntil ?? 0,
+      myCombo: mine?.combo ?? 0,
+      myComboUntil: mine?.comboUntil ?? 0,
     });
   }
 

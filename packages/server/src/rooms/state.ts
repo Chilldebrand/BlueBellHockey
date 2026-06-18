@@ -14,6 +14,8 @@ export class SkaterSchema extends Schema {
   @type('float32') facing = 0;
   @type('float32') ultCharge = 0;
   @type('float32') ultActiveUntil = 0;
+  @type('uint8') combo = 0;
+  @type('float32') comboUntil = 0;
   @type('uint32') ackSeq = 0;
   @type('float32') frozenUntil = 0;
   @type('float32') staggeredUntil = 0;
@@ -75,6 +77,8 @@ export function syncState(state: MatchState, world: WorldState): void {
     row.facing = s.facing;
     row.ultCharge = s.ultCharge;
     row.ultActiveUntil = s.ultActiveUntil;
+    row.combo = Math.min(255, s.combo);
+    row.comboUntil = s.comboUntil;
     row.frozenUntil = s.status.frozenUntil;
     row.staggeredUntil = s.status.staggeredUntil;
     row.intangibleUntil = s.status.intangibleUntil;

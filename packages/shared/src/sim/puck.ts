@@ -1,3 +1,4 @@
+import { awardStyle, breakCombo } from '../config/charge.js';
 import { PUCK_RADIUS, RINK, SKATER_RADIUS } from '../config/rink.js';
 import { v, containCircle } from './physics.js';
 import { isDisabled } from './skater.js';
@@ -7,6 +8,8 @@ import type { SkaterState, SkaterStatus, Vec2, WorldState } from './types.js';
 const PUCK_FRICTION = 0.82; // per second velocity retention factor base
 export const STICK_REACH = SKATER_RADIUS + 0.45;
 const PICKUP_RANGE = SKATER_RADIUS + 0.7;
+// Bank-play (WO-04): how long after a board bounce a same-team pickup still counts.
+const BANK_VALID_MS = 4000;
 
 // Deke / trick (WO-03): how long the lateral carry offset lasts and how far it
 // bends. The offset eases out and back over the window so the puck "dangles".
@@ -96,16 +99,37 @@ export function stepPuck(world: WorldState, dt: number): void {
   puck.vel.z *= f;
   puck.pos.x += puck.vel.x * dt;
   puck.pos.z += puck.vel.z * dt;
-  containCircle(puck.pos, puck.vel, PUCK_RADIUS, 0.7);
+  const banked = containCircle(puck.pos, puck.vel, PUCK_RADIUS, 0.7);
+  // Mark a board bounce so a later same-team pickup reads as an "off the wall" play.
+  // Re-marking on each bounce keeps it to one award per rally (consumed at pickup).
+  if (banked && puck.lastTouch) {
+    puck.bankedBy = puck.lastTouch;
+    puck.bankedAt = world.time;
+  }
 
   // auto-pickup
   if (world.time >= puck.pickupCooldownUntil) {
     const grabber = nearestSkater(world);
     if (grabber) {
+      const prevId = puck.lastTouch;
+      const prev = prevId ? world.skaters[prevId] : null;
+      // Opponent takeaway: whoever last carried the puck loses their combo.
+      if (prev && prevId !== grabber.id && prev.team !== grabber.team) breakCombo(prev);
+      // Bank-play: a fresh bounce that comes back to the same team scores once.
+      if (
+        puck.bankedBy &&
+        world.time - puck.bankedAt <= BANK_VALID_MS &&
+        world.skaters[puck.bankedBy]?.team === grabber.team
+      ) {
+        world.events.push({ type: 'bank_play', by: grabber.id });
+        awardStyle(grabber, 'bank_play', world.time);
+      }
+      puck.bankedBy = null;
+      puck.bankedAt = 0;
+
       puck.carrier = grabber.id;
-      if (puck.lastTouch && puck.lastTouch !== grabber.id) {
-        const prev = world.skaters[puck.lastTouch];
-        if (prev && prev.team === grabber.team) puck.assistTouch = puck.lastTouch;
+      if (prevId && prevId !== grabber.id) {
+        if (prev && prev.team === grabber.team) puck.assistTouch = prevId;
         else puck.assistTouch = null;
       }
       puck.lastTouch = grabber.id;

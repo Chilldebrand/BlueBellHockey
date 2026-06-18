@@ -1,4 +1,4 @@
-import { awardCharge } from '../config/charge.js';
+import { awardCharge, awardStyle, breakCombo } from '../config/charge.js';
 import { getCharacter } from '../config/characters.js';
 import { attackingGoalX, SKATER_RADIUS } from '../config/rink.js';
 import { getUltimate } from '../config/ultimates.js';
@@ -95,6 +95,12 @@ export function doPass(world: WorldState, s: SkaterState, input: InputState): vo
 
   emit(world, { type: 'pass', from: s.id, to: best.id });
   awardCharge(s, 'pass');
+  // No-look (WO-04): feeding a teammate behind where you're facing is style.
+  const toTarget = v.norm(v.sub(best.pos, s.pos));
+  if (v.dot(toTarget, v.fromAngle(s.facing)) < -0.1) {
+    emit(world, { type: 'nolook_pass', from: s.id, to: best.id });
+    awardStyle(s, 'nolook_pass', world.time);
+  }
 }
 
 export function doHit(world: WorldState, s: SkaterState, input: InputState): void {
@@ -125,8 +131,9 @@ export function doHit(world: WorldState, s: SkaterState, input: InputState): voi
     world.puck.vel = v.add(world.puck.vel, knock);
     world.puck.pickupCooldownUntil = world.time + 150;
   }
+  breakCombo(target); // the checked skater loses their chain
   emit(world, { type: 'hit', by: s.id, target: target.id });
-  awardCharge(s, 'hit');
+  awardStyle(s, 'hit', world.time);
 }
 
 export function doSteal(world: WorldState, s: SkaterState): void {
@@ -144,8 +151,9 @@ export function doSteal(world: WorldState, s: SkaterState): void {
   puck.carrier = s.id;
   puck.lastTouch = s.id;
   puck.assistTouch = null;
+  breakCombo(carrier); // stripped: the victim loses their chain
   emit(world, { type: 'steal', by: s.id, from: carrier.id });
-  awardCharge(s, 'steal');
+  awardStyle(s, 'steal', world.time);
 }
 
 /**
@@ -191,14 +199,15 @@ export function doDeke(world: WorldState, s: SkaterState, input: InputState): vo
   }
   if (victim && handles + 1 >= effectiveAttr(victim, 'steal')) {
     victim.status.staggeredUntil = world.time + ANKLE_BREAK_MS;
+    breakCombo(victim); // broken ankles end their chain
     if (puck.carrier === victim.id) puck.carrier = s.id; // shouldn't happen, but stay consistent
     emit(world, { type: 'ankle_break', by: s.id, target: victim.id });
-    awardCharge(s, 'ankle_break');
+    awardStyle(s, 'ankle_break', world.time);
     return;
   }
   // Clean deke / whiff: still a dangle, smaller style reward.
   emit(world, { type: 'deke', by: s.id });
-  awardCharge(s, 'deke');
+  awardStyle(s, 'deke', world.time);
 }
 
 export function doUlt(world: WorldState, s: SkaterState): void {

@@ -34,7 +34,7 @@ export function containCircle(
   vel: Vec2,
   radius: number,
   restitution: number,
-): void {
+): boolean {
   const r = RINK.cornerRadius;
   const hx = RINK.halfLength - r;
   const hz = RINK.halfWidth - r;
@@ -42,7 +42,7 @@ export function containCircle(
   const off = { x: pos.x - c.x, z: pos.z - c.z };
   const d = Math.hypot(off.x, off.z);
   const maxD = r - radius;
-  if (d <= maxD) return;
+  if (d <= maxD) return false;
   const n = d > 1e-6 ? { x: off.x / d, z: off.z / d } : { x: 1, z: 0 };
   // push back to boundary
   pos.x = c.x + n.x * maxD;
@@ -52,7 +52,9 @@ export function containCircle(
   if (vn > 0) {
     vel.x -= (1 + restitution) * vn * n.x;
     vel.z -= (1 + restitution) * vn * n.z;
+    return true; // a real board bounce (velocity was reflected)
   }
+  return false;
 }
 
 /** Resolve overlap between two circles by pushing them apart equally. */

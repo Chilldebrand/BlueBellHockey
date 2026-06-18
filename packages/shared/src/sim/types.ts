@@ -52,6 +52,8 @@ export interface SkaterState {
   status: SkaterStatus;
   ultCharge: number; // 0..1
   ultActiveUntil: number; // absolute sim-time ms; 0 if inactive
+  combo: number; // current style-chain count (0 = no combo) — WO-04
+  comboUntil: number; // sim-time the combo expires without a new style move
   /** previous-frame button states, for rising-edge detection (kept in state for determinism) */
   lastActions: ActionFlags;
 }
@@ -63,6 +65,10 @@ export interface PuckState {
   pickupCooldownUntil: number; // skater that just released can't instantly re-grab
   lastTouch: string | null; // for assist tracking
   assistTouch: string | null;
+  // Bank-play marker (WO-04): set when a loose puck reflects off the boards, then
+  // consumed on a same-team pickup to award one "off the wall" style event.
+  bankedBy: string | null;
+  bankedAt: number;
 }
 
 export interface ActionFlags {
@@ -98,6 +104,8 @@ export type SimEvent =
   | { type: 'block'; by: string }
   | { type: 'deke'; by: string }
   | { type: 'ankle_break'; by: string; target: string }
+  | { type: 'bank_play'; by: string }
+  | { type: 'nolook_pass'; from: string; to: string }
   | { type: 'ult'; by: string; ultimateId: string }
   | { type: 'faceoff' }
   | { type: 'period'; period: number }

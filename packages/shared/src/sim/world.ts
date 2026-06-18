@@ -4,7 +4,8 @@ import {
   OVERTIME_MS,
   PERIOD_MS,
   PERIODS,
-  awardCharge,
+  awardStyle,
+  breakCombo,
   tickCharge,
 } from '../config/charge.js';
 import { PUCK_RADIUS, RINK, SKATER_RADIUS, attackingGoalX } from '../config/rink.js';
@@ -54,6 +55,8 @@ export function createWorld(roster: RosterEntry[]): WorldState {
       status: emptyStatus(),
       ultCharge: 0,
       ultActiveUntil: 0,
+      combo: 0,
+      comboUntil: 0,
       lastActions: emptyActions(),
     };
   }
@@ -73,6 +76,8 @@ export function createWorld(roster: RosterEntry[]): WorldState {
       pickupCooldownUntil: 0,
       lastTouch: null,
       assistTouch: null,
+      bankedBy: null,
+      bankedAt: 0,
     },
     events: [],
   };
@@ -86,6 +91,8 @@ export function resetFaceoff(world: WorldState): void {
     s.pos = startPositions(s.team, idx, s.isGoalie);
     s.vel = { x: 0, z: 0 };
     s.facing = s.team === 0 ? 0 : Math.PI;
+    s.combo = 0; // possession resets at a faceoff
+    s.comboUntil = 0;
   }
   world.puck.pos = { ...RINK.centerFaceoff };
   world.puck.vel = { x: 0, z: 0 };
@@ -93,6 +100,8 @@ export function resetFaceoff(world: WorldState): void {
   world.puck.pickupCooldownUntil = world.time + 500;
   world.puck.lastTouch = null;
   world.puck.assistTouch = null;
+  world.puck.bankedBy = null;
+  world.puck.bankedAt = 0;
 }
 
 /** Begin the pre-match (or post-intermission) countdown. */
@@ -121,6 +130,11 @@ function expireStatuses(world: WorldState): void {
     }
     if (s.ultActiveUntil && world.time >= s.ultActiveUntil) {
       s.ultActiveUntil = 0;
+    }
+    // combo lapses if no style move landed within the window (WO-04)
+    if (s.comboUntil && world.time >= s.comboUntil) {
+      s.combo = 0;
+      s.comboUntil = 0;
     }
   }
 }
@@ -183,8 +197,8 @@ function detectGoal(world: WorldState): void {
       if (gb && GAMEBREAKER_STEALS_POINT) {
         world.score[opp] = Math.max(0, world.score[opp] - 1);
       }
-      if (scorer) awardCharge(world.skaters[scorer], 'goal');
-      if (assist) awardCharge(world.skaters[assist], 'assist');
+      if (scorer) awardStyle(world.skaters[scorer], 'goal', world.time);
+      if (assist) awardStyle(world.skaters[assist], 'assist', world.time);
       world.events.push({ type: 'goal', team, scorer: scorer ?? '', assist });
       if (gb) world.events.push({ type: 'gamebreaker', team, scorer: scorer ?? '', value });
       resetFaceoff(world);
@@ -287,6 +301,12 @@ export function step(
     collide(world);
     stepPuck(world, dt);
     detectGoal(world);
+
+    // A turnover kills the combo: anyone checked, frozen, or staggered this frame
+    // loses their chain (steals/takeaways reset the victim where they happen).
+    for (const s of Object.values(world.skaters)) {
+      if (isDisabled(s, world.time)) breakCombo(s);
+    }
 
     for (const s of Object.values(world.skaters)) tickCharge(s, dtMs);
 

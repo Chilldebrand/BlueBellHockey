@@ -7,7 +7,7 @@
 | **Blocks** | — |
 | **Est. effort** | ~1–2 days |
 | **Risk** | Med — new synced per-skater state + turnover bookkeeping |
-| **Status** | Not started |
+| **Status** | Done |
 
 ## Objective
 Reward *stringing* style moves together. Chaining tricks, dekes, no-look passes,
@@ -86,13 +86,26 @@ turnover.
 | `packages/server/src/rooms/MatchRoom.ts` | broadcast `bank_play`, `nolook_pass` |
 
 ## Acceptance criteria
-- [ ] Chaining dekes/steals/hits raises a visible multiplier; meter fills faster as it climbs.
-- [ ] The multiplier expires if you stop doing style moves for the window.
-- [ ] Getting hit, frozen, or stripped resets the combo to zero immediately.
-- [ ] A voluntary completed pass to a teammate does **not** reset the combo.
-- [ ] A puck banked off the boards back to your team awards `bank_play` once (not every frame).
-- [ ] A pass to a teammate behind you registers `nolook_pass`.
-- [ ] `npm test` + `npm run typecheck` clean.
+- [x] Chaining dekes/steals/hits raises a visible multiplier; meter fills faster as it climbs.
+- [x] The multiplier expires if you stop doing style moves for the window. (`comboUntil`, 3.5s; tested)
+- [x] Getting hit, frozen, or stripped resets the combo to zero immediately. (disabled-pass + explicit resets; tested)
+- [x] A voluntary completed pass to a teammate does **not** reset the combo. (tested)
+- [x] A puck banked off the boards back to your team awards `bank_play` once (not every frame). (marker consumed at pickup; tested)
+- [x] A pass to a teammate behind you registers `nolook_pass`. (tested behind/ahead)
+- [x] `npm test` + `npm run typecheck` clean.
+
+## Decisions (applied)
+- `COMBO`: `windowMs 3500`, `step 0.25`, `cap 6` → up to **2.5×**; raw count capped at 99 (uint8-safe).
+- **Single award path:** every style event routes through `awardStyle(s, type, time)`
+  (goal, assist, hit, steal, deke, ankle_break, bank_play, nolook_pass); only plain
+  `shot`/`pass` keep `awardCharge` (base charge, no combo). Multiplier applied once.
+- **Turnover resets:** a disabled-skater pass in `step()` zeroes combo for anyone
+  checked/frozen/staggered; `doSteal`/`doHit`/ankle-break also reset their victim;
+  `puck.ts` zeroes the previous carrier's combo on an opponent takeaway.
+- **Bank-play:** `containCircle` now returns whether it reflected; a bounce marks
+  `puck.bankedBy/bankedAt`, consumed once on a same-team pickup within 4s.
+- Combos also reset at every faceoff (possession resets). HUD shows a live
+  `2.50× · N COMBO 🔥` badge that pops and vanishes on a break.
 
 ## Testing (`sim/world.test.ts` + `charge.test.ts`)
 - `awardStyle` with combo N multiplies the base award by the expected factor (capped).

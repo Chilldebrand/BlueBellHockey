@@ -24,6 +24,8 @@ export interface UiState {
   score1: number;
   myUltCharge: number;
   myUltActiveUntil: number;
+  myCombo: number;
+  myComboUntil: number;
   serverTime: number;
   set: (patch: Partial<UiState>) => void;
 }
@@ -43,6 +45,8 @@ export const useUi = create<UiState>((set) => ({
   score1: 0,
   myUltCharge: 0,
   myUltActiveUntil: 0,
+  myCombo: 0,
+  myComboUntil: 0,
   serverTime: 0,
   set: (patch) => set(patch),
 }));

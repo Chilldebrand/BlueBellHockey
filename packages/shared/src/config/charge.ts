@@ -46,3 +46,37 @@ export function awardCharge(s: SkaterState, eventType: string): void {
   const a = CHARGE.awards[eventType] ?? 0;
   if (a > 0) s.ultCharge = Math.min(1, s.ultCharge + a);
 }
+
+// Combo multiplier (WO-04). Chaining style moves without a turnover raises a
+// rising multiplier on style-meter gains; a turnover resets it to zero.
+export const COMBO = {
+  windowMs: 3500, // a new style move must land within this to keep the chain
+  step: 0.25, // +25% per chain link
+  cap: 6, // multiplier tops out at 1 + 6*0.25 = 2.5x
+  maxTrack: 99, // keep the raw count bounded (uint8-safe in the schema)
+};
+
+/** Style-gain multiplier for a skater currently at `combo` chain links. */
+export function comboMultiplier(combo: number): number {
+  return 1 + Math.min(Math.max(0, combo), COMBO.cap) * COMBO.step;
+}
+
+/**
+ * Single entry point for *style* meter awards: applies the current combo
+ * multiplier exactly once, then advances + refreshes the combo. Plain `shot`/
+ * `pass` should keep using `awardCharge` so they grant base charge without
+ * touching the combo. (WO-04)
+ */
+export function awardStyle(s: SkaterState, eventType: string, time: number): void {
+  const base = CHARGE.awards[eventType] ?? 0;
+  const mult = comboMultiplier(s.combo); // multiplier from the chain so far
+  if (base > 0) s.ultCharge = Math.min(1, s.ultCharge + base * mult);
+  s.combo = Math.min(s.combo + 1, COMBO.maxTrack);
+  s.comboUntil = time + COMBO.windowMs;
+}
+
+/** Drop a combo to zero (a turnover: checked, frozen, or stripped). */
+export function breakCombo(s: SkaterState): void {
+  s.combo = 0;
+  s.comboUntil = 0;
+}
