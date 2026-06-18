@@ -155,6 +155,13 @@ function checkContact(world: WorldState, attacker: SkaterState, target: SkaterSt
   world.events.push({ type: 'hit', by: attacker.id, target: target.id });
 }
 
+// Gamebreaker (WO-02): a goal scored while the scorer's ultimate is live is worth
+// more and steals a point from the opponent (NBA Street Vol. 2 rules). Tunable —
+// drop STEALS_POINT to false (or VALUE to 1) if matches feel decided by one swing.
+export const GAMEBREAKER_GOAL_VALUE = 2;
+export const GAMEBREAKER_STEALS_POINT = true;
+const SCORE_MAX = 255; // score0/score1 are uint8 in the schema
+
 function detectGoal(world: WorldState): void {
   const p = world.puck;
   if (p.carrier) return;
@@ -164,12 +171,24 @@ function detectGoal(world: WorldState): void {
     if (crossed && Math.abs(p.pos.z) < RINK.goalWidth / 2) {
       const scorer = p.lastTouch && world.skaters[p.lastTouch]?.team === team ? p.lastTouch : null;
       const assist = p.assistTouch && world.skaters[p.assistTouch]?.team === team ? p.assistTouch : null;
-      world.score[team] += 1;
+      // A Gamebreaker requires the scorer's ult to be active at the moment of the
+      // goal. Instant-duration ults set ultActiveUntil = world.time, so they are
+      // not "active" the next frame and cannot produce Gamebreakers (acceptable —
+      // those are utility ults; Cannon/Afterburner are the canonical finishes).
+      const gb = !!scorer && world.skaters[scorer].ultActiveUntil > world.time;
+      const value = gb ? GAMEBREAKER_GOAL_VALUE : 1;
+      const opp = (team === 0 ? 1 : 0) as Team;
+      // Clamp into uint8 range in the sim so authority and schema never disagree.
+      world.score[team] = Math.min(SCORE_MAX, world.score[team] + value);
+      if (gb && GAMEBREAKER_STEALS_POINT) {
+        world.score[opp] = Math.max(0, world.score[opp] - 1);
+      }
       if (scorer) awardCharge(world.skaters[scorer], 'goal');
       if (assist) awardCharge(world.skaters[assist], 'assist');
       world.events.push({ type: 'goal', team, scorer: scorer ?? '', assist });
+      if (gb) world.events.push({ type: 'gamebreaker', team, scorer: scorer ?? '', value });
       resetFaceoff(world);
-      world.pauseUntil = world.time + 1800; // brief celebration before play resumes
+      world.pauseUntil = world.time + (gb ? 2600 : 1800); // bigger celebration for a Gamebreaker
       return;
     }
   }

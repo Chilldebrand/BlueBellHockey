@@ -83,6 +83,7 @@ export type MatchPhase =
 
 export type SimEvent =
   | { type: 'goal'; team: Team; scorer: string; assist: string | null }
+  | { type: 'gamebreaker'; team: Team; scorer: string; value: number }
   | { type: 'shot'; shooter: string }
   | { type: 'pass'; from: string; to: string }
   | { type: 'hit'; by: string; target: string }

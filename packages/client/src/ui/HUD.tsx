@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useUi } from '../store.js';
 import { net } from '../net/client.js';
 import { Scoreboard } from './Scoreboard.js';
@@ -35,17 +35,41 @@ export function HUD() {
   );
 }
 
+interface GoalDisplay {
+  team: number;
+  gb: boolean;
+  value: number;
+}
+
 function GoalBanner() {
-  const [team, setTeam] = useState<number | null>(null);
+  const [goal, setGoal] = useState<GoalDisplay | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
-    return net.events.on('goal', (e: { team: number }) => {
-      setTeam(e.team);
-      const id = setTimeout(() => setTeam(null), 2200);
-      return () => clearTimeout(id);
+    const arm = (ms: number) => {
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(() => setGoal(null), ms);
+    };
+    // A Gamebreaker emits its own richer event right after the plain goal; don't
+    // let the goal handler downgrade it back to a normal banner.
+    const offGoal = net.events.on('goal', (e: { team: number }) => {
+      setGoal((cur) => (cur?.gb ? cur : { team: e.team, gb: false, value: 1 }));
+      arm(2200);
     });
+    const offGb = net.events.on('gamebreaker', (e: { team: number; value: number }) => {
+      setGoal({ team: e.team, gb: true, value: e.value });
+      arm(3200);
+    });
+    return () => {
+      offGoal();
+      offGb();
+      if (timer.current) clearTimeout(timer.current);
+    };
   }, []);
-  if (team === null) return null;
-  const color = team === 0 ? '#3c6bff' : '#ff5a3c';
+
+  if (goal === null) return null;
+  const color = goal.gb ? '#ffd23c' : goal.team === 0 ? '#3c6bff' : '#ff5a3c';
+  const side = goal.team === 0 ? 'HOME' : 'AWAY';
   return (
     <div
       style={{
@@ -57,10 +81,22 @@ function GoalBanner() {
         animation: 'bbhGoal 0.4s ease-out',
       }}
     >
-      <div style={{ fontSize: 120, fontWeight: 900, color, textShadow: '0 6px 30px rgba(0,0,0,0.7)', letterSpacing: 4 }}>
-        GOAL!
+      <div
+        style={{
+          fontSize: goal.gb ? 96 : 120,
+          fontWeight: 900,
+          color,
+          textShadow: goal.gb
+            ? '0 0 40px rgba(255,210,60,0.9), 0 6px 30px rgba(0,0,0,0.7)'
+            : '0 6px 30px rgba(0,0,0,0.7)',
+          letterSpacing: goal.gb ? 2 : 4,
+        }}
+      >
+        {goal.gb ? 'GAMEBREAKER!!!' : 'GOAL!'}
       </div>
-      <div style={{ fontSize: 22, fontWeight: 700, opacity: 0.85 }}>{team === 0 ? 'HOME' : 'AWAY'} scores</div>
+      <div style={{ fontSize: goal.gb ? 30 : 22, fontWeight: 800, opacity: 0.9 }}>
+        {goal.gb ? `${side} +${goal.value}` : `${side} scores`}
+      </div>
       <style>{`@keyframes bbhGoal{from{transform:translate(-50%,-50%) scale(0.5);opacity:0}to{transform:translate(-50%,-50%) scale(1);opacity:1}}`}</style>
     </div>
   );

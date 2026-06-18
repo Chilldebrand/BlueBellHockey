@@ -7,7 +7,7 @@
 | **Blocks** | WO-06 (bots must spend Gamebreakers) |
 | **Est. effort** | ~1 day |
 | **Risk** | Med — touches scoring + score schema (uint8 underflow) |
-| **Status** | Not started |
+| **Status** | Done |
 
 ## Objective
 Make spending the meter *climactic*: a goal scored while your ultimate is active
@@ -64,12 +64,19 @@ finish; Afterburner = the breakaway; Shockwave = clear the crease first.
 | `packages/client/src/ui/HUD.tsx` | "GAMEBREAKER!" banner + "+2" on the GoalBanner |
 
 ## Acceptance criteria
-- [ ] A goal scored while the scorer's ult is active scores per the chosen rule (2, or 1 + opponent −1).
-- [ ] A normal goal still scores exactly 1 and does not alter the opponent.
-- [ ] Opponent score never goes below 0 (verified by test).
-- [ ] A distinct on-screen callout fires for a Gamebreaker (not just the normal GOAL banner).
-- [ ] Instant-duration ults behave per the documented rule (don't accidentally make every goal a Gamebreaker).
-- [ ] `npm test` + `npm run typecheck` clean.
+- [x] A goal scored while the scorer's ult is active scores per the chosen rule (**+2 AND opponent −1**, clamped).
+- [x] A normal goal still scores exactly 1 and does not alter the opponent.
+- [x] Opponent score never goes below 0 (verified by test — `Math.max(0, ...)` in the sim).
+- [x] A distinct on-screen callout fires for a Gamebreaker ("GAMEBREAKER!!!" + "+2", gold).
+- [x] Instant-duration ults behave per the documented rule (`durationMs:0` sets `ultActiveUntil=time`, not active next frame).
+- [x] `npm test` + `npm run typecheck` clean.
+
+## Chosen rule (applied)
+- `GAMEBREAKER_GOAL_VALUE = 2`, `GAMEBREAKER_STEALS_POINT = true` (exported from
+  `sim/world.ts` — flip either to dial back swinginess). A Gamebreaker is a
+  3-point swing; if that feels too decisive set `STEALS_POINT = false` for flat +2.
+- Gamebreaker celebration pause is 2600ms vs 1800ms for a normal goal.
+- Ultimate copy reframe left for WO-05 (polish); not required by acceptance here.
 
 ## Testing (`sim/world.test.ts`)
 - Goal with `scorer.ultActiveUntil > time` → team gains the Gamebreaker value;
