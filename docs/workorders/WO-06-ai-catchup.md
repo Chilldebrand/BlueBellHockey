@@ -7,7 +7,7 @@
 | **Blocks** | — |
 | **Est. effort** | ~1–2 days |
 | **Risk** | Low–Med — server-only AI, no schema/protocol change |
-| **Status** | Not started |
+| **Status** | Done |
 
 ## Objective
 Teach the bots to use the new systems so the **default solo experience**
@@ -74,12 +74,26 @@ No shared-sim, schema, or client change — bots just emit a richer `InputState`
 and the new action fields already exist from WO-03 (`emptyActions()` defaults).
 
 ## Acceptance criteria
-- [ ] In a solo match (5 bots), bots fire ultimates and you see Gamebreaker goals against you.
-- [ ] Bot ults are situational, not random spam (shooter ults near the net, disruption ults on defense, etc.).
-- [ ] Bot carriers occasionally deke to escape pressure (respecting cooldown).
-- [ ] Goalies still only mind the net.
-- [ ] Difficulty knob visibly changes how often bots use supers/tricks.
-- [ ] `npm run typecheck` clean; server runs without errors over a full match.
+- [x] In a solo match (5 bots), bots fire ultimates and you see Gamebreaker goals against you. (smoke run: 23 ults, 10 gamebreakers)
+- [x] Bot ults are situational, not random spam (shooter near net, speed on open ice, disruption on defense, freight into a wall). (`decideUlt` + unit tests)
+- [x] Bot carriers occasionally deke to escape pressure (respecting cooldown). (deke-under-pressure, gated on `dekeCooldownUntil`)
+- [x] Goalies still only mind the net. (`goalie.ts` untouched; goalies use `goalieInput`)
+- [x] Difficulty knob visibly changes how often bots use supers/tricks. (`DIFFICULTY` presets; `botInput(world, s, diff)`)
+- [x] `npm run typecheck` clean; server runs without errors over a full match. (smoke sim ran to `ended`, 28–18)
+
+## Decisions (applied)
+- `decideUlt(world, s)` is a **pure** archetype policy (shooter / speed / disruption /
+  freight), extracted and unit-tested; the stochastic "when" gate (per-tick chance)
+  lives in `botInput` so bots don't all pop on the same frame.
+- Deke-under-pressure jukes away from the nearest defender, respects the cooldown,
+  and is mutually exclusive with shoot/pass that frame; a small extra chance when
+  the meter is low builds style without turtling.
+- `BotDifficulty` (`rookie`/`pro`/`allstar`) scales ult chance, deke chance and
+  reaction range; `botInput` defaults to `BOT_DIFFICULTY = pro`. `MatchRoom` was
+  left calling `botInput(world, s)` (the optional difficulty arg is the knob).
+- **Balance note:** an all-bot scrimmage is high-scoring with the arcade tuning
+  (~28–18). A solo match (1 human + 5 bots) is far tamer; dial `ultChance`/shot
+  aggressiveness or goalie strength by feel if needed.
 
 ## Testing
 - Manual: start a solo match, confirm bots use each archetype's ult sensibly over
