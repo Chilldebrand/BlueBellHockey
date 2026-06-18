@@ -18,6 +18,9 @@ export interface SkaterSnap {
   frozenUntil: number;
   staggeredUntil: number;
   intangibleUntil: number;
+  dekeUntil: number;
+  dekeDirX: number;
+  dekeDirZ: number;
   ackSeq: number;
 }
 
@@ -30,7 +33,7 @@ export interface Snapshot {
 
 // Low-frequency UI state lives in zustand; the high-frequency snapshot buffer is a
 // plain singleton read directly by the render loop (avoids re-rendering React at 30Hz).
-type GameEvent = 'goal' | 'gamebreaker' | 'hit' | 'ult' | 'shot';
+type GameEvent = 'goal' | 'gamebreaker' | 'hit' | 'ult' | 'shot' | 'deke' | 'ankle_break';
 
 class EventBus {
   private handlers: Record<string, Array<(e: any) => void>> = {};
@@ -71,6 +74,8 @@ class NetClient {
       room.onMessage('hit', (e: any) => this.events.emit('hit', e));
       room.onMessage('ult', (e: any) => this.events.emit('ult', e));
       room.onMessage('shot', (e: any) => this.events.emit('shot', e));
+      room.onMessage('deke', (e: any) => this.events.emit('deke', e));
+      room.onMessage('ankle_break', (e: any) => this.events.emit('ankle_break', e));
 
       room.onStateChange((state: any) => this.onState(state));
       room.onLeave(() => useUi.getState().set({ status: 'idle' }));
@@ -99,6 +104,9 @@ class NetClient {
         frozenUntil: s.frozenUntil,
         staggeredUntil: s.staggeredUntil,
         intangibleUntil: s.intangibleUntil,
+        dekeUntil: s.dekeUntil,
+        dekeDirX: s.dekeDirX,
+        dekeDirZ: s.dekeDirZ,
         ackSeq: s.ackSeq,
       };
     });

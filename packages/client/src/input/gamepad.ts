@@ -9,6 +9,7 @@ export interface GamepadReading {
   hit: boolean;
   steal: boolean;
   ult: boolean;
+  deke: boolean;
 }
 
 const DEAD = 0.18;
@@ -17,7 +18,7 @@ function dz(x: number): number {
 }
 
 // Standard-mapping gamepad: left stick move, right stick aim,
-// A=shoot, X=pass, RB=hit, LB/B=steal, RT=ult.
+// A=shoot, X=pass, RB=hit, LB=steal, B=deke, RT=ult.
 export function readGamepad(): GamepadReading {
   const pads = navigator.getGamepads?.() ?? [];
   const pad = pads.find((p): p is Gamepad => !!p);
@@ -33,6 +34,7 @@ export function readGamepad(): GamepadReading {
       hit: false,
       steal: false,
       ult: false,
+      deke: false,
     };
   }
   const a = pad.axes;
@@ -48,7 +50,8 @@ export function readGamepad(): GamepadReading {
     shoot: pressed(0), // A
     pass: pressed(2), // X
     hit: pressed(5), // RB
-    steal: pressed(4) || pressed(1), // LB or B
+    steal: pressed(4), // LB (B freed up for deke)
+    deke: pressed(1), // B
     ult: (b[7]?.value ?? 0) > 0.5, // RT
   };
 }

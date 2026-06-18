@@ -7,7 +7,7 @@
 | **Blocks** | WO-04 (combos chain dekes), WO-06 (bots deke) |
 | **Est. effort** | ~2–4 days |
 | **Risk** | Med–High — new action across the full input→sim chain + prediction |
-| **Status** | Not started |
+| **Status** | Done |
 
 ## Objective
 Add the moment-to-moment **dangle**: a dedicated deke/trick action that jukes the
@@ -104,13 +104,25 @@ selection, à la NHL skill stick. Defer unless input feel demands it.
 | `packages/client/src/render/Vfx.tsx` | (light) ankle-break spark; full polish in WO-05 |
 
 ## Acceptance criteria
-- [ ] Pressing deke while carrying visibly jukes the puck to a side and recovers.
-- [ ] Deking past a close defender staggers them (they stumble) and pops the style meter.
-- [ ] Deke has a cooldown; mashing it does nothing extra.
-- [ ] A whiffed deke gives separation but leaves the puck more steal-exposed.
-- [ ] Client prediction does not visibly snap the puck on the local player's deke.
-- [ ] Bots are unaffected (still `deke:false`) until WO-06.
-- [ ] `npm test` + `npm run typecheck` clean.
+- [x] Pressing deke while carrying visibly jukes the puck to a side and recovers. (`carryAnchor` sin-envelope offset)
+- [x] Deking past a close defender staggers them (they stumble) and pops the style meter. (ankle-break + `awardCharge`)
+- [x] Deke has a cooldown; mashing it does nothing extra. (`dekeCooldownUntil`, 650ms; tested)
+- [x] A whiffed deke gives separation but leaves the puck more steal-exposed. (×0.9 speed dip during the window)
+- [x] Client prediction does not visibly snap the puck on the local player's deke. (shared `carryAnchor` + synced fields)
+- [x] Bots are unaffected (still `deke:false`) until WO-06. (bots build actions via `emptyActions()`)
+- [x] `npm test` + `npm run typecheck` clean.
+
+## Decisions (applied)
+- **Keys:** keyboard **Q** dekes; gamepad **B** dekes (steal moved to **LB only**,
+  freeing B). HUD controls hint updated.
+- **Constants:** `DEKE_MS=220` (offset window), `DEKE_OFFSET=0.95` (lateral peak),
+  `DEKE_RANGE=2.1`, `DEKE_COOLDOWN_MS=650`, `ANKLE_BREAK_MS=900`. Ankle-break is a
+  contest — `handles(=steal)+1 >= victim.steal` — so strong defenders don't bite
+  (keeps defense alive). Deke window applies a 0.9 speed dip (risk/reward).
+- **Prediction:** deke math lives in shared `carryAnchor` (used by `puck.ts` and the
+  client). `dekeUntil/dekeDirX/dekeDirZ` are synced in the schema, and the client
+  now predicts the *local carrier's* puck from its predicted pose so the carried
+  puck no longer lags and never snaps mid-dangle.
 
 ## Testing (`sim/world.test.ts` + new cases)
 - Carrier deke sets the carry offset for the window, then restores dead-ahead.

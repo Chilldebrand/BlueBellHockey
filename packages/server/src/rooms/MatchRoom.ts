@@ -162,7 +162,9 @@ export class MatchRoom extends Room<MatchState> {
         e.type === 'gamebreaker' ||
         e.type === 'hit' ||
         e.type === 'ult' ||
-        e.type === 'shot'
+        e.type === 'shot' ||
+        e.type === 'deke' ||
+        e.type === 'ankle_break'
       ) {
         this.broadcast(e.type, e);
       }

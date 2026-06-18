@@ -52,6 +52,7 @@ export class InputManager {
       hit: gp.hit || this.km.key('ShiftLeft') || this.km.key('KeyL'),
       steal: gp.steal || this.km.key('KeyF'),
       ult: gp.ult || this.km.key('Space') || this.km.key('KeyE'),
+      deke: gp.deke || this.km.key('KeyQ'),
     };
     return input;
   }

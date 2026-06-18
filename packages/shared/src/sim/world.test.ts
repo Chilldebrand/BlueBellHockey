@@ -6,7 +6,8 @@ import {
   step,
   type RosterEntry,
 } from './world.js';
-import { doHit } from './actions.js';
+import { doDeke, doHit } from './actions.js';
+import { carryAnchor, DEKE_MS, STICK_REACH } from './puck.js';
 import { neutralInput, type InputState, type WorldState } from './types.js';
 import { attackingGoalX } from '../config/rink.js';
 import { v } from './physics.js';
@@ -146,5 +147,124 @@ describe('world simulation', () => {
     const clockAtGoal = w.clock;
     for (let i = 0; i < 10; i++) step(w, {}, DT); // still within the pause window
     expect(w.clock).toBe(clockAtGoal); // clock did not tick while paused
+  });
+});
+
+describe('deke / trick system (WO-03)', () => {
+  function dekeRoster(): RosterEntry[] {
+    return [
+      { id: 'a', team: 0, characterId: 'trickster', isBot: false, isGoalie: false }, // steal 9
+      { id: 'b', team: 1, characterId: 'sniper', isBot: false, isGoalie: false }, // steal 6
+    ];
+  }
+
+  it('carryAnchor bends the puck laterally mid-deke and restores it after', () => {
+    const start = 1000;
+    const dekeUntil = start + DEKE_MS;
+    // no deke → puck dead-ahead at stick reach
+    const dead = carryAnchor({ x: 0, z: 0 }, 0, { dekeUntil: 0, dekeDirX: 0, dekeDirZ: 0 }, start);
+    expect(dead.x).toBeCloseTo(STICK_REACH, 5);
+    expect(dead.z).toBeCloseTo(0, 5);
+    // peak of the window (facing +X, juke +Z) → bent to the side
+    const mid = carryAnchor({ x: 0, z: 0 }, 0, { dekeUntil, dekeDirX: 0, dekeDirZ: 1 }, start + DEKE_MS / 2);
+    expect(mid.z).toBeGreaterThan(0.5);
+    expect(mid.x).toBeCloseTo(STICK_REACH, 5);
+    // after the window → restored dead-ahead
+    const after = carryAnchor({ x: 0, z: 0 }, 0, { dekeUntil, dekeDirX: 0, dekeDirZ: 1 }, dekeUntil + 1);
+    expect(after.z).toBeCloseTo(0, 5);
+  });
+
+  it('deking past a close front defender breaks ankles and pops style', () => {
+    const w = createWorld(dekeRoster());
+    w.phase = 'period';
+    const a = w.skaters.a;
+    const b = w.skaters.b;
+    a.pos = { x: 0, z: 0 };
+    a.facing = 0; // facing +X
+    b.pos = { x: 1.5, z: 0.2 }; // close, in front
+    w.puck.carrier = 'a';
+    const before = a.ultCharge;
+    doDeke(w, a, { ...neutralInput(), aim: { x: 0, z: 1 } });
+    expect(a.status.dekeUntil).toBeGreaterThan(w.time);
+    expect(b.status.staggeredUntil).toBeGreaterThan(w.time);
+    expect(w.events.some((e) => e.type === 'ankle_break')).toBe(true);
+    expect(a.ultCharge).toBeGreaterThan(before);
+  });
+
+  it('a deke with no defender in range still dangles and awards a small deke', () => {
+    const w = createWorld(dekeRoster());
+    w.phase = 'period';
+    const a = w.skaters.a;
+    a.pos = { x: 0, z: 0 };
+    a.facing = 0;
+    w.skaters.b.pos = { x: 20, z: 0 }; // far away
+    w.puck.carrier = 'a';
+    const before = a.ultCharge;
+    doDeke(w, a, { ...neutralInput(), aim: { x: 0, z: 1 } });
+    expect(w.events.some((e) => e.type === 'deke')).toBe(true);
+    expect(w.events.some((e) => e.type === 'ankle_break')).toBe(false);
+    expect(a.status.dekeUntil).toBeGreaterThan(w.time);
+    expect(a.ultCharge).toBeGreaterThan(before);
+  });
+
+  it('a deke on cooldown is a no-op', () => {
+    const w = createWorld(dekeRoster());
+    w.phase = 'period';
+    const a = w.skaters.a;
+    w.skaters.b.pos = { x: 20, z: 0 };
+    w.puck.carrier = 'a';
+    doDeke(w, a, neutralInput()); // arms the cooldown
+    w.events = [];
+    doDeke(w, a, neutralInput()); // same sim-time → blocked
+    expect(w.events.length).toBe(0);
+  });
+
+  it('a non-carrier deke is a no-op', () => {
+    const w = createWorld(dekeRoster());
+    w.phase = 'period';
+    const a = w.skaters.a;
+    w.puck.carrier = 'b'; // a is not the carrier
+    doDeke(w, a, neutralInput());
+    expect(a.status.dekeUntil).toBe(0);
+    expect(w.events.length).toBe(0);
+  });
+
+  it('a stronger defender does not bite (ankle-break is a contest)', () => {
+    const w = createWorld([
+      { id: 'a', team: 0, characterId: 'frost', isBot: false, isGoalie: false }, // steal 5
+      { id: 'b', team: 1, characterId: 'pickpocket', isBot: false, isGoalie: false }, // steal 10
+    ]);
+    w.phase = 'period';
+    const a = w.skaters.a;
+    const b = w.skaters.b;
+    a.pos = { x: 0, z: 0 };
+    a.facing = 0;
+    b.pos = { x: 1.5, z: 0.2 };
+    w.puck.carrier = 'a';
+    doDeke(w, a, { ...neutralInput(), aim: { x: 0, z: 1 } });
+    expect(b.status.staggeredUntil).toBe(0); // out-handled, no break
+    expect(w.events.some((e) => e.type === 'ankle_break')).toBe(false);
+    expect(w.events.some((e) => e.type === 'deke')).toBe(true);
+  });
+
+  it('doDeke is deterministic — identical inputs produce identical outcomes', () => {
+    const build = (): WorldState => {
+      const w = createWorld(dekeRoster());
+      w.phase = 'period';
+      w.skaters.a.pos = { x: 0, z: 0 };
+      w.skaters.a.facing = 0;
+      w.skaters.b.pos = { x: 1.5, z: 0.2 };
+      w.puck.carrier = 'a';
+      return w;
+    };
+    const input = { ...neutralInput(), aim: { x: 0, z: 1 } };
+    const w1 = build();
+    const w2 = build();
+    doDeke(w1, w1.skaters.a, input);
+    doDeke(w2, w2.skaters.a, input);
+    expect(w1.skaters.b.status.staggeredUntil).toBe(w2.skaters.b.status.staggeredUntil);
+    expect(w1.skaters.a.status.dekeDirX).toBe(w2.skaters.a.status.dekeDirX);
+    expect(w1.skaters.a.status.dekeDirZ).toBe(w2.skaters.a.status.dekeDirZ);
+    expect(w1.events.map((e) => e.type)).toEqual(w2.events.map((e) => e.type));
   });
 });

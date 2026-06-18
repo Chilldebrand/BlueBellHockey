@@ -1,4 +1,11 @@
-import { BASE_SPEED, SPEED_PER_POINT, getCharacter, v, type InputState } from '@bbh/shared';
+import {
+  BASE_SPEED,
+  SPEED_PER_POINT,
+  carryAnchor,
+  getCharacter,
+  v,
+  type InputState,
+} from '@bbh/shared';
 import type { Snapshot } from '../net/client.js';
 import type { SkaterRender } from './interpolation.js';
 
@@ -37,6 +44,34 @@ export function predictLocal(
     facing = Math.atan2(input.aim.z, input.aim.x);
   }
   return { x, z, facing };
+}
+
+/**
+ * When the local player carries the puck, place the puck from the *predicted*
+ * carrier pose using the same shared `carryAnchor` the sim runs — including the
+ * deke offset (synced via the snapshot). This removes carry/dangle lag and keeps
+ * the local puck from snapping during a deke (it never disagrees with the server's
+ * own carry math). Returns null when the local player isn't the carrier.
+ */
+export function predictCarriedPuck(
+  buffer: Snapshot[],
+  localId: string,
+  predicted: { x: number; z: number; facing: number } | null,
+): { x: number; z: number } | null {
+  if (!predicted || buffer.length === 0) return null;
+  const latest = buffer[buffer.length - 1];
+  if (latest.puck.carrier !== localId) return null;
+  const s = latest.skaters[localId];
+  if (!s) return null;
+  // advance sim-time from the latest snapshot by the real elapsed since we got it,
+  // so the deke envelope is evaluated at roughly the current authoritative time.
+  const time = latest.serverTime + (performance.now() - latest.t);
+  return carryAnchor(
+    { x: predicted.x, z: predicted.z },
+    predicted.facing,
+    { dekeUntil: s.dekeUntil, dekeDirX: s.dekeDirX, dekeDirZ: s.dekeDirZ },
+    time,
+  );
 }
 
 export function applyPrediction(

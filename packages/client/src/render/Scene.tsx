@@ -5,7 +5,7 @@ import { useUi } from '../store.js';
 import { net } from '../net/client.js';
 import { inputManager } from '../input/inputState.js';
 import { sampleAt, INTERP_DELAY_MS } from '../game/interpolation.js';
-import { predictLocal, applyPrediction } from '../game/prediction.js';
+import { predictLocal, applyPrediction, predictCarriedPuck } from '../game/prediction.js';
 import { frameStore } from './frameStore.js';
 import { cameraShake } from './fx.js';
 import { Skater } from './Skater.js';
@@ -56,6 +56,13 @@ function Driver() {
       if (myId) {
         predicted.current = predictLocal(net.snapshots, myId, input, dt, predicted.current);
         applyPrediction(frame.skaters, myId, predicted.current);
+        // local carrier: drive the puck off the predicted pose (deke included) so it
+        // doesn't lag the controlled skater or snap mid-dangle.
+        const puckPos = predictCarriedPuck(net.snapshots, myId, predicted.current);
+        if (puckPos) {
+          frame.puck.x = puckPos.x;
+          frame.puck.z = puckPos.z;
+        }
       }
       frameStore.set(frame);
     }

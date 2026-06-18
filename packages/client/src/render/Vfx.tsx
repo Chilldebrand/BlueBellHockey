@@ -62,6 +62,35 @@ export function Vfx() {
       });
       cameraShake.add(0.35);
     });
+    const offAnkle = net.events.on('ankle_break', (e: { target: string }) => {
+      const t = frameStore.skater(e.target);
+      if (!t) return;
+      particles.burst(t.x, 0.6, t.z, {
+        count: 40,
+        speed: 7,
+        spread: 1.8,
+        up: 2,
+        size: 0.2,
+        life: 0.6,
+        color: new THREE.Color('#ffd23c'),
+        gravity: 5,
+      });
+      cameraShake.add(0.4);
+    });
+    const offDeke = net.events.on('deke', (e: { by: string }) => {
+      const s = frameStore.skater(e.by);
+      if (!s) return;
+      particles.burst(s.x, 0.4, s.z, {
+        count: 12,
+        speed: 3,
+        spread: 1,
+        up: 0.6,
+        size: 0.12,
+        life: 0.35,
+        color: new THREE.Color('#bfe2ff'),
+        gravity: 2,
+      });
+    });
     const offUlt = net.events.on('ult', (e: { by: string }) => {
       const s = frameStore.skater(e.by);
       if (!s) return;
@@ -80,6 +109,8 @@ export function Vfx() {
     return () => {
       offGoal();
       offHit();
+      offAnkle();
+      offDeke();
       offUlt();
     };
   }, []);

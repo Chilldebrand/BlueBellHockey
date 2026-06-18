@@ -1,12 +1,41 @@
 import { PUCK_RADIUS, RINK, SKATER_RADIUS } from '../config/rink.js';
 import { v, containCircle } from './physics.js';
 import { isDisabled } from './skater.js';
-import type { SkaterState, WorldState } from './types.js';
+import type { SkaterState, SkaterStatus, Vec2, WorldState } from './types.js';
 
 // Arcade feel pass (WO-00): loose pucks slide farther and pickups are forgiving.
 const PUCK_FRICTION = 0.82; // per second velocity retention factor base
-const STICK_REACH = SKATER_RADIUS + 0.45;
+export const STICK_REACH = SKATER_RADIUS + 0.45;
 const PICKUP_RANGE = SKATER_RADIUS + 0.7;
+
+// Deke / trick (WO-03): how long the lateral carry offset lasts and how far it
+// bends. The offset eases out and back over the window so the puck "dangles".
+export const DEKE_MS = 220;
+export const DEKE_OFFSET = 0.95;
+
+/**
+ * World-space position of a carried puck for a skater at (pos, facing). During a
+ * deke window the dead-ahead stick anchor bends laterally along (dekeDirX,
+ * dekeDirZ) following a sin envelope (0 at the ends, peak mid-window). Shared by
+ * the authoritative sim and the client's local-carrier prediction so they agree.
+ */
+export function carryAnchor(
+  pos: Vec2,
+  facing: number,
+  status: Pick<SkaterStatus, 'dekeUntil' | 'dekeDirX' | 'dekeDirZ'>,
+  time: number,
+): Vec2 {
+  const ahead = v.fromAngle(facing, STICK_REACH);
+  let x = pos.x + ahead.x;
+  let z = pos.z + ahead.z;
+  if (status.dekeUntil > time) {
+    const p = Math.max(0, Math.min(1, 1 - (status.dekeUntil - time) / DEKE_MS));
+    const env = Math.sin(p * Math.PI); // 0 -> 1 -> 0 across the window
+    x += status.dekeDirX * DEKE_OFFSET * env;
+    z += status.dekeDirZ * DEKE_OFFSET * env;
+  }
+  return { x, z };
+}
 
 function nearestSkater(world: WorldState, exclude?: string): SkaterState | null {
   let best: SkaterState | null = null;
@@ -52,9 +81,9 @@ export function stepPuck(world: WorldState, dt: number): void {
       puck.carrier = null;
       puck.pickupCooldownUntil = world.time + 200;
     } else {
-      const ahead = v.fromAngle(c.facing, STICK_REACH);
-      puck.pos.x = c.pos.x + ahead.x;
-      puck.pos.z = c.pos.z + ahead.z;
+      const anchor = carryAnchor(c.pos, c.facing, c.status, world.time);
+      puck.pos.x = anchor.x;
+      puck.pos.z = anchor.z;
       puck.vel.x = c.vel.x;
       puck.vel.z = c.vel.z;
       return;

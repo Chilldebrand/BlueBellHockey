@@ -32,6 +32,12 @@ export interface SkaterStatus {
   magnetUntil: number; // pulls loose puck / strips carriers nearby (Magnet)
   passPerfectUntil: number; // passes auto-complete to best teammate (Vision)
   guaranteedGoal: boolean; // next on-net shot scores (Cannon)
+  // Deke / trick (WO-03): a transient lateral carry offset + a cooldown. While
+  // dekeUntil > time the carried puck anchor bends along (dekeDirX, dekeDirZ).
+  dekeUntil: number;
+  dekeDirX: number;
+  dekeDirZ: number;
+  dekeCooldownUntil: number;
 }
 
 export interface SkaterState {
@@ -65,6 +71,7 @@ export interface ActionFlags {
   hit: boolean;
   steal: boolean;
   ult: boolean;
+  deke: boolean;
 }
 
 export interface InputState {
@@ -89,6 +96,8 @@ export type SimEvent =
   | { type: 'hit'; by: string; target: string }
   | { type: 'steal'; by: string; from: string }
   | { type: 'block'; by: string }
+  | { type: 'deke'; by: string }
+  | { type: 'ankle_break'; by: string; target: string }
   | { type: 'ult'; by: string; ultimateId: string }
   | { type: 'faceoff' }
   | { type: 'period'; period: number }
@@ -123,11 +132,15 @@ export function emptyStatus(): SkaterStatus {
     magnetUntil: 0,
     passPerfectUntil: 0,
     guaranteedGoal: false,
+    dekeUntil: 0,
+    dekeDirX: 0,
+    dekeDirZ: 0,
+    dekeCooldownUntil: 0,
   };
 }
 
 export function emptyActions(): ActionFlags {
-  return { shoot: false, pass: false, hit: false, steal: false, ult: false };
+  return { shoot: false, pass: false, hit: false, steal: false, ult: false, deke: false };
 }
 
 export function neutralInput(): InputState {

@@ -18,6 +18,11 @@ export class SkaterSchema extends Schema {
   @type('float32') frozenUntil = 0;
   @type('float32') staggeredUntil = 0;
   @type('float32') intangibleUntil = 0;
+  // Deke (WO-03): synced so the client can run the same carry-anchor math during
+  // a dangle (otherwise local-carrier prediction would fight reconciliation).
+  @type('float32') dekeUntil = 0;
+  @type('float32') dekeDirX = 0;
+  @type('float32') dekeDirZ = 0;
 }
 
 export class PuckSchema extends Schema {
@@ -73,6 +78,9 @@ export function syncState(state: MatchState, world: WorldState): void {
     row.frozenUntil = s.status.frozenUntil;
     row.staggeredUntil = s.status.staggeredUntil;
     row.intangibleUntil = s.status.intangibleUntil;
+    row.dekeUntil = s.status.dekeUntil;
+    row.dekeDirX = s.status.dekeDirX;
+    row.dekeDirZ = s.status.dekeDirZ;
   }
 
   state.puck.px = world.puck.pos.x;

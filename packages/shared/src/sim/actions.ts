@@ -3,11 +3,16 @@ import { getCharacter } from '../config/characters.js';
 import { attackingGoalX, SKATER_RADIUS } from '../config/rink.js';
 import { getUltimate } from '../config/ultimates.js';
 import { v } from './physics.js';
+import { DEKE_MS } from './puck.js';
 import { effectiveAttr, isDisabled } from './skater.js';
 import type { InputState, SimEvent, SkaterState, WorldState } from './types.js';
 
 const HIT_RANGE = SKATER_RADIUS * 2 + 0.9;
 const STEAL_RANGE = SKATER_RADIUS * 2 + 0.7;
+// Deke / trick (WO-03)
+const DEKE_RANGE = SKATER_RADIUS * 2 + 1.0; // 2.1 — reach to break a defender's ankles
+const DEKE_COOLDOWN_MS = 650; // prevents mashing the trick every frame
+const ANKLE_BREAK_MS = 900; // stagger applied to a beaten defender
 
 function emit(world: WorldState, e: SimEvent): void {
   world.events.push(e);
@@ -141,6 +146,59 @@ export function doSteal(world: WorldState, s: SkaterState): void {
   puck.assistTouch = null;
   emit(world, { type: 'steal', by: s.id, from: carrier.id });
   awardCharge(s, 'steal');
+}
+
+/**
+ * Dangle: briefly bend the carried-puck anchor laterally (between-the-legs /
+ * toe-drag) and "break the ankles" of a defender you slip past — they bite and
+ * stagger. A whiff still dangles but pays less. Carrier-only, with a cooldown.
+ */
+export function doDeke(world: WorldState, s: SkaterState, input: InputState): void {
+  if (isDisabled(s, world.time)) return;
+  const puck = world.puck;
+  if (puck.carrier !== s.id) return;
+  if (s.status.dekeCooldownUntil > world.time) return;
+
+  // Lateral juke direction: left or right of facing, chosen by where the player aims.
+  const forward = v.fromAngle(s.facing);
+  const left = { x: -forward.z, z: forward.x }; // 90° to facing
+  const aim = v.len(input.aim) > 0.2 ? v.norm(input.aim) : forward;
+  const side = v.dot(aim, left) >= 0 ? 1 : -1;
+  const juke = v.scale(left, side);
+
+  // Arm the transient carry offset (read by carryAnchor + client prediction) + cooldown.
+  s.status.dekeUntil = world.time + DEKE_MS;
+  s.status.dekeDirX = juke.x;
+  s.status.dekeDirZ = juke.z;
+  s.status.dekeCooldownUntil = world.time + DEKE_COOLDOWN_MS;
+
+  // Ankle-break: nearest opponent in front, within reach, who can't out-handle us.
+  const handles = effectiveAttr(s, 'steal'); // reuse "steal" rating as stick handling
+  let victim: SkaterState | null = null;
+  let bestD = DEKE_RANGE;
+  for (const o of Object.values(world.skaters)) {
+    if (o.team === s.team) continue;
+    if (o.status.intangibleUntil > world.time) continue;
+    if (isDisabled(o, world.time)) continue;
+    const off = v.sub(o.pos, s.pos);
+    const d = v.len(off);
+    if (d > DEKE_RANGE) continue;
+    if (v.dot(v.norm(off), forward) < 0.25) continue; // must be in front to be beaten
+    if (d < bestD) {
+      bestD = d;
+      victim = o;
+    }
+  }
+  if (victim && handles + 1 >= effectiveAttr(victim, 'steal')) {
+    victim.status.staggeredUntil = world.time + ANKLE_BREAK_MS;
+    if (puck.carrier === victim.id) puck.carrier = s.id; // shouldn't happen, but stay consistent
+    emit(world, { type: 'ankle_break', by: s.id, target: victim.id });
+    awardCharge(s, 'ankle_break');
+    return;
+  }
+  // Clean deke / whiff: still a dangle, smaller style reward.
+  emit(world, { type: 'deke', by: s.id });
+  awardCharge(s, 'deke');
 }
 
 export function doUlt(world: WorldState, s: SkaterState): void {

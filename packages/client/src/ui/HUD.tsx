@@ -29,7 +29,7 @@ export function HUD() {
         }}
       >
         WASD / arrows move · mouse aim · J / LMB shoot · K / RMB pass<br />
-        Shift hit · F steal · Space / E ultimate · (gamepad supported)
+        Shift hit · F steal · Q deke · Space / E ultimate · (gamepad supported)
       </div>
     </div>
   );

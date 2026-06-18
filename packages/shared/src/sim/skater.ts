@@ -19,10 +19,12 @@ export const SPEED_PER_POINT = 0.9;
 const ACCEL = 30;
 const FRICTION = 7;
 
-export function maxSpeedOf(s: SkaterState, carrying: boolean): number {
+export function maxSpeedOf(s: SkaterState, carrying: boolean, time = -1): number {
   const sp = effectiveAttr(s, 'speed');
   let m = (BASE_SPEED + sp * SPEED_PER_POINT) * s.status.speedMult;
   if (carrying) m *= 0.92;
+  // Deke (WO-03): trade a little speed for separation while the dangle is live.
+  if (time >= 0 && s.status.dekeUntil > time) m *= 0.9;
   return m;
 }
 
@@ -39,7 +41,7 @@ export function stepSkater(
   const moveLen = v.len(input.move);
   if (!disabled && moveLen > 0.05) {
     const dir = v.norm(input.move);
-    const target = v.scale(dir, maxSpeedOf(s, carrying));
+    const target = v.scale(dir, maxSpeedOf(s, carrying, world.time));
     s.vel.x += (target.x - s.vel.x) * Math.min(1, ACCEL * dt);
     s.vel.z += (target.z - s.vel.z) * Math.min(1, ACCEL * dt);
   } else {

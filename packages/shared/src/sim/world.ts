@@ -8,7 +8,7 @@ import {
   tickCharge,
 } from '../config/charge.js';
 import { PUCK_RADIUS, RINK, SKATER_RADIUS, attackingGoalX } from '../config/rink.js';
-import { doHit, doPass, doShoot, doSteal, doUlt } from './actions.js';
+import { doDeke, doHit, doPass, doShoot, doSteal, doUlt } from './actions.js';
 import { resolveCircles, v } from './physics.js';
 import { isDisabled, stepSkater } from './skater.js';
 import { stepPuck } from './puck.js';
@@ -274,6 +274,7 @@ export function step(
         if (a.ult && !last.ult) doUlt(world, s);
         if (a.hit && !last.hit) doHit(world, s, input);
         if (a.steal && !last.steal) doSteal(world, s);
+        if (a.deke && !last.deke) doDeke(world, s, input);
         if (a.shoot && !last.shoot) doShoot(world, s, input);
         if (a.pass && !last.pass) doPass(world, s, input);
       }

@@ -27,6 +27,7 @@ function actions(value: unknown): ActionFlags {
     hit: value.hit === true,
     steal: value.steal === true,
     ult: value.ult === true,
+    deke: value.deke === true,
   };
 }
 
