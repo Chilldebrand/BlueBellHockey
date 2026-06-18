@@ -4,7 +4,7 @@ export const RINK = {
   halfLength: 30,
   halfWidth: 18,
   cornerRadius: 8,
-  boardRestitution: 0.55,
+  boardRestitution: 0.6,
   goalLineX: 27, // |x| at which a goal counts
   goalWidth: 7, // mouth size: scoring requires |z| < goalWidth/2
   goalHeight: 2.2,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { beginCountdown, createWorld, step, type RosterEntry } from './world.js';
+import { doHit } from './actions.js';
 import { neutralInput, type InputState } from './types.js';
 import { attackingGoalX } from '../config/rink.js';
 import { v } from './physics.js';
@@ -45,6 +46,24 @@ describe('world simulation', () => {
     const before = w.score[0];
     for (let i = 0; i < 30; i++) step(w, {}, DT);
     expect(w.score[0]).toBe(before + 1);
+  });
+
+  it('a check knocks the target back and staggers them (WO-00 feel)', () => {
+    const w = createWorld([
+      { id: 'a', team: 0, characterId: 'tank', isBot: false, isGoalie: false },
+      { id: 'b', team: 1, characterId: 'blaze', isBot: false, isGoalie: false },
+    ]);
+    w.phase = 'period';
+    const a = w.skaters.a;
+    const b = w.skaters.b;
+    a.pos = { x: 0, z: 0 };
+    a.facing = 0; // facing +X, toward b
+    b.pos = { x: 1.4, z: 0 };
+    b.vel = { x: 0, z: 0 };
+    doHit(w, a, neutralInput());
+    expect(b.status.staggeredUntil).toBeGreaterThan(w.time);
+    // tank hit=10 → arcade knock magnitude 6 + 10*0.9 = 15 along +X
+    expect(b.vel.x).toBeCloseTo(15, 1);
   });
 
   it('freezes the clock during the goal celebration pause', () => {

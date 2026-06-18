@@ -37,7 +37,7 @@ export function doShoot(world: WorldState, s: SkaterState, input: InputState): v
     dir = toNet; // cannon: dead-on
   }
 
-  const power = (16 + shoot * 1.6) * s.status.shootPowerMult;
+  const power = (18 + shoot * 1.8) * s.status.shootPowerMult;
   puck.vel = v.scale(dir, power);
   puck.carrier = null;
   puck.pickupCooldownUntil = world.time + 300;
@@ -113,7 +113,7 @@ export function doHit(world: WorldState, s: SkaterState, input: InputState): voi
   if (!target) return;
 
   target.status.staggeredUntil = world.time + 700 + hit * 60;
-  const knock = v.scale(v.norm(v.sub(target.pos, s.pos)), 4 + hit * 0.6);
+  const knock = v.scale(v.norm(v.sub(target.pos, s.pos)), 6 + hit * 0.9);
   target.vel = v.add(target.vel, knock);
   if (world.puck.carrier === target.id) {
     world.puck.carrier = null;

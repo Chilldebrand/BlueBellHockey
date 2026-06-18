@@ -146,7 +146,7 @@ function checkContact(world: WorldState, attacker: SkaterState, target: SkaterSt
   if (attacker.status.checkingUntil <= world.time) return;
   if (target.status.staggeredUntil > world.time) return;
   target.status.staggeredUntil = world.time + 1000;
-  const knock = v.scale(v.norm(v.sub(target.pos, attacker.pos)), 8);
+  const knock = v.scale(v.norm(v.sub(target.pos, attacker.pos)), 11);
   target.vel = v.add(target.vel, knock);
   if (world.puck.carrier === target.id) {
     world.puck.carrier = null;

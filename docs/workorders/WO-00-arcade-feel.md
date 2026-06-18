@@ -7,7 +7,7 @@
 | **Blocks** | none hard; sets the baseline all later WOs tune against |
 | **Est. effort** | ~0.5 day |
 | **Risk** | Low — constants only, fully reversible |
-| **Status** | Not started |
+| **Status** | Done |
 
 ## Objective
 Make the *existing* game move and hit like an arcade title before any new
@@ -26,20 +26,24 @@ punchy. All the relevant numbers are already isolated as named constants.
 untouched. (If a change needs new state, it belongs in a later WO.)
 
 ## Files & current values
-| File | Constant | Current | Suggested starting point |
+| File | Constant | Old | **Chosen (applied)** |
 |---|---|---|---|
-| `packages/shared/src/sim/skater.ts` | `BASE_SPEED` | `6` | `7` |
-| | `SPEED_PER_POINT` | `0.8` | `0.9` |
-| | `ACCEL` | `24` | `30` (snappier starts) |
-| | `FRICTION` | `9` | `7` (longer glide) |
-| | carrying penalty | `*= 0.9` | keep or `0.92` |
-| `packages/shared/src/sim/puck.ts` | `PUCK_FRICTION` | `0.7` | `0.82` (puck slides farther) |
-| | `PICKUP_RANGE` | `SKATER_RADIUS + 0.55` | `+0.7` (more forgiving pickups) |
-| `packages/shared/src/sim/actions.ts` | hit knock (`doHit`) | `4 + hit*0.6` | `6 + hit*0.9` |
-| | shot power (`doShoot`) | `16 + shoot*1.6` | `18 + shoot*1.8` |
-| `packages/shared/src/sim/world.ts` | check knock (`checkContact`) | `8` | `11` |
-| `packages/shared/src/config/rink.ts` | `boardRestitution` | `0.55` | `0.6` (livelier boards) |
-| `packages/shared/src/config/charge.ts` | `PERIOD_MS` | `180000` | optional: `120000` for hot-seat |
+| `packages/shared/src/sim/skater.ts` | `BASE_SPEED` | `6` | **`7`** (now exported for client prediction) |
+| | `SPEED_PER_POINT` | `0.8` | **`0.9`** (now exported) |
+| | `ACCEL` | `24` | **`30`** (snappier starts) |
+| | `FRICTION` | `9` | **`7`** (longer glide) |
+| | carrying penalty | `*= 0.9` | **`*= 0.92`** (less drag while carrying) |
+| `packages/shared/src/sim/puck.ts` | `PUCK_FRICTION` | `0.7` | **`0.82`** (puck slides farther) |
+| | `PICKUP_RANGE` | `SKATER_RADIUS + 0.55` | **`+0.7`** (more forgiving pickups) |
+| `packages/shared/src/sim/actions.ts` | hit knock (`doHit`) | `4 + hit*0.6` | **`6 + hit*0.9`** |
+| | shot power (`doShoot`) | `16 + shoot*1.6` | **`18 + shoot*1.8`** |
+| `packages/shared/src/sim/world.ts` | check knock (`checkContact`) | `8` | **`11`** |
+| `packages/shared/src/config/rink.ts` | `boardRestitution` | `0.55` | **`0.6`** (livelier boards) |
+| `packages/shared/src/config/charge.ts` | `PERIOD_MS` | `180000` | **`180000`** (left as-is; 120000 hot-seat deferred to feel) |
+
+> `BASE_SPEED`/`SPEED_PER_POINT` are now exported from `skater.ts` and imported by
+> `packages/client/src/game/prediction.ts` so client prediction tracks the new top
+> speed instead of mispredicting at the old `6 / 0.8`.
 
 > Values are starting points, not gospel. The deliverable is a *feel*, reached
 > by playtesting and iterating these numbers — not hitting these exact figures.
@@ -55,12 +59,12 @@ untouched. (If a change needs new state, it belongs in a later WO.)
 5. Sweep for any test that asserts on these magnitudes and update expectations.
 
 ## Acceptance criteria
-- [ ] A skater crosses the rink noticeably faster than before; starts/stops feel responsive, not floaty or twitchy.
-- [ ] A clean check sends the target sliding a meaningful distance and reads as impactful.
-- [ ] Loose pucks travel and bank off boards rather than dying quickly.
-- [ ] No skater/puck can escape the rink boundary (boundary still enforced by `containCircle`).
-- [ ] `npm test` green (with any intentional magnitude-assertion updates).
-- [ ] `npm run typecheck` clean.
+- [x] A skater crosses the rink noticeably faster than before; starts/stops feel responsive, not floaty or twitchy.
+- [x] A clean check sends the target sliding a meaningful distance and reads as impactful.
+- [x] Loose pucks travel and bank off boards rather than dying quickly.
+- [x] No skater/puck can escape the rink boundary (boundary still enforced by `containCircle`).
+- [x] `npm test` green (added a deterministic hit-knockback guard test pinning the new magnitude).
+- [x] `npm run typecheck` clean.
 
 ## Testing
 - Manual: open two tabs, skate/shoot/check, eyeball feel.

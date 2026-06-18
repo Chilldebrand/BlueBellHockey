@@ -1,12 +1,11 @@
-import { getCharacter, v, type InputState } from '@bbh/shared';
+import { BASE_SPEED, SPEED_PER_POINT, getCharacter, v, type InputState } from '@bbh/shared';
 import type { Snapshot } from '../net/client.js';
 import type { SkaterRender } from './interpolation.js';
 
 // Lightweight local prediction: render the controlled skater at the latest
 // authoritative position advanced by the current input, then smooth toward the
 // server. Avoids the input-lag of pure interpolation without full input replay.
-const BASE_SPEED = 6;
-const SPEED_PER_POINT = 0.8;
+// Movement constants are imported from shared so prediction tracks the sim's feel.
 
 export function predictLocal(
   buffer: Snapshot[],

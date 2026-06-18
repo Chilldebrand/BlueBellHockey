@@ -13,15 +13,16 @@ export function isDisabled(s: SkaterState, time: number): boolean {
   return s.status.frozenUntil > time || s.status.staggeredUntil > time;
 }
 
-const BASE_SPEED = 6;
-const SPEED_PER_POINT = 0.8;
-const ACCEL = 24;
-const FRICTION = 9;
+// Arcade feel pass (WO-00): faster top speed, snappier accel, longer glide.
+export const BASE_SPEED = 7;
+export const SPEED_PER_POINT = 0.9;
+const ACCEL = 30;
+const FRICTION = 7;
 
 export function maxSpeedOf(s: SkaterState, carrying: boolean): number {
   const sp = effectiveAttr(s, 'speed');
   let m = (BASE_SPEED + sp * SPEED_PER_POINT) * s.status.speedMult;
-  if (carrying) m *= 0.9;
+  if (carrying) m *= 0.92;
   return m;
 }
 

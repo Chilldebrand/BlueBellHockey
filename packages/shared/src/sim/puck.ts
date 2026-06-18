@@ -3,9 +3,10 @@ import { v, containCircle } from './physics.js';
 import { isDisabled } from './skater.js';
 import type { SkaterState, WorldState } from './types.js';
 
-const PUCK_FRICTION = 0.7; // per second velocity retention factor base
+// Arcade feel pass (WO-00): loose pucks slide farther and pickups are forgiving.
+const PUCK_FRICTION = 0.82; // per second velocity retention factor base
 const STICK_REACH = SKATER_RADIUS + 0.45;
-const PICKUP_RANGE = SKATER_RADIUS + 0.55;
+const PICKUP_RANGE = SKATER_RADIUS + 0.7;
 
 function nearestSkater(world: WorldState, exclude?: string): SkaterState | null {
   let best: SkaterState | null = null;
