@@ -90,15 +90,26 @@ export function Scene() {
 
   return (
     <Canvas shadows camera={{ position: [0, 24, -36], fov: 45 }}>
-      <color attach="background" args={['#0b1020']} />
-      <hemisphereLight intensity={0.7} groundColor="#334" />
+      <color attach="background" args={['#0c121c']} />
+      <fog attach="fog" args={['#0c121c', 70, 150]} />
+      <hemisphereLight intensity={1.0} color="#ffffff" groundColor="#9fb2c8" />
       <directionalLight
-        position={[10, 30, -10]}
-        intensity={1.4}
+        position={[10, 36, -10]}
+        intensity={2.1}
+        color="#ffffff"
         castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
+        shadow-mapSize-width={2048}
+        shadow-mapSize-height={2048}
+        shadow-bias={-0.0004}
+        shadow-camera-left={-36}
+        shadow-camera-right={36}
+        shadow-camera-top={24}
+        shadow-camera-bottom={-24}
+        shadow-camera-near={1}
+        shadow-camera-far={90}
       />
+      {/* soft fill from the opposite side so shadows aren't pitch black */}
+      <directionalLight position={[-14, 20, 12]} intensity={0.5} color="#dce8ff" />
       <Rink />
       <Puck />
       {roster.map((r) => (

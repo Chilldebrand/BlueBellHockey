@@ -2,8 +2,14 @@ import { useMemo } from 'react';
 import * as THREE from 'three';
 import { RINK } from '@bbh/shared';
 
-// Street reskin (WO-05): same RINK dimensions / goal mouth / collision — only the
-// materials, colors and decorative decals change (all flat at y≈0, no collision).
+// Ice-hockey rink. Same RINK dimensions / goal mouth / collision (all gameplay is
+// server-side) — this only draws the sheet: polished white ice, standard NHL
+// markings, white boards with glass, and red goals. Everything decorative is flat
+// at y≈0 (markings) or non-colliding (boards/glass/goals).
+
+const RED = '#c8202b';
+const BLUE = '#1f4fb5';
+const ICE = '#e9f2fb';
 
 function roundedRect(hl: number, hw: number, r: number): THREE.Shape {
   const s = new THREE.Shape();
@@ -19,47 +25,40 @@ function roundedRect(hl: number, hw: number, r: number): THREE.Shape {
   return s;
 }
 
-function Line({ x, color, w = 0.4 }: { x: number; color: string; w?: number }) {
+// A painted line running across the width of the rink at goal-to-goal position x.
+function Line({ x, color, w = 0.4, len = RINK.halfWidth * 2 }: { x: number; color: string; w?: number; len?: number }) {
   return (
     <mesh position={[x, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-      <planeGeometry args={[w, RINK.halfWidth * 2]} />
+      <planeGeometry args={[w, len]} />
       <meshBasicMaterial color={color} />
     </mesh>
   );
 }
 
-function FaceoffDot({ x, z }: { x: number; z: number }) {
+// Faceoff circle: painted ring + filled center spot.
+function Faceoff({ x, z, color, radius = 3 }: { x: number; z: number; color: string; radius?: number }) {
+  return (
+    <group position={[x, 0, z]}>
+      <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[radius, radius + 0.12, 48]} />
+        <meshBasicMaterial color={color} />
+      </mesh>
+      <mesh position={[0, 0.021, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.45, 32]} />
+        <meshBasicMaterial color={color} />
+      </mesh>
+    </group>
+  );
+}
+
+// Small neutral-zone faceoff spot.
+function Spot({ x, z, color }: { x: number; z: number; color: string }) {
   return (
     <mesh position={[x, 0.02, z]} rotation={[-Math.PI / 2, 0, 0]}>
-      <ringGeometry args={[1.6, 1.75, 32]} />
-      <meshBasicMaterial color="#ff2fb0" />
+      <circleGeometry args={[0.45, 32]} />
+      <meshBasicMaterial color={color} />
     </mesh>
   );
-}
-
-// Flat graffiti splash — a filled neon circle, low opacity, sitting on the court.
-function Splash({ x, z, r, color, opacity = 0.12 }: { x: number; z: number; r: number; color: string; opacity?: number }) {
-  return (
-    <mesh position={[x, 0.012, z]} rotation={[-Math.PI / 2, 0, 0]}>
-      <circleGeometry args={[r, 48]} />
-      <meshBasicMaterial color={color} transparent opacity={opacity} />
-    </mesh>
-  );
-}
-
-function NeonRing({ x, z, ri, ro, color }: { x: number; z: number; ri: number; ro: number; color: string }) {
-  return (
-    <mesh position={[x, 0.016, z]} rotation={[-Math.PI / 2, 0, 0]}>
-      <ringGeometry args={[ri, ro, 48]} />
-      <meshBasicMaterial color={color} transparent opacity={0.9} />
-    </mesh>
-  );
-}
-
-function EndZone({ team }: { team: 0 | 1 }) {
-  const sign = team === 0 ? -1 : 1;
-  const color = team === 0 ? '#3c6bff' : '#ff5a3c';
-  return <Splash x={sign * 19} z={0} r={9} color={color} opacity={0.1} />;
 }
 
 function Goal({ team }: { team: 0 | 1 }) {
@@ -67,30 +66,30 @@ function Goal({ team }: { team: 0 | 1 }) {
   const x = sign * RINK.goalLineX;
   const hw = RINK.goalWidth / 2;
   const h = RINK.goalHeight;
-  const post = team === 0 ? '#3c6bff' : '#ff5a3c';
   return (
     <group position={[x, 0, 0]}>
-      <mesh position={[0, h / 2, hw]}>
+      {/* red posts + crossbar */}
+      <mesh position={[0, h / 2, hw]} castShadow>
         <boxGeometry args={[0.12, h, 0.12]} />
-        <meshStandardMaterial color={post} emissive={post} emissiveIntensity={0.6} />
+        <meshStandardMaterial color={RED} roughness={0.5} />
       </mesh>
-      <mesh position={[0, h / 2, -hw]}>
+      <mesh position={[0, h / 2, -hw]} castShadow>
         <boxGeometry args={[0.12, h, 0.12]} />
-        <meshStandardMaterial color={post} emissive={post} emissiveIntensity={0.6} />
+        <meshStandardMaterial color={RED} roughness={0.5} />
       </mesh>
-      <mesh position={[0, h, 0]}>
+      <mesh position={[0, h, 0]} castShadow>
         <boxGeometry args={[0.12, 0.12, hw * 2]} />
-        <meshStandardMaterial color={post} emissive={post} emissiveIntensity={0.6} />
+        <meshStandardMaterial color={RED} roughness={0.5} />
       </mesh>
-      {/* crease */}
-      <mesh position={[-sign * 1, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      {/* blue crease in front of the mouth */}
+      <mesh position={[-sign * 1, 0.025, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[2, hw * 2]} />
-        <meshBasicMaterial color={post} transparent opacity={0.32} />
+        <meshBasicMaterial color={BLUE} transparent opacity={0.22} />
       </mesh>
-      {/* netting backing */}
+      {/* white netting backing */}
       <mesh position={[sign * 0.9, h / 2, 0]}>
         <boxGeometry args={[0.05, h, hw * 2]} />
-        <meshStandardMaterial color="#ffffff" transparent opacity={0.12} />
+        <meshStandardMaterial color="#ffffff" transparent opacity={0.18} />
       </mesh>
     </group>
   );
@@ -101,45 +100,58 @@ export function Rink() {
     () => new THREE.ShapeGeometry(roundedRect(RINK.halfLength, RINK.halfWidth, RINK.cornerRadius)),
     [],
   );
-  const wallGeo = useMemo(() => {
+  const boardGeo = useMemo(() => {
     const outer = roundedRect(RINK.halfLength + 0.6, RINK.halfWidth + 0.6, RINK.cornerRadius);
     outer.holes.push(roundedRect(RINK.halfLength, RINK.halfWidth, RINK.cornerRadius));
-    return new THREE.ExtrudeGeometry(outer, { depth: 1.1, bevelEnabled: false });
+    return new THREE.ExtrudeGeometry(outer, { depth: 1.0, bevelEnabled: false });
+  }, []);
+  const glassGeo = useMemo(() => {
+    const outer = roundedRect(RINK.halfLength + 0.75, RINK.halfWidth + 0.75, RINK.cornerRadius);
+    outer.holes.push(roundedRect(RINK.halfLength + 0.6, RINK.halfWidth + 0.6, RINK.cornerRadius));
+    return new THREE.ExtrudeGeometry(outer, { depth: 2.4, bevelEnabled: false });
   }, []);
 
   return (
     <group>
-      {/* street court floor (dark, grungy) */}
+      {/* polished white ice */}
       <mesh geometry={iceGeo} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <meshStandardMaterial color="#141a26" roughness={0.92} metalness={0.04} />
+        <meshStandardMaterial color={ICE} roughness={0.16} metalness={0.05} />
       </mesh>
-      {/* neon boards */}
-      <mesh geometry={wallGeo} rotation={[-Math.PI / 2, 0, 0]}>
+      {/* white boards */}
+      <mesh geometry={boardGeo} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
+        <meshStandardMaterial color="#f3f6fb" roughness={0.7} side={THREE.DoubleSide} />
+      </mesh>
+      {/* translucent glass above the boards */}
+      <mesh geometry={glassGeo} rotation={[-Math.PI / 2, 0, 0]}>
         <meshStandardMaterial
-          color="#0a0f18"
-          emissive="#1cd6ff"
-          emissiveIntensity={0.55}
+          color="#cfe6f5"
+          transparent
+          opacity={0.12}
+          roughness={0.05}
+          metalness={0}
           side={THREE.DoubleSide}
+          depthWrite={false}
         />
       </mesh>
 
-      {/* graffiti splashes (purely decorative) */}
-      <EndZone team={0} />
-      <EndZone team={1} />
-      <Splash x={0} z={0} r={9} color="#ff2fb0" opacity={0.08} />
-      <Splash x={0} z={0} r={5.4} color="#1cd6ff" opacity={0.09} />
-      <Splash x={-12} z={-12} r={4} color="#27c93f" opacity={0.08} />
-      <Splash x={13} z={12} r={4.5} color="#ffd23c" opacity={0.07} />
+      {/* lines: red center + red goal lines, two blue lines */}
+      <Line x={0} color={RED} w={0.5} />
+      <Line x={10} color={BLUE} w={0.45} />
+      <Line x={-10} color={BLUE} w={0.45} />
+      <Line x={RINK.goalLineX} color={RED} w={0.12} />
+      <Line x={-RINK.goalLineX} color={RED} w={0.12} />
 
-      {/* neon markings */}
-      <Line x={0} color="#ff2fb0" w={0.5} />
-      <Line x={10} color="#1cd6ff" />
-      <Line x={-10} color="#1cd6ff" />
-      <NeonRing x={0} z={0} ri={4.6} ro={4.9} color="#ff2fb0" />
-      <FaceoffDot x={18} z={RINK.faceoffZ} />
-      <FaceoffDot x={18} z={-RINK.faceoffZ} />
-      <FaceoffDot x={-18} z={RINK.faceoffZ} />
-      <FaceoffDot x={-18} z={-RINK.faceoffZ} />
+      {/* faceoffs: blue center circle, four red end-zone circles, neutral spots */}
+      <Faceoff x={0} z={0} color={BLUE} radius={4.6} />
+      <Faceoff x={18} z={RINK.faceoffZ} color={RED} />
+      <Faceoff x={18} z={-RINK.faceoffZ} color={RED} />
+      <Faceoff x={-18} z={RINK.faceoffZ} color={RED} />
+      <Faceoff x={-18} z={-RINK.faceoffZ} color={RED} />
+      <Spot x={6.5} z={RINK.faceoffZ} color={RED} />
+      <Spot x={6.5} z={-RINK.faceoffZ} color={RED} />
+      <Spot x={-6.5} z={RINK.faceoffZ} color={RED} />
+      <Spot x={-6.5} z={-RINK.faceoffZ} color={RED} />
+
       <Goal team={0} />
       <Goal team={1} />
     </group>
