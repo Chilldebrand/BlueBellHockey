@@ -34,6 +34,21 @@ export interface Snapshot {
   puck: { px: number; pz: number; vx: number; vz: number; carrier: string };
 }
 
+export interface ConnectOpts {
+  mode?: 'quick' | 'create' | 'join';
+  code?: string;
+  team?: 0 | 1 | null;
+  serverUrl?: string;
+}
+
+// Friendly room code (WO-14): 4 chars from an unambiguous alphabet (no O/0/I/1).
+function genRoomCode(): string {
+  const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s = '';
+  for (let i = 0; i < 4; i++) s += A[Math.floor(Math.random() * A.length)];
+  return s;
+}
+
 // Low-frequency UI state lives in zustand; the high-frequency snapshot buffer is a
 // plain singleton read directly by the render loop (avoids re-rendering React at 30Hz).
 type GameEvent =
@@ -71,17 +86,29 @@ class NetClient {
   private rosterSig = '';
   private statsSig = '';
 
-  async connect(serverUrl?: string): Promise<void> {
+  async connect(opts: ConnectOpts = {}): Promise<void> {
+    const mode = opts.mode ?? 'quick';
+    const code = (opts.code ?? '').toUpperCase().trim();
     const ui = useUi.getState();
     ui.set({ status: 'connecting', error: null });
     try {
-      const url = serverUrl ?? `ws://${location.hostname}:2567`;
+      const url = opts.serverUrl ?? `ws://${location.hostname}:2567`;
       const client = new Client(url);
-      const room = await client.joinOrCreate('match');
+      const joinOpts: Record<string, unknown> = {};
+      if (opts.team === 0 || opts.team === 1) joinOpts.team = opts.team;
+
+      let room: Room;
+      if (mode === 'create') {
+        joinOpts.code = code || genRoomCode();
+        room = await client.create('match', joinOpts); // always a fresh private room
+      } else {
+        joinOpts.code = mode === 'join' ? code : ''; // join a coded room, or public Quick Play
+        room = await client.joinOrCreate('match', joinOpts);
+      }
       this.room = room;
 
-      room.onMessage('assigned', (m: { skaterId: string; team: 0 | 1 }) => {
-        useUi.getState().set({ mySkaterId: m.skaterId, myTeam: m.team });
+      room.onMessage('assigned', (m: { skaterId: string; team: 0 | 1; code?: string }) => {
+        useUi.getState().set({ mySkaterId: m.skaterId, myTeam: m.team, roomCode: m.code ?? '' });
       });
 
       // one-shot gameplay events (hooks for VFX/SFX; registered to avoid warnings)

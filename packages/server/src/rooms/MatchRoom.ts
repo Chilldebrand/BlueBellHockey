@@ -44,8 +44,11 @@ export class MatchRoom extends Room<MatchState> {
   private sessionToSkater = new Map<string, string>();
   private selected = new Map<string, string>(); // slotId -> characterId
   private started = false;
+  private code = ''; // room code ('' = public Quick Play room) — WO-14
 
-  onCreate(): void {
+  onCreate(options?: { code?: string }): void {
+    this.code = (options?.code ?? '').toString().toUpperCase().slice(0, 6);
+    this.setMetadata({ code: this.code });
     this.setState(new MatchState());
 
     // default character per slot so bots and unselected humans have a build
@@ -90,15 +93,20 @@ export class MatchRoom extends Room<MatchState> {
     this.setSimulationInterval((dt) => this.tick(dt), TICK_MS);
   }
 
-  onJoin(client: Client): void {
-    const slot = SKATER_SLOTS.find((s) => !this.isSlotTaken(s.id));
+  onJoin(client: Client, options?: { team?: number }): void {
+    // Team preference (WO-14): take a free slot on the requested team if any,
+    // otherwise fall back to any free slot rather than refusing the join.
+    const want = options?.team === 1 ? 1 : options?.team === 0 ? 0 : null;
+    const slot =
+      (want !== null && SKATER_SLOTS.find((s) => s.team === want && !this.isSlotTaken(s.id))) ||
+      SKATER_SLOTS.find((s) => !this.isSlotTaken(s.id));
     if (!slot) return;
     this.sessionToSkater.set(client.sessionId, slot.id);
     const row = this.state.skaters.get(slot.id);
     if (row) row.isBot = false;
     const w = this.world.skaters[slot.id];
     if (w) w.isBot = false;
-    client.send('assigned', { skaterId: slot.id, team: slot.team });
+    client.send('assigned', { skaterId: slot.id, team: slot.team, code: this.code });
   }
 
   onLeave(client: Client): void {

@@ -15,7 +15,10 @@ const gameServer = new Server({
   transport: new WebSocketTransport({ server: createServer(app) }),
 });
 
-gameServer.define('match', MatchRoom);
+// filterBy(code) isolates matchmaking by room code (WO-14): Quick Play uses an
+// empty code so strangers match together; a shared code routes friends to the same
+// private room.
+gameServer.define('match', MatchRoom).filterBy(['code']);
 
 gameServer.listen(port).then(() => {
   console.log(`[bbh] server listening on ws://localhost:${port}`);

@@ -47,6 +47,7 @@ export interface UiState {
   error: string | null;
   mySkaterId: string | null;
   myTeam: 0 | 1 | null;
+  roomCode: string; // WO-14 — active private room code ('' = public Quick Play)
   selectedCharacter: string;
   // live match meta (updated each server patch)
   phase: string;
@@ -80,6 +81,7 @@ export const useUi = create<UiState>((set) => ({
   error: null,
   mySkaterId: null,
   myTeam: null,
+  roomCode: '',
   selectedCharacter: 'blaze',
   phase: 'lobby',
   period: 1,
