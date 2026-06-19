@@ -15,6 +15,14 @@ const PUCK_FRICTION = 0.82; // per second velocity retention factor base
 // Net twine barely rebounds (WO-18): a shot dies in the mesh, a dump-in off the
 // back wall stays loose behind the net rather than springing back into the slot.
 const NET_RESTITUTION = 0.25;
+// Shot/pass block (WO-19): a loose puck with real pace caroms off a defender's body
+// (shin pads deaden it) and pops loose. Slow pucks fall through to normal pickup so
+// a defender skating onto a dribbler just gathers it. The reach matches PICKUP_RANGE
+// (and the block is tested before auto-pickup) so a defender in the lane blocks a
+// hot puck rather than cleanly catching it.
+const BLOCK_MIN_SPEED = 11;
+const BLOCK_REACH = SKATER_RADIUS + 0.7;
+const BLOCK_RESTITUTION = 0.3;
 export const STICK_REACH = SKATER_RADIUS + 0.45;
 const PICKUP_RANGE = SKATER_RADIUS + 0.7;
 // Bank-play (WO-04): how long after a board bounce a same-team pickup still counts.
@@ -93,6 +101,45 @@ function goalieSave(world: WorldState): boolean {
 }
 
 /**
+ * Shot/pass block (WO-19). A loose puck moving with pace that runs into a defending
+ * skater's body deflects off it (deadened) and pops loose, crediting the blocker.
+ * Only opponents of whoever last touched the puck block, so you never carom off
+ * your own teammates; goalies are skipped (the crease has its own save logic).
+ * Returns true if a block happened (the caller then skips auto-pickup this frame).
+ */
+function blockShot(world: WorldState): boolean {
+  const puck = world.puck;
+  if (!puck.lastTouch) return false;
+  const shooterTeam = world.skaters[puck.lastTouch]?.team;
+  if (shooterTeam === undefined) return false;
+  if (v.len(puck.vel) < BLOCK_MIN_SPEED) return false;
+  const reach = BLOCK_REACH;
+  for (const o of Object.values(world.skaters)) {
+    if (o.team === shooterTeam) continue; // only the defending side blocks
+    if (o.isGoalie) continue; // the goalie has goalieSave
+    if (isDisabled(o, world.time)) continue;
+    const off = v.sub(puck.pos, o.pos); // body center -> puck
+    const d = v.len(off);
+    if (d > reach) continue;
+    const n = d > 1e-6 ? v.scale(off, 1 / d) : { x: 1, z: 0 };
+    const vn = v.dot(puck.vel, n);
+    if (vn >= 0) continue; // puck must be moving into the body
+    // deflect off the body, deadened, and lift it clear of the overlap
+    puck.vel.x -= (1 + BLOCK_RESTITUTION) * vn * n.x;
+    puck.vel.z -= (1 + BLOCK_RESTITUTION) * vn * n.z;
+    puck.pos.x = o.pos.x + n.x * reach;
+    puck.pos.z = o.pos.z + n.z * reach;
+    puck.pickupCooldownUntil = world.time + 150; // loose deflection, no instant stick
+    puck.lastTouch = o.id;
+    puck.assistTouch = null;
+    world.events.push({ type: 'block', by: o.id });
+    awardStyle(o, 'block', world.time);
+    return true;
+  }
+  return false;
+}
+
+/**
  * World-space position of a carried puck for a skater at (pos, facing). During a
  * deke window the dead-ahead stick anchor bends laterally along (dekeDirX,
  * dekeDirZ) following a sin envelope (0 at the ends, peak mid-window). Shared by
@@ -165,6 +212,10 @@ export function stepPuck(world: WorldState, dt: number): void {
       puck.pos.z = anchor.z;
       puck.vel.x = c.vel.x;
       puck.vel.z = c.vel.z;
+      // Keep the carried puck on the rink (WO-19): a carrier pinned to the boards
+      // shouldn't poke the puck through them. Clamp position only (a scratch vel
+      // absorbs the reflection so the carrier's velocity is untouched).
+      containCircle(puck.pos, { x: 0, z: 0 }, PUCK_RADIUS, 0);
       return;
     }
   }
@@ -185,6 +236,10 @@ export function stepPuck(world: WorldState, dt: number): void {
   // Net collision (WO-18): keep the puck out of the net except through the mouth.
   // Twine deadens the puck, so a low restitution — it rattles in rather than springs.
   collideNets(puck.pos, puck.vel, PUCK_RADIUS, NET_RESTITUTION);
+
+  // Shot/pass block (WO-19): a defender's body in the lane deflects a hard puck.
+  // Like a save, this ends the puck's frame so it isn't instantly re-gathered.
+  if (blockShot(world)) return;
 
   // Goalie save (WO-09): a stop ends the puck's frame here (cover sets a carrier;
   // a rebound leaves it loose but heading back out), skipping the auto-pickup so a

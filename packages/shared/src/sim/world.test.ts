@@ -10,7 +10,7 @@ import { doDeke, doHit, doPass, doPoke, doShoot, doSteal, SLAP_FULL_MS } from '.
 import { carryAnchor, DEKE_MS, ONE_TIMER_WINDOW_MS, STICK_REACH } from './puck.js';
 import { stepPickups } from './pickups.js';
 import { emptyActions, neutralInput, type InputState, type WorldState } from './types.js';
-import { attackingGoalX, RINK } from '../config/rink.js';
+import { attackingGoalX, RINK, SKATER_RADIUS } from '../config/rink.js';
 import { GAME_MODES } from '../config/modes.js';
 import { v } from './physics.js';
 
@@ -167,6 +167,92 @@ describe('world simulation', () => {
     w.puck.pickupCooldownUntil = w.time + 10000;
     for (let i = 0; i < 30 && w.score[0] === 0; i++) step(w, {}, DT);
     expect(w.score[0]).toBe(1);
+  });
+
+  it('a defender in the lane blocks a hard shot and is credited (WO-19)', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const b = w.skaters.b; // team 1, the defender
+    b.pos = { x: 12, z: 0 };
+    b.vel = { x: 0, z: 0 };
+    const chargeBefore = b.ultCharge;
+    w.puck.carrier = null;
+    w.puck.lastTouch = 'a'; // shot by team 0
+    w.puck.assistTouch = null;
+    w.puck.pos = { x: 6, z: 0 };
+    w.puck.vel = { x: 30, z: 0 }; // hard, straight at the defender
+    w.puck.pickupCooldownUntil = w.time + 10000; // keep it from being gathered
+    let blocked = false;
+    for (let i = 0; i < 30 && !blocked; i++) {
+      step(w, {}, DT);
+      blocked = w.events.some((e) => e.type === 'block' && e.by === 'b');
+    }
+    expect(blocked).toBe(true);
+    expect(w.puck.vel.x).toBeLessThan(30); // deflected/deadened, didn't pass through
+    expect(b.ultCharge).toBeGreaterThan(chargeBefore); // "sells defense"
+  });
+
+  it('two skaters colliding shed their closing velocity instead of grinding (WO-19)', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const a = w.skaters.a;
+    const b = w.skaters.b;
+    a.pos = { x: 0, z: 0 };
+    a.vel = { x: 4, z: 0 };
+    b.pos = { x: 0.8, z: 0 };
+    b.vel = { x: -4, z: 0 };
+    step(w, {}, DT);
+    expect(v.dist(a.pos, b.pos)).toBeGreaterThan(SKATER_RADIUS * 2 - 0.1); // not overlapping
+    expect(Math.abs(a.vel.x)).toBeLessThan(1); // closing velocity cancelled
+    expect(Math.abs(b.vel.x)).toBeLessThan(1);
+  });
+
+  it('a skater shoved into the boards is kept on the ice (WO-19)', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const a = w.skaters.a;
+    const b = w.skaters.b;
+    a.pos = { x: 0, z: RINK.halfWidth - SKATER_RADIUS - 0.1 }; // against the +Z board
+    a.vel = { x: 0, z: 0 };
+    b.pos = { x: 0, z: RINK.halfWidth - SKATER_RADIUS - 0.9 };
+    b.vel = { x: 0, z: 6 }; // driving a outward into the boards
+    let maxZ = a.pos.z;
+    for (let i = 0; i < 5; i++) {
+      step(w, {}, DT);
+      maxZ = Math.max(maxZ, a.pos.z);
+    }
+    expect(maxZ).toBeLessThanOrEqual(RINK.halfWidth - SKATER_RADIUS + 0.05);
+  });
+
+  it('a hit does not connect with an already-downed skater (WO-19)', () => {
+    const w = createWorld([
+      { id: 'a', team: 0, characterId: 'tank', isBot: false, isGoalie: false },
+      { id: 'b', team: 1, characterId: 'blaze', isBot: false, isGoalie: false },
+    ]);
+    w.phase = 'period';
+    const a = w.skaters.a;
+    const b = w.skaters.b;
+    a.pos = { x: 0, z: 0 };
+    a.facing = 0; // facing +X, toward b
+    b.pos = { x: 1.4, z: 0 };
+    b.vel = { x: 0, z: 0 };
+    b.status.staggeredUntil = w.time + 5000; // already down
+    doHit(w, a, neutralInput());
+    expect(b.vel.x).toBeCloseTo(0, 5); // no knock — the hit found no eligible target
+    expect(w.events.some((e) => e.type === 'hit')).toBe(false);
+  });
+
+  it('a carried puck pinned to the boards stays on the ice (WO-19)', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const a = w.skaters.a;
+    a.pos = { x: 0, z: RINK.halfWidth - SKATER_RADIUS - 0.1 }; // against the +Z board
+    a.vel = { x: 0, z: 0 };
+    a.facing = Math.PI / 2; // facing +Z, into the board — stick anchor would poke through
+    w.puck.carrier = 'a';
+    w.puck.pickupCooldownUntil = 0;
+    step(w, {}, DT);
+    expect(Math.abs(w.puck.pos.z)).toBeLessThan(RINK.halfWidth);
   });
 
   it('a Gamebreaker in sudden-death overtime ends the match (WO-02)', () => {

@@ -9,7 +9,7 @@ import {
 import { getMode, type GameModeDef } from '../config/modes.js';
 import { PUCK_RADIUS, RINK, SKATER_RADIUS, attackingGoalX } from '../config/rink.js';
 import { doDeke, doHit, doPass, doPoke, doShoot, doSteal, doUlt } from './actions.js';
-import { resolveCircles, v } from './physics.js';
+import { containCircle, resolveCircles, v } from './physics.js';
 import { isDisabled, stepSkater } from './skater.js';
 import { stepPuck } from './puck.js';
 import { clearPickups, stepPickups } from './pickups.js';
@@ -163,11 +163,38 @@ function collide(world: WorldState): void {
       if (a.status.intangibleUntil > world.time || b.status.intangibleUntil > world.time) continue;
       const hit = resolveCircles(a.pos, b.pos, SKATER_RADIUS, SKATER_RADIUS);
       if (!hit) continue;
+      // Damp the closing velocity so bodies don't grind/jitter or tunnel through
+      // each other — resolveCircles only separates positions (WO-19). Done before
+      // checkContact so a freight-train knock added there isn't cancelled.
+      dampContact(a, b);
+      // resolveCircles can shove a skater past the boards for a frame — pull both back.
+      containCircle(a.pos, a.vel, SKATER_RADIUS, RINK.boardRestitution);
+      containCircle(b.pos, b.vel, SKATER_RADIUS, RINK.boardRestitution);
       // freight-train style: a checking skater flattens an opposing skater on contact
       checkContact(world, a, b);
       checkContact(world, b, a);
     }
   }
+}
+
+// Cancel the part of two skaters' velocities that drives them together, along the
+// contact normal (WO-19): an equal-mass inelastic response that kills the grind
+// without making bodies bounce apart. No effect if they're already separating.
+function dampContact(a: SkaterState, b: SkaterState): void {
+  const dx = b.pos.x - a.pos.x;
+  const dz = b.pos.z - a.pos.z;
+  const d = Math.hypot(dx, dz);
+  if (d < 1e-6) return;
+  const nx = dx / d;
+  const nz = dz / d;
+  const va = a.vel.x * nx + a.vel.z * nz;
+  const vb = b.vel.x * nx + b.vel.z * nz;
+  if (va - vb <= 0) return; // not closing along the normal
+  const avg = (va + vb) / 2;
+  a.vel.x += (avg - va) * nx;
+  a.vel.z += (avg - va) * nz;
+  b.vel.x += (avg - vb) * nx;
+  b.vel.z += (avg - vb) * nz;
 }
 
 function checkContact(world: WorldState, attacker: SkaterState, target: SkaterState): void {

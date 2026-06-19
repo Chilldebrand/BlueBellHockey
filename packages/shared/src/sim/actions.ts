@@ -151,6 +151,9 @@ export function doHit(world: WorldState, s: SkaterState, input: InputState): voi
   for (const o of Object.values(world.skaters)) {
     if (o.team === s.team) continue;
     if (o.status.intangibleUntil > world.time) continue;
+    // Don't re-hit a skater who's already down (staggered/frozen/boxed) — matches
+    // the freight-train contact rule in world.ts so the two check paths agree (WO-19).
+    if (isDisabled(o, world.time)) continue;
     const off = v.sub(o.pos, s.pos);
     const d = v.len(off);
     if (d > HIT_RANGE) continue;
