@@ -6,10 +6,32 @@ Online **3v3 arcade hockey** — browser-based, cartoony 3D, NHL-3v3-Arcade / NB
   rated 1–10, **38 points total**) and a **unique ultimate**.
 - Ultimates charge from a **7:30 floor** (no positive plays) down to a **~2:00 cadence**
   with perfect play.
-- Matches are **3 periods × 3:00**, with sudden-death overtime on a tie.
+- **Game modes** — Regulation (3 × 3:00, sudden-death OT), First-to-5, a single-period
+  Blitz, and a 1-on-1 duel.
 - **Online from the start**: an authoritative [Colyseus](https://colyseus.io) server runs
   the simulation at 30 Hz; clients render with React + [react-three-fiber](https://docs.pmnd.rs/react-three-fiber).
+  **Quick Play** matchmakes by mode, or spin up a **private room code** and pick a side
+  to play with friends.
 - Mouse + keyboard **and** gamepad. Empty slots are filled by bots, so a full 3v3 runs solo.
+
+## Match systems
+
+- **End-of-match flow.** A real postgame: per-player **box score** (goals / assists /
+  hits / takeaways / saves / shots), an **MVP**, and **Rematch / Back to Lobby**.
+- **Goalie saves.** Bot goalies rob shooters with a `SAVE!` — hard shots kick out **live
+  rebounds** to crash, soft centered ones are covered.
+- **One-timers.** Shoot right off a teammate's pass for bonus power/accuracy + a
+  `ONE-TIMER!` and style.
+- **Slow-mo goal replays.** Every goal triggers an instant replay off the snapshot ring
+  buffer with a tight goal cam (the puck now visibly sits in the net).
+- **Ice pickups.** NBA-Street-style **speed-boost** (green) and **instant-charge** (gold)
+  tokens spawn mid-rink.
+- **Power play.** A check on a player away from the puck (interference / late hit) boxes
+  the offender for a brief **man advantage** — hit the carrier, not bystanders.
+- **Audio.** A procedural music bed (menu vs gameplay) and a **living crowd** that swells
+  near the net and roars on goals — all synthesized, no audio files.
+- **Options.** Audio mix + music toggle, full control remapping, and a **graphics-quality**
+  toggle (Low / Medium / High) in the ⚙ Settings panel.
 
 ## Monorepo layout
 
