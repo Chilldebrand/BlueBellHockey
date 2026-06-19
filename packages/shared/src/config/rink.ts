@@ -8,6 +8,7 @@ export const RINK = {
   goalLineX: 27, // |x| at which a goal counts
   goalWidth: 7, // mouth size: scoring requires |z| < goalWidth/2
   goalHeight: 2.2,
+  goalDepth: 1.8, // how far the net extends back from the goal line (WO-18: net collision)
   faceoffZ: 11,
   centerFaceoff: { x: 0, z: 0 },
 } as const;

@@ -21,6 +21,7 @@ import {
   type InputState,
   type SkaterState,
   type Team,
+  type Vec2,
   type WorldState,
 } from './types.js';
 
@@ -190,12 +191,18 @@ export const GAMEBREAKER_GOAL_VALUE = 2;
 export const GAMEBREAKER_STEALS_POINT = true;
 const SCORE_MAX = 255; // score0/score1 are uint8 in the schema
 
-function detectGoal(world: WorldState): void {
+function detectGoal(world: WorldState, prevPos: Vec2): void {
   const p = world.puck;
   if (p.carrier) return;
   for (const team of [0, 1] as Team[]) {
     const gx = attackingGoalX(team); // team scores by sending puck across this line
-    const crossed = team === 0 ? p.pos.x >= gx : p.pos.x <= gx;
+    const sign = team === 0 ? 1 : -1; // team 0 attacks +X, team 1 attacks -X
+    // A goal is an *inward* crossing of the mouth plane this frame: the puck was in
+    // front of the line and is now at/past it, within the mouth width. A loose puck
+    // already behind the line (dumped around the net) never re-crosses, and a puck
+    // wrapping back out toward center crosses the wrong way — neither scores, so you
+    // can no longer "score from behind the net" (WO-18).
+    const crossed = sign * prevPos.x < sign * gx && sign * p.pos.x >= sign * gx;
     if (crossed && Math.abs(p.pos.z) < RINK.goalWidth / 2) {
       const scorer = p.lastTouch && world.skaters[p.lastTouch]?.team === team ? p.lastTouch : null;
       const assist = p.assistTouch && world.skaters[p.assistTouch]?.team === team ? p.assistTouch : null;
@@ -364,8 +371,11 @@ export function step(
       stepSkater(world, s, inputs[s.id] ?? neutralInput(), dt);
     }
     collide(world);
+    // capture the puck's position before it moves so detectGoal can test the
+    // direction it crossed the goal line this frame (WO-18).
+    const puckBefore = { x: world.puck.pos.x, z: world.puck.pos.z };
     stepPuck(world, dt);
-    detectGoal(world);
+    detectGoal(world, puckBefore);
     stepPickups(world, dtMs);
 
     // A turnover kills the combo: anyone checked, frozen, or staggered this frame

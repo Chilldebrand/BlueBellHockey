@@ -57,6 +57,56 @@ export function containCircle(
   return false;
 }
 
+// A thin, two-sided reflective wall: a segment perpendicular to `axis` at world
+// coordinate `wall`, spanning [lo, hi] along the other axis (`span`). Reflects a
+// circle of `radius` that is within the span and *closing* on the plane. Mutates
+// pos/vel. Used to build the goal nets out of three barriers.
+function thinWall(
+  pos: Vec2,
+  vel: Vec2,
+  radius: number,
+  restitution: number,
+  axis: 'x' | 'z',
+  wall: number,
+  span: 'x' | 'z',
+  lo: number,
+  hi: number,
+): void {
+  if (pos[span] < lo - radius || pos[span] > hi + radius) return;
+  const dist = pos[axis] - wall;
+  if (Math.abs(dist) >= radius) return;
+  if (dist * vel[axis] >= 0) return; // moving away or parallel — not closing
+  pos[axis] = wall + (dist >= 0 ? radius : -radius);
+  vel[axis] = -vel[axis] * restitution;
+}
+
+/**
+ * Net collision (WO-18). Each goal is a solid back wall + two side walls with the
+ * mouth left open toward center, so a loose puck can only get inside from the
+ * front. Together with world.ts's inward-crossing goal test this is what stops
+ * "scoring from behind the net" and keeps a shot rattling in instead of sailing
+ * through the twine. Mutates pos/vel for a circle of `radius`.
+ */
+export function collideNets(
+  pos: Vec2,
+  vel: Vec2,
+  radius: number,
+  restitution: number,
+): void {
+  const hw = RINK.goalWidth / 2;
+  for (const sign of [1, -1] as const) {
+    const gx = sign * RINK.goalLineX; // mouth plane (front of the net)
+    const xBack = gx + sign * RINK.goalDepth; // back wall, outward toward the end boards
+    const xLo = Math.min(gx, xBack);
+    const xHi = Math.max(gx, xBack);
+    // back wall, across the mouth width
+    thinWall(pos, vel, radius, restitution, 'x', xBack, 'z', -hw, hw);
+    // side walls, from the mouth back to the back wall
+    thinWall(pos, vel, radius, restitution, 'z', hw, 'x', xLo, xHi);
+    thinWall(pos, vel, radius, restitution, 'z', -hw, 'x', xLo, xHi);
+  }
+}
+
 /** Resolve overlap between two circles by pushing them apart equally. */
 export function resolveCircles(
   a: Vec2,

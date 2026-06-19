@@ -6,12 +6,15 @@ import {
   attackingGoalX,
   defendingGoalX,
 } from '../config/rink.js';
-import { v, containCircle } from './physics.js';
+import { v, containCircle, collideNets } from './physics.js';
 import { isDisabled } from './skater.js';
 import type { SkaterState, SkaterStatus, Vec2, WorldState } from './types.js';
 
 // Arcade feel pass (WO-00): loose pucks slide farther and pickups are forgiving.
 const PUCK_FRICTION = 0.82; // per second velocity retention factor base
+// Net twine barely rebounds (WO-18): a shot dies in the mesh, a dump-in off the
+// back wall stays loose behind the net rather than springing back into the slot.
+const NET_RESTITUTION = 0.25;
 export const STICK_REACH = SKATER_RADIUS + 0.45;
 const PICKUP_RANGE = SKATER_RADIUS + 0.7;
 // Bank-play (WO-04): how long after a board bounce a same-team pickup still counts.
@@ -179,6 +182,9 @@ export function stepPuck(world: WorldState, dt: number): void {
     puck.bankedBy = puck.lastTouch;
     puck.bankedAt = world.time;
   }
+  // Net collision (WO-18): keep the puck out of the net except through the mouth.
+  // Twine deadens the puck, so a low restitution — it rattles in rather than springs.
+  collideNets(puck.pos, puck.vel, PUCK_RADIUS, NET_RESTITUTION);
 
   // Goalie save (WO-09): a stop ends the puck's frame here (cover sets a carrier;
   // a rebound leaves it loose but heading back out), skipping the auto-pickup so a

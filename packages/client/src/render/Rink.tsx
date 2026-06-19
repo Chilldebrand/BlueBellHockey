@@ -66,35 +66,89 @@ function Spot({ x, z, color }: { x: number; z: number; color: string }) {
   );
 }
 
+// An enclosed hockey net. `sign` points outward (away from center): the mouth is
+// the open face at local x=0, the twine/back wall sits at local x = sign*depth.
+// This matches the sim's net collision (WO-18) so what you see is what stops the
+// puck — a shot rattles in, and you can't score from behind.
 function Goal({ team }: { team: 0 | 1 }) {
   const sign = team === 0 ? -1 : 1;
   const x = sign * RINK.goalLineX;
   const hw = RINK.goalWidth / 2;
   const h = RINK.goalHeight;
+  const depth = RINK.goalDepth;
+  const back = sign * depth; // local x of the back of the net
+  const bh = h * 0.8; // the back of the cage sits a little lower than the mouth
+  const bar = 0.12; // frame thickness
+  const frame = <meshStandardMaterial color={RED} roughness={0.5} />;
+  const twine = (
+    <meshStandardMaterial color="#eef2f6" roughness={0.9} transparent opacity={0.16} side={THREE.DoubleSide} />
+  );
   return (
     <group position={[x, 0, 0]}>
-      {/* red posts + crossbar */}
+      {/* mouth uprights + crossbar */}
       <mesh position={[0, h / 2, hw]} castShadow>
-        <boxGeometry args={[0.12, h, 0.12]} />
-        <meshStandardMaterial color={RED} roughness={0.5} />
+        <boxGeometry args={[bar, h, bar]} />
+        {frame}
       </mesh>
       <mesh position={[0, h / 2, -hw]} castShadow>
-        <boxGeometry args={[0.12, h, 0.12]} />
-        <meshStandardMaterial color={RED} roughness={0.5} />
+        <boxGeometry args={[bar, h, bar]} />
+        {frame}
       </mesh>
       <mesh position={[0, h, 0]} castShadow>
-        <boxGeometry args={[0.12, 0.12, hw * 2]} />
-        <meshStandardMaterial color={RED} roughness={0.5} />
+        <boxGeometry args={[bar, bar, hw * 2]} />
+        {frame}
+      </mesh>
+      {/* rear uprights + crossbar */}
+      <mesh position={[back, bh / 2, hw]} castShadow>
+        <boxGeometry args={[bar, bh, bar]} />
+        {frame}
+      </mesh>
+      <mesh position={[back, bh / 2, -hw]} castShadow>
+        <boxGeometry args={[bar, bh, bar]} />
+        {frame}
+      </mesh>
+      <mesh position={[back, bh, 0]} castShadow>
+        <boxGeometry args={[bar, bar, hw * 2]} />
+        {frame}
+      </mesh>
+      {/* top rails mouth -> back, and base rails on the ice */}
+      <mesh position={[back / 2, h, hw]}>
+        <boxGeometry args={[depth, bar, bar]} />
+        {frame}
+      </mesh>
+      <mesh position={[back / 2, h, -hw]}>
+        <boxGeometry args={[depth, bar, bar]} />
+        {frame}
+      </mesh>
+      <mesh position={[back / 2, bar / 2, hw]}>
+        <boxGeometry args={[depth, bar, bar]} />
+        {frame}
+      </mesh>
+      <mesh position={[back / 2, bar / 2, -hw]}>
+        <boxGeometry args={[depth, bar, bar]} />
+        {frame}
+      </mesh>
+      {/* twine: back panel, two side panels, and a sloped top */}
+      <mesh position={[back, bh / 2, 0]}>
+        <boxGeometry args={[0.04, bh, hw * 2]} />
+        {twine}
+      </mesh>
+      <mesh position={[back / 2, bh / 2, hw]}>
+        <boxGeometry args={[depth, bh, 0.04]} />
+        {twine}
+      </mesh>
+      <mesh position={[back / 2, bh / 2, -hw]}>
+        <boxGeometry args={[depth, bh, 0.04]} />
+        {twine}
+      </mesh>
+      <mesh position={[back / 2, (h + bh) / 2, 0]}>
+        <boxGeometry args={[depth, 0.04, hw * 2]} />
+        {twine}
       </mesh>
       {/* blue crease in front of the mouth */}
       <mesh position={[-sign * 1, 0.025, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[2, hw * 2]} />
         <meshBasicMaterial color={BLUE} transparent opacity={0.22} />
-      </mesh>
-      {/* white netting backing */}
-      <mesh position={[sign * 0.9, h / 2, 0]}>
-        <boxGeometry args={[0.05, h, hw * 2]} />
-        <meshStandardMaterial color="#ffffff" transparent opacity={0.18} />
       </mesh>
     </group>
   );
@@ -221,8 +275,8 @@ export function Rink({ reflections = true }: { reflections?: boolean }) {
       <Goal team={1} />
 
       {/* goal lamps behind each net (team that scores into a net lights it) */}
-      <GoalLamp x={RINK.goalLineX + 1.4} litByTeam={0} />
-      <GoalLamp x={-(RINK.goalLineX + 1.4)} litByTeam={1} />
+      <GoalLamp x={RINK.goalLineX + RINK.goalDepth + 0.4} litByTeam={0} />
+      <GoalLamp x={-(RINK.goalLineX + RINK.goalDepth + 0.4)} litByTeam={1} />
     </group>
   );
 }

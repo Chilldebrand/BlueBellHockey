@@ -10,7 +10,7 @@ import { doDeke, doHit, doPass, doPoke, doShoot, doSteal, SLAP_FULL_MS } from '.
 import { carryAnchor, DEKE_MS, ONE_TIMER_WINDOW_MS, STICK_REACH } from './puck.js';
 import { stepPickups } from './pickups.js';
 import { emptyActions, neutralInput, type InputState, type WorldState } from './types.js';
-import { attackingGoalX } from '../config/rink.js';
+import { attackingGoalX, RINK } from '../config/rink.js';
 import { GAME_MODES } from '../config/modes.js';
 import { v } from './physics.js';
 
@@ -119,6 +119,54 @@ describe('world simulation', () => {
     for (let i = 0; i < 30 && w.score[0] === 0; i++) step(w, {}, DT);
     expect(w.score[0]).toBe(GAMEBREAKER_GOAL_VALUE);
     expect(w.score[1]).toBe(0); // stayed clamped at 0
+  });
+
+  it('a loose puck resting behind the goal line does not score (WO-18)', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const gx = attackingGoalX(0); // +27
+    // sitting inside the net region, already past the line — the old plane test
+    // would have counted this instantly.
+    w.puck.carrier = null;
+    w.puck.lastTouch = 'a';
+    w.puck.pos = { x: gx + 1, z: 0 };
+    w.puck.vel = { x: 0, z: 0 };
+    w.puck.pickupCooldownUntil = w.time + 10000;
+    for (let i = 0; i < 30; i++) step(w, {}, DT);
+    expect(w.score[0]).toBe(0);
+  });
+
+  it('a puck dumped in from behind the net is stopped by the back wall and never scores (WO-18)', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const gx = attackingGoalX(0); // +27
+    const xBack = gx + RINK.goalDepth; // 28.8
+    w.puck.carrier = null;
+    w.puck.lastTouch = 'a';
+    w.puck.pos = { x: xBack + 0.5, z: 0 }; // behind the net, in the corner pocket
+    w.puck.vel = { x: -15, z: 0 }; // driving toward the mouth from behind
+    w.puck.pickupCooldownUntil = w.time + 10000;
+    let minX = w.puck.pos.x;
+    for (let i = 0; i < 30; i++) {
+      step(w, {}, DT);
+      minX = Math.min(minX, w.puck.pos.x);
+    }
+    expect(w.score[0]).toBe(0);
+    // the back wall held — it never reached the mouth / the slot in front
+    expect(minX).toBeGreaterThan(gx + 1);
+  });
+
+  it('an angled shot through the open mouth still scores (WO-18)', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const gx = attackingGoalX(0); // +27
+    w.puck.carrier = null;
+    w.puck.lastTouch = 'a';
+    w.puck.pos = { x: gx - 3, z: 2.5 };
+    w.puck.vel = { x: 30, z: -10 }; // crosses the line at z ~1.5, inside the mouth
+    w.puck.pickupCooldownUntil = w.time + 10000;
+    for (let i = 0; i < 30 && w.score[0] === 0; i++) step(w, {}, DT);
+    expect(w.score[0]).toBe(1);
   });
 
   it('a Gamebreaker in sudden-death overtime ends the match (WO-02)', () => {
