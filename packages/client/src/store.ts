@@ -43,6 +43,8 @@ export interface UiState {
   volume: number; // 0..1
   // controls remapping panel
   controlsOpen: boolean;
+  // goal replay (WO-10): true while the slow-mo instant replay is playing
+  replayActive: boolean;
   set: (patch: Partial<UiState>) => void;
 }
 
@@ -67,6 +69,7 @@ export const useUi = create<UiState>((set) => ({
   muted: false,
   volume: 0.5,
   controlsOpen: false,
+  replayActive: false,
   serverTime: 0,
   set: (patch) => set(patch),
 }));

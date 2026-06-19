@@ -578,3 +578,28 @@ describe('box score, goalie saves & one-timers (WO-09)', () => {
     expect(w.skaters.c.status.oneTimerUntil).toBeLessThanOrEqual(w.time + ONE_TIMER_WINDOW_MS);
   });
 });
+
+describe('deferred goal reset for replays (WO-10)', () => {
+  it('leaves the puck in the net during the celebration, then faces off after the pause', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const gx = attackingGoalX(0);
+    w.puck.carrier = null;
+    w.puck.lastTouch = 'a';
+    w.puck.pos = { x: gx - 1, z: 0 };
+    w.puck.vel = { x: 20, z: 0 };
+    w.puck.pickupCooldownUntil = w.time + 100000;
+    for (let i = 0; i < 30 && w.score[0] === 0; i++) step(w, {}, DT);
+    expect(w.score[0]).toBe(1);
+    expect(w.goalResetPending).toBe(true);
+    // the puck sits across the goal line, not teleported back to center
+    expect(w.puck.pos.x).toBeGreaterThan(gx - 1);
+
+    // run out the celebration pause; the deferred faceoff then drops it at center
+    let guard = 0;
+    while (w.time < w.pauseUntil + DT && guard++ < 500) step(w, {}, DT);
+    expect(w.goalResetPending).toBe(false);
+    expect(Math.abs(w.puck.pos.x)).toBeLessThan(0.01);
+    expect(Math.abs(w.puck.pos.z)).toBeLessThan(0.01);
+  });
+});

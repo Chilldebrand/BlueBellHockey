@@ -147,8 +147,8 @@ class NetClient {
         carrier: state.puck.carrier,
       },
     });
-    // keep ~1s of history
-    if (this.snapshots.length > 40) this.snapshots.shift();
+    // keep a few seconds of history — enough to feed the goal replay capture (WO-10)
+    if (this.snapshots.length > 80) this.snapshots.shift();
 
     const ui = useUi.getState();
     const mine = ui.mySkaterId ? skaters[ui.mySkaterId] : undefined;

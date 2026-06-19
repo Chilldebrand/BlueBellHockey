@@ -11,6 +11,7 @@ import { sampleAt, INTERP_DELAY_MS } from '../game/interpolation.js';
 import { predictLocal, applyPrediction, predictCarriedPuck } from '../game/prediction.js';
 import { frameStore } from './frameStore.js';
 import { cameraShake, cameraPunch } from './fx.js';
+import { goalReplay } from './replay.js';
 import { Skater } from './Skater.js';
 import { Puck } from './Puck.js';
 import { Rink } from './Rink.js';
@@ -51,6 +52,20 @@ function Driver() {
     if (sendAccum.current >= SEND_INTERVAL && net.room) {
       sendAccum.current = 0;
       net.sendInput(input);
+    }
+
+    // Goal replay (WO-10): while a replay is playing, render the captured slow-mo
+    // frames under a tight, low goal cam and skip live prediction + the broadcast
+    // camera entirely.
+    const replayFrame = goalReplay.sample();
+    if (replayFrame) {
+      frameStore.set(replayFrame);
+      predicted.current = null; // drop stale prediction so we reconcile cleanly after
+      const px = replayFrame.puck.x;
+      const camX = THREE.MathUtils.clamp(px * 0.5, -14, 14);
+      camera.position.lerp(new THREE.Vector3(camX, 11, -22), Math.min(1, dt * 4));
+      camera.lookAt(camX * 0.9, 1.1, 0);
+      return;
     }
 
     // build render frame: interpolate everyone, predict the local skater
@@ -96,6 +111,18 @@ export function Scene() {
   useEffect(() => {
     inputManager.attach();
     return () => inputManager.detach();
+  }, []);
+
+  // Kick off a slow-mo instant replay on every goal (WO-10). Triggering off the
+  // plain 'goal' event covers Gamebreakers too (they fire 'goal' first).
+  useEffect(() => {
+    const off = net.events.on('goal', (e: { team: number }) =>
+      goalReplay.trigger(net.snapshots, e.team),
+    );
+    return () => {
+      off();
+      goalReplay.stop();
+    };
   }, []);
 
   return (

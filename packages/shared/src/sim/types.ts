@@ -145,6 +145,9 @@ export interface WorldState {
   clock: number; // ms remaining in current period
   phaseTimer: number; // ms remaining for countdown/intermission/overtime
   pauseUntil: number; // gameplay/clock frozen until this sim-time (goal celebration)
+  // Goal reset is deferred to the end of the celebration pause (WO-10) so the puck
+  // visibly sits in the net instead of teleporting to center the instant it scores.
+  goalResetPending: boolean;
   score: [number, number];
   skaters: Record<string, SkaterState>;
   puck: PuckState;

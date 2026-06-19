@@ -39,23 +39,8 @@ function lerpAngle(a: number, b: number, t: number): number {
   return a + d * t;
 }
 
-/** Sample the snapshot buffer at (now - INTERP_DELAY) and lerp between brackets. */
-export function sampleAt(buffer: Snapshot[], renderTime: number): FrameRender | null {
-  if (buffer.length === 0) return null;
-  if (buffer.length === 1) return frameFrom(buffer[0]);
-
-  let a = buffer[0];
-  let b = buffer[buffer.length - 1];
-  for (let i = 0; i < buffer.length - 1; i++) {
-    if (buffer[i].t <= renderTime && buffer[i + 1].t >= renderTime) {
-      a = buffer[i];
-      b = buffer[i + 1];
-      break;
-    }
-  }
-  const span = b.t - a.t;
-  const t = span > 0 ? Math.max(0, Math.min(1, (renderTime - a.t) / span)) : 0;
-
+/** Build an interpolated render frame from a bracket (a..b) at fraction t. */
+function buildFrame(a: Snapshot, b: Snapshot, t: number): FrameRender {
   const skaters: SkaterRender[] = [];
   for (const id of Object.keys(b.skaters)) {
     const sb = b.skaters[id];
@@ -80,6 +65,48 @@ export function sampleAt(buffer: Snapshot[], renderTime: number): FrameRender | 
     skaters,
     puck: { x: lerp(a.puck.px, b.puck.px, t), z: lerp(a.puck.pz, b.puck.pz, t), carrier: b.puck.carrier },
   };
+}
+
+/** Sample the snapshot buffer at (now - INTERP_DELAY) and lerp between brackets. */
+export function sampleAt(buffer: Snapshot[], renderTime: number): FrameRender | null {
+  if (buffer.length === 0) return null;
+  if (buffer.length === 1) return frameFrom(buffer[0]);
+
+  let a = buffer[0];
+  let b = buffer[buffer.length - 1];
+  for (let i = 0; i < buffer.length - 1; i++) {
+    if (buffer[i].t <= renderTime && buffer[i + 1].t >= renderTime) {
+      a = buffer[i];
+      b = buffer[i + 1];
+      break;
+    }
+  }
+  const span = b.t - a.t;
+  const t = span > 0 ? Math.max(0, Math.min(1, (renderTime - a.t) / span)) : 0;
+  return buildFrame(a, b, t);
+}
+
+/**
+ * Sample a buffer by *server* time rather than client-receive time (WO-10). The
+ * goal replay plays back a captured slice of snapshots on its own slowed clock, so
+ * it needs to bracket by the authoritative timestamps it captured.
+ */
+export function sampleAtServer(buffer: Snapshot[], serverTime: number): FrameRender | null {
+  if (buffer.length === 0) return null;
+  if (buffer.length === 1) return frameFrom(buffer[0]);
+
+  let a = buffer[0];
+  let b = buffer[buffer.length - 1];
+  for (let i = 0; i < buffer.length - 1; i++) {
+    if (buffer[i].serverTime <= serverTime && buffer[i + 1].serverTime >= serverTime) {
+      a = buffer[i];
+      b = buffer[i + 1];
+      break;
+    }
+  }
+  const span = b.serverTime - a.serverTime;
+  const t = span > 0 ? Math.max(0, Math.min(1, (serverTime - a.serverTime) / span)) : 0;
+  return buildFrame(a, b, t);
 }
 
 function frameFrom(s: Snapshot): FrameRender {

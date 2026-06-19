@@ -70,6 +70,7 @@ export function createWorld(roster: RosterEntry[]): WorldState {
     clock: PERIOD_MS,
     phaseTimer: 0,
     pauseUntil: 0,
+    goalResetPending: false,
     score: [0, 0],
     skaters,
     stats,
@@ -205,8 +206,10 @@ function detectGoal(world: WorldState): void {
       if (assist) awardStyle(world.skaters[assist], 'assist', world.time);
       world.events.push({ type: 'goal', team, scorer: scorer ?? '', assist });
       if (gb) world.events.push({ type: 'gamebreaker', team, scorer: scorer ?? '', value });
-      resetFaceoff(world);
-      world.pauseUntil = world.time + (gb ? 2600 : 1800); // bigger celebration for a Gamebreaker
+      // WO-10: leave the puck where it crossed and defer the faceoff to the end of
+      // the celebration pause, which also covers the client's slow-mo goal replay.
+      world.goalResetPending = true;
+      world.pauseUntil = world.time + (gb ? 3400 : 3000);
       return;
     }
   }
@@ -304,6 +307,13 @@ export function step(
   const playing = advancePhase(world, dtMs);
   expireStatuses(world);
   const paused = world.time < world.pauseUntil; // goal celebration freeze
+
+  // WO-10: once the celebration pause is over, drop the puck back at center for the
+  // faceoff (the deferred reset that detectGoal no longer does inline).
+  if (!paused && world.goalResetPending) {
+    resetFaceoff(world);
+    world.goalResetPending = false;
+  }
 
   if (playing && !paused) {
     // sudden-death overtime ends instantly on a goal

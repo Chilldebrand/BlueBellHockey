@@ -14,6 +14,7 @@ export function HUD() {
   return (
     <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
       <FlashOverlay />
+      <ReplayOverlay />
       <Scoreboard />
       <UltMeter />
       <Callouts />
@@ -56,6 +57,47 @@ function ControlsHint() {
       {primary('hit')} hit<br />
       {primary('steal')} stick lift · {primary('poke')} poke · {primary('deke')} deke ·{' '}
       {primary('ult')} ult · M mute · ⚙ remap
+    </div>
+  );
+}
+
+// Cinematic overlay shown during a goal's slow-mo instant replay (WO-10):
+// letterbox bars + a blinking "INSTANT REPLAY" badge.
+function ReplayOverlay() {
+  const active = useUi((s) => s.replayActive);
+  if (!active) return null;
+  return (
+    <div style={{ position: 'absolute', inset: 0 }}>
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '11%', background: '#000', opacity: 0.85 }} />
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '11%', background: '#000', opacity: 0.85 }} />
+      <div
+        style={{
+          position: 'absolute',
+          top: 'calc(11% + 14px)',
+          left: 22,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 9,
+          fontSize: 15,
+          fontWeight: 800,
+          letterSpacing: 2,
+          color: '#ff5a5a',
+          textShadow: '0 2px 8px rgba(0,0,0,0.7)',
+        }}
+      >
+        <span
+          style={{
+            width: 11,
+            height: 11,
+            borderRadius: '50%',
+            background: '#ff3030',
+            boxShadow: '0 0 10px #ff3030',
+            animation: 'bbhRecBlink 0.9s steps(1) infinite',
+          }}
+        />
+        INSTANT REPLAY
+        <style>{`@keyframes bbhRecBlink{0%,50%{opacity:1}51%,100%{opacity:0.15}}`}</style>
+      </div>
     </div>
   );
 }
