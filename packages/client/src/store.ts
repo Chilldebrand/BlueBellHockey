@@ -78,6 +78,8 @@ export interface UiState {
   controlsOpen: boolean;
   // goal replay (WO-10): true while the slow-mo instant replay is playing
   replayActive: boolean;
+  // power play (WO-17): the team with the man advantage + when it expires, or null
+  powerPlay: { team: number; until: number } | null;
   // graphics quality (WO-13): scales shadows / post-fx / reflections / dpr
   quality: QualityLevel;
   set: (patch: Partial<UiState>) => void;
@@ -109,6 +111,7 @@ export const useUi = create<UiState>((set) => ({
   musicOn: true,
   controlsOpen: false,
   replayActive: false,
+  powerPlay: null,
   quality: initialQuality(),
   serverTime: 0,
   set: (patch) => set(patch),

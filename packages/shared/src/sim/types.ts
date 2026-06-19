@@ -47,6 +47,9 @@ export interface SkaterStatus {
   // One-timer (WO-09): set when a skater takes possession straight off a teammate's
   // pass; shooting before this lapses fires a bonus-power/accuracy one-timer.
   oneTimerUntil: number;
+  // Penalty (WO-17): a late/away-from-the-puck check boxes the offender until this
+  // time — they sit out off-ice and their team plays short-handed (power play).
+  penaltyUntil: number;
 }
 
 export interface SkaterState {
@@ -121,6 +124,7 @@ export type SimEvent =
   | { type: 'nolook_pass'; from: string; to: string }
   | { type: 'ult'; by: string; ultimateId: string }
   | { type: 'pickup'; by: string; kind: PickupKind } // WO-16 — grabbed an ice token
+  | { type: 'penalty'; on: string; team: Team } // WO-17 — bad hit → power play
   | { type: 'faceoff' }
   | { type: 'period'; period: number }
   | { type: 'phase'; phase: MatchPhase };
@@ -199,6 +203,7 @@ export function emptyStatus(): SkaterStatus {
     shootChargeStart: 0,
     pokeCooldownUntil: 0,
     oneTimerUntil: 0,
+    penaltyUntil: 0,
   };
 }
 

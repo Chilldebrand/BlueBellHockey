@@ -179,6 +179,10 @@ class Sfx {
       this.crowd?.bump(0.5); // a robbery gets a rise out of the building
     });
     net.events.on('pickup', (e: { kind?: string }) => this.pickup(e?.kind ?? 'boost'));
+    net.events.on('penalty', () => {
+      this.whistle();
+      this.crowd?.bump(0.6); // the building reacts to a big hit / call
+    });
     net.events.on('ult', () => this.ult());
     net.events.on('ankle_break', () => {
       this.ankleBreak();

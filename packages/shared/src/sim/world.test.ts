@@ -696,3 +696,56 @@ describe('ice pickups (WO-16)', () => {
     expect(maxSeen).toBeLessThanOrEqual(2);
   });
 });
+
+describe('penalties / power play (WO-17)', () => {
+  function pair() {
+    return [
+      { id: 'a', team: 0, characterId: 'tank', isBot: false, isGoalie: false },
+      { id: 'b', team: 1, characterId: 'blaze', isBot: false, isGoalie: false },
+    ] as RosterEntry[];
+  }
+
+  it('a check on a player away from the puck is a penalty — the hitter is boxed', () => {
+    const w = createWorld(pair());
+    w.phase = 'period';
+    const a = w.skaters.a;
+    const b = w.skaters.b;
+    a.pos = { x: 0, z: 0 };
+    a.facing = 0; // facing +X toward b
+    b.pos = { x: 1.4, z: 0 };
+    w.puck.carrier = null;
+    w.puck.pos = { x: 20, z: 0 }; // puck far from b → interference
+    doHit(w, a, neutralInput());
+    expect(a.status.penaltyUntil).toBeGreaterThan(w.time);
+    expect(
+      w.events.some((e) => e.type === 'penalty' && e.on === 'a' && e.team === 0),
+    ).toBe(true);
+  });
+
+  it('a clean check on the puck carrier is not a penalty', () => {
+    const w = createWorld(pair());
+    w.phase = 'period';
+    const a = w.skaters.a;
+    const b = w.skaters.b;
+    a.pos = { x: 0, z: 0 };
+    a.facing = 0;
+    b.pos = { x: 1.4, z: 0 };
+    w.puck.carrier = 'b';
+    w.puck.pos = { ...b.pos };
+    doHit(w, a, neutralInput());
+    expect(a.status.penaltyUntil).toBe(0);
+    expect(w.events.some((e) => e.type === 'penalty')).toBe(false);
+    expect(w.puck.carrier).toBeNull(); // the clean hit still stripped the puck
+  });
+
+  it('a boxed skater is held off-ice and inert while the penalty runs', () => {
+    const w = createWorld(pair());
+    w.phase = 'period';
+    const a = w.skaters.a;
+    a.status.penaltyUntil = w.time + 5000;
+    a.pos = { x: 0, z: 0 };
+    step(w, { a: { ...neutralInput(), move: { x: 1, z: 0 } } }, DT);
+    // forced to the bench-side box, not moved by input
+    expect(Math.abs(a.pos.z)).toBeGreaterThan(18);
+  });
+});

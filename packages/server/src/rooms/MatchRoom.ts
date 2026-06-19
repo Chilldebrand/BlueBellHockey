@@ -215,6 +215,7 @@ export class MatchRoom extends Room<MatchState> {
         e.type === 'one_timer' ||
         e.type === 'save' ||
         e.type === 'pickup' ||
+        e.type === 'penalty' ||
         e.type === 'deke' ||
         e.type === 'poke' ||
         e.type === 'ankle_break' ||

@@ -34,6 +34,10 @@ export function Callouts() {
         if (e.kind === 'charge') show('⚡ CHARGED!', '#ffd23c');
         else show('💨 SPEED BOOST!', '#27ff7a');
       }),
+      net.events.on('penalty', (e: { team: number }) => {
+        // the boxed team is `e.team`; the other side gets the power play
+        show(e.team === 0 ? 'PENALTY — AWAY POWER PLAY!' : 'PENALTY — HOME POWER PLAY!', '#ff8c19');
+      }),
       net.events.on('shot', (e: { charge?: number }) => {
         if ((e.charge ?? 0) > 0.85) show('SLAPPER!', '#7fc4ff'); // only a full wind-up
       }),

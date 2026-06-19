@@ -20,6 +20,7 @@ export class SkaterSchema extends Schema {
   @type('float32') frozenUntil = 0;
   @type('float32') staggeredUntil = 0;
   @type('float32') intangibleUntil = 0;
+  @type('float32') penaltyUntil = 0; // WO-17 — boxed for a penalty
   // Deke (WO-03): synced so the client can run the same carry-anchor math during
   // a dangle (otherwise local-carrier prediction would fight reconciliation).
   @type('float32') dekeUntil = 0;
@@ -99,6 +100,7 @@ export function syncState(state: MatchState, world: WorldState): void {
     row.frozenUntil = s.status.frozenUntil;
     row.staggeredUntil = s.status.staggeredUntil;
     row.intangibleUntil = s.status.intangibleUntil;
+    row.penaltyUntil = s.status.penaltyUntil;
     row.dekeUntil = s.status.dekeUntil;
     row.dekeDirX = s.status.dekeDirX;
     row.dekeDirZ = s.status.dekeDirZ;

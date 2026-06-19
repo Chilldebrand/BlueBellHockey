@@ -16,6 +16,7 @@ export function HUD() {
       <FlashOverlay />
       <ReplayOverlay />
       <Scoreboard />
+      <PowerPlayBanner />
       <UltMeter />
       <Callouts />
       <GoalBanner />
@@ -57,6 +58,43 @@ function ControlsHint() {
       {primary('hit')} hit<br />
       {primary('steal')} stick lift · {primary('poke')} poke · {primary('deke')} deke ·{' '}
       {primary('ult')} ult · M mute · ⚙ remap
+    </div>
+  );
+}
+
+// Power-play indicator (WO-17): a pill under the scoreboard while a team has the
+// man advantage, with a live countdown.
+function PowerPlayBanner() {
+  const powerPlay = useUi((s) => s.powerPlay);
+  const serverTime = useUi((s) => s.serverTime);
+  if (!powerPlay) return null;
+  const remain = Math.max(0, Math.ceil((powerPlay.until - serverTime) / 1000));
+  const home = powerPlay.team === 0;
+  const color = home ? '#3c6bff' : '#ff5a3c';
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        top: 70,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '4px 16px',
+        borderRadius: 20,
+        background: 'rgba(8,12,28,0.85)',
+        border: `1px solid ${color}`,
+        color,
+        fontWeight: 800,
+        fontSize: 13,
+        letterSpacing: 1.5,
+        textShadow: `0 0 10px ${color}`,
+        animation: 'bbhPP 0.9s ease-in-out infinite',
+      }}
+    >
+      ⚡ POWER PLAY · {home ? 'HOME' : 'AWAY'} +1 · {remain}s
+      <style>{`@keyframes bbhPP{0%,100%{opacity:1}50%{opacity:0.5}}`}</style>
     </div>
   );
 }
