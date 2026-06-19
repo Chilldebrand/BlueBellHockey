@@ -8,6 +8,7 @@ import {
 } from './world.js';
 import { doDeke, doHit, doPass, doPoke, doShoot, doSteal, SLAP_FULL_MS } from './actions.js';
 import { carryAnchor, DEKE_MS, ONE_TIMER_WINDOW_MS, STICK_REACH } from './puck.js';
+import { stepPickups } from './pickups.js';
 import { emptyActions, neutralInput, type InputState, type WorldState } from './types.js';
 import { attackingGoalX } from '../config/rink.js';
 import { GAME_MODES } from '../config/modes.js';
@@ -638,5 +639,60 @@ describe('game modes (WO-15)', () => {
       step(w, {}, DT);
     }
     expect(w.phase).toBe('overtime');
+  });
+});
+
+describe('ice pickups (WO-16)', () => {
+  it('skating over a boost token grants a speed boost and emits a pickup event', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const a = w.skaters.a;
+    a.pos = { x: 2, z: 3 };
+    w.pickupTimer = 999999; // suppress the periodic spawn so we test just this token
+    w.pickups = [{ id: 'pk0', kind: 'boost', pos: { x: 2, z: 3 }, spawnedAt: w.time }];
+    w.events = [];
+    stepPickups(w, DT);
+    expect(w.pickups.find((p) => p.id === 'pk0')).toBeUndefined(); // collected
+    expect(a.status.speedMult).toBeGreaterThan(1);
+    expect(a.status.speedMultUntil).toBeGreaterThan(w.time);
+    expect(w.events.some((e) => e.type === 'pickup' && e.kind === 'boost')).toBe(true);
+  });
+
+  it('a charge token adds ult charge, and goalies ignore tokens', () => {
+    const w = createWorld([
+      { id: 'a', team: 0, characterId: 'blaze', isBot: false, isGoalie: false },
+      { id: 'g', team: 1, characterId: 'tank', isBot: true, isGoalie: true },
+    ]);
+    w.phase = 'period';
+    const a = w.skaters.a;
+    const g = w.skaters.g;
+    a.pos = { x: 0, z: 0 };
+    a.ultCharge = 0.1;
+    g.pos = { x: 5, z: 5 };
+    w.pickupTimer = 999999; // suppress the periodic spawn
+    w.pickups = [
+      { id: 'pk1', kind: 'charge', pos: { x: 0, z: 0 }, spawnedAt: w.time },
+      { id: 'pk2', kind: 'charge', pos: { x: 5, z: 5 }, spawnedAt: w.time }, // under the goalie
+    ];
+    w.events = [];
+    stepPickups(w, DT);
+    expect(a.ultCharge).toBeGreaterThan(0.1);
+    // the goalie's token is untouched
+    expect(w.pickups.some((p) => p.id === 'pk2')).toBe(true);
+  });
+
+  it('stale tokens despawn and at most PICKUP_MAX sit on the ice', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    w.skaters.a.pos = { x: -25, z: 15 }; // keep skaters away from spawns
+    w.skaters.b.pos = { x: 25, z: -15 };
+    // run a couple minutes of empty play; spawns happen but never exceed the cap
+    let maxSeen = 0;
+    for (let i = 0; i < 60 * 30; i++) {
+      stepPickups(w, DT);
+      w.time += DT;
+      maxSeen = Math.max(maxSeen, w.pickups.length);
+    }
+    expect(maxSeen).toBeLessThanOrEqual(2);
   });
 });

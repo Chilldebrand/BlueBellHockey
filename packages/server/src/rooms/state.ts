@@ -44,6 +44,13 @@ export class PuckSchema extends Schema {
   @type('string') carrier = '';
 }
 
+export class PickupSchema extends Schema {
+  @type('string') id = '';
+  @type('string') kind = '';
+  @type('float32') px = 0;
+  @type('float32') pz = 0;
+}
+
 export class MatchState extends Schema {
   @type('float32') time = 0;
   @type('string') phase = 'lobby';
@@ -55,6 +62,7 @@ export class MatchState extends Schema {
   @type('uint8') score1 = 0;
   @type({ map: SkaterSchema }) skaters = new MapSchema<SkaterSchema>();
   @type(PuckSchema) puck = new PuckSchema();
+  @type({ map: PickupSchema }) pickups = new MapSchema<PickupSchema>();
 }
 
 /** Copy the authoritative plain-object world into the networked schema. */
@@ -112,4 +120,19 @@ export function syncState(state: MatchState, world: WorldState): void {
   state.puck.vx = world.puck.vel.x;
   state.puck.vz = world.puck.vel.z;
   state.puck.carrier = world.puck.carrier ?? '';
+
+  // Ice pickups (WO-16): sync the live list into the keyed map (add/update/remove).
+  const live = new Set(world.pickups.map((p) => p.id));
+  for (const id of [...state.pickups.keys()]) if (!live.has(id)) state.pickups.delete(id);
+  for (const p of world.pickups) {
+    let row = state.pickups.get(p.id);
+    if (!row) {
+      row = new PickupSchema();
+      row.id = p.id;
+      state.pickups.set(p.id, row);
+    }
+    row.kind = p.kind;
+    row.px = p.pos.x;
+    row.pz = p.pos.z;
+  }
 }

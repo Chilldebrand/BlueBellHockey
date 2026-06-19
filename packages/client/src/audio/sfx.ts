@@ -152,6 +152,12 @@ class Sfx {
     this.tone(160, 0.14, 'square', 0.35, 90);
     if (rebound) this.tone(1200, 0.09, 'sine', 0.3);
   }
+  pickup(kind: string): void {
+    // bright power-up chime; charge tokens ring a touch higher than boosts
+    const base = kind === 'charge' ? 660 : 520;
+    this.tone(base, 0.1, 'triangle', 0.3, base * 1.5);
+    setTimeout(() => this.tone(base * 2, 0.12, 'sine', 0.28), 70);
+  }
 
   private wire(): void {
     net.events.on('goal', () => {
@@ -172,6 +178,7 @@ class Sfx {
       this.save(!!e?.rebound);
       this.crowd?.bump(0.5); // a robbery gets a rise out of the building
     });
+    net.events.on('pickup', (e: { kind?: string }) => this.pickup(e?.kind ?? 'boost'));
     net.events.on('ult', () => this.ult());
     net.events.on('ankle_break', () => {
       this.ankleBreak();

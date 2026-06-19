@@ -2,6 +2,7 @@ export * from './sim/types.js';
 export * from './sim/physics.js';
 export * from './sim/skater.js';
 export * from './sim/puck.js';
+export * from './sim/pickups.js';
 export * from './sim/actions.js';
 export * from './sim/world.js';
 export * from './config/rink.js';

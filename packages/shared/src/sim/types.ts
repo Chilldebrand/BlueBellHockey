@@ -120,6 +120,7 @@ export type SimEvent =
   | { type: 'bank_play'; by: string }
   | { type: 'nolook_pass'; from: string; to: string }
   | { type: 'ult'; by: string; ultimateId: string }
+  | { type: 'pickup'; by: string; kind: PickupKind } // WO-16 — grabbed an ice token
   | { type: 'faceoff' }
   | { type: 'period'; period: number }
   | { type: 'phase'; phase: MatchPhase };
@@ -136,6 +137,16 @@ export interface PlayerStats {
 
 export function emptyStats(): PlayerStats {
   return { goals: 0, assists: 0, hits: 0, takeaways: 0, saves: 0, shots: 0 };
+}
+
+// Ice pickups (WO-16): tokens that spawn mid-rink and grant a buff when a skater
+// glides over them.
+export type PickupKind = 'boost' | 'charge';
+export interface Pickup {
+  id: string;
+  kind: PickupKind;
+  pos: Vec2;
+  spawnedAt: number; // sim-time it appeared (for despawn)
 }
 
 export interface WorldState {
@@ -156,6 +167,10 @@ export interface WorldState {
   score: [number, number];
   skaters: Record<string, SkaterState>;
   puck: PuckState;
+  /** ice pickups currently on the rink (WO-16) */
+  pickups: Pickup[];
+  pickupTimer: number; // ms until the next spawn check
+  pickupSeq: number; // monotonic id source for pickups
   /** cumulative per-skater box score (WO-09), keyed by skater id */
   stats: Record<string, PlayerStats>;
   /** one-shot events produced during the most recent step(); consumer reads then they reset */

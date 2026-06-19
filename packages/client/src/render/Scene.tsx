@@ -19,6 +19,7 @@ import { Puck } from './Puck.js';
 import { Rink } from './Rink.js';
 import { Arena } from './Arena.js';
 import { Vfx } from './Vfx.js';
+import { Pickups } from './Pickups.js';
 
 const SEND_INTERVAL = 1000 / 30;
 const GROUND = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -194,6 +195,7 @@ export function Scene() {
 
       <Arena />
       <Rink reflections={q.reflections} />
+      <Pickups />
       <Puck />
       {roster.map((r) => (
         <Skater key={r.id} id={r.id} team={r.team} characterId={r.characterId} isLocal={r.id === myId} />

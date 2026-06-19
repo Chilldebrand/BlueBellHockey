@@ -40,9 +40,17 @@ export interface PlayerStatLine {
   shots: number;
 }
 
+export interface IcePickup {
+  id: string;
+  kind: string; // 'boost' | 'charge'
+  px: number;
+  pz: number;
+}
+
 export interface UiState {
   roster: RosterIdentity[];
   stats: Record<string, PlayerStatLine>; // WO-09 — box score, published on change
+  pickups: IcePickup[]; // WO-16 — ice tokens, published on change
   status: ConnStatus;
   error: string | null;
   mySkaterId: string | null;
@@ -78,6 +86,7 @@ export interface UiState {
 export const useUi = create<UiState>((set) => ({
   roster: [],
   stats: {},
+  pickups: [],
   status: 'idle',
   error: null,
   mySkaterId: null,

@@ -29,6 +29,11 @@ export function Callouts() {
       net.events.on('nolook_pass', () => show('NO LOOK!', '#b347ff')),
       net.events.on('one_timer', () => show('ONE-TIMER!', '#ff6fae')),
       net.events.on('save', () => show('SAVE!', '#7fe0ff')),
+      net.events.on('pickup', (e: { by: string; kind: string }) => {
+        if (e.by !== useUi.getState().mySkaterId) return; // only call out my own grabs
+        if (e.kind === 'charge') show('⚡ CHARGED!', '#ffd23c');
+        else show('💨 SPEED BOOST!', '#27ff7a');
+      }),
       net.events.on('shot', (e: { charge?: number }) => {
         if ((e.charge ?? 0) > 0.85) show('SLAPPER!', '#7fc4ff'); // only a full wind-up
       }),

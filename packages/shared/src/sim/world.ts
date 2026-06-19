@@ -12,6 +12,7 @@ import { doDeke, doHit, doPass, doPoke, doShoot, doSteal, doUlt } from './action
 import { resolveCircles, v } from './physics.js';
 import { isDisabled, stepSkater } from './skater.js';
 import { stepPuck } from './puck.js';
+import { clearPickups, stepPickups } from './pickups.js';
 import {
   emptyActions,
   emptyStats,
@@ -78,6 +79,9 @@ export function createWorld(roster: RosterEntry[], mode?: GameModeDef): WorldSta
     score: [0, 0],
     skaters,
     stats,
+    pickups: [],
+    pickupTimer: 0,
+    pickupSeq: 0,
     puck: {
       pos: { ...RINK.centerFaceoff },
       vel: { x: 0, z: 0 },
@@ -111,6 +115,7 @@ export function resetFaceoff(world: WorldState): void {
   world.puck.assistTouch = null;
   world.puck.bankedBy = null;
   world.puck.bankedAt = 0;
+  clearPickups(world); // wipe the ice on a stoppage (WO-16)
 }
 
 /** Begin the pre-match (or post-intermission) countdown. */
@@ -361,6 +366,7 @@ export function step(
     collide(world);
     stepPuck(world, dt);
     detectGoal(world);
+    stepPickups(world, dtMs);
 
     // A turnover kills the combo: anyone checked, frozen, or staggered this frame
     // loses their chain (steals/takeaways reset the victim where they happen).

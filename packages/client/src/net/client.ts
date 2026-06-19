@@ -1,6 +1,6 @@
 import { Client, Room } from 'colyseus.js';
 import { MSG, type InputState } from '@bbh/shared';
-import { useUi, type PlayerStatLine } from '../store.js';
+import { useUi, type IcePickup, type PlayerStatLine } from '../store.js';
 
 export interface SkaterSnap {
   id: string;
@@ -60,6 +60,7 @@ type GameEvent =
   | 'shot'
   | 'one_timer'
   | 'save'
+  | 'pickup'
   | 'deke'
   | 'poke'
   | 'ankle_break'
@@ -86,6 +87,7 @@ class NetClient {
   private seq = 0;
   private rosterSig = '';
   private statsSig = '';
+  private pickupsSig = '';
 
   async connect(opts: ConnectOpts = {}): Promise<void> {
     const connMode = opts.mode ?? 'quick';
@@ -131,6 +133,7 @@ class NetClient {
       room.onMessage('shot', (e: any) => this.events.emit('shot', e));
       room.onMessage('one_timer', (e: any) => this.events.emit('one_timer', e));
       room.onMessage('save', (e: any) => this.events.emit('save', e));
+      room.onMessage('pickup', (e: any) => this.events.emit('pickup', e));
       room.onMessage('deke', (e: any) => this.events.emit('deke', e));
       room.onMessage('poke', (e: any) => this.events.emit('poke', e));
       room.onMessage('ankle_break', (e: any) => this.events.emit('ankle_break', e));
@@ -225,6 +228,18 @@ class NetClient {
     if (statsSig !== this.statsSig) {
       this.statsSig = statsSig;
       ui.set({ stats });
+    }
+
+    // publish ice pickups only when the set changes (WO-16)
+    const pickups: IcePickup[] = [];
+    let pickupsSig = '';
+    state.pickups?.forEach((p: any, id: string) => {
+      pickups.push({ id, kind: p.kind, px: p.px, pz: p.pz });
+      pickupsSig += `${id}:${p.kind}:${p.px.toFixed(1)}:${p.pz.toFixed(1)}|`;
+    });
+    if (pickupsSig !== this.pickupsSig) {
+      this.pickupsSig = pickupsSig;
+      ui.set({ pickups });
     }
 
     ui.set({
