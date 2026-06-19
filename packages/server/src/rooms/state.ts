@@ -27,6 +27,13 @@ export class SkaterSchema extends Schema {
   @type('float32') dekeDirZ = 0;
   // Slap shot (WO-08): wind-up start time so clients can telegraph the charge.
   @type('float32') shootChargeStart = 0;
+  // Box score (WO-09): cumulative per-skater stats, surfaced on the postgame screen.
+  @type('uint16') goals = 0;
+  @type('uint16') assists = 0;
+  @type('uint16') hits = 0;
+  @type('uint16') takeaways = 0;
+  @type('uint16') saves = 0;
+  @type('uint16') shots = 0;
 }
 
 export class PuckSchema extends Schema {
@@ -88,6 +95,16 @@ export function syncState(state: MatchState, world: WorldState): void {
     row.dekeDirX = s.status.dekeDirX;
     row.dekeDirZ = s.status.dekeDirZ;
     row.shootChargeStart = s.status.shootChargeStart;
+
+    const st = world.stats[s.id];
+    if (st) {
+      row.goals = st.goals;
+      row.assists = st.assists;
+      row.hits = st.hits;
+      row.takeaways = st.takeaways;
+      row.saves = st.saves;
+      row.shots = st.shots;
+    }
   }
 
   state.puck.px = world.puck.pos.x;

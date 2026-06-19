@@ -3,7 +3,7 @@ import { getCharacter } from '../config/characters.js';
 import { attackingGoalX, SKATER_RADIUS } from '../config/rink.js';
 import { getUltimate } from '../config/ultimates.js';
 import { v } from './physics.js';
-import { DEKE_MS } from './puck.js';
+import { DEKE_MS, ONE_TIMER_WINDOW_MS } from './puck.js';
 import { effectiveAttr, isDisabled } from './skater.js';
 import type { InputState, SimEvent, SkaterState, WorldState } from './types.js';
 
@@ -21,6 +21,10 @@ const POKE_LOOSE_SPEED = 9; // how hard the puck pops free
 const DEKE_RANGE = SKATER_RADIUS * 2 + 1.0; // 2.1 — reach to break a defender's ankles
 const DEKE_COOLDOWN_MS = 650; // prevents mashing the trick every frame
 const ANKLE_BREAK_MS = 900; // stagger applied to a beaten defender
+// One-timer (WO-09): shooting inside the post-pass window trades nothing for a
+// crisp redirect — extra power and a tighter line on net.
+const ONE_TIMER_POWER = 1.25;
+const ONE_TIMER_ASSIST_BONUS = 0.2;
 
 function emit(world: WorldState, e: SimEvent): void {
   world.events.push(e);
@@ -47,29 +51,39 @@ export function doShoot(world: WorldState, s: SkaterState, input: InputState): v
     s.status.shootChargeStart > 0
       ? Math.max(0, Math.min(1, (world.time - s.status.shootChargeStart) / SLAP_FULL_MS))
       : 0;
+  // One-timer (WO-09): a shot taken before the post-pass window lapses.
+  const oneTimer = s.status.oneTimerUntil > world.time;
 
   let dir = aimDir(s, input);
   // aim assist toward the net scales with shoot rating; a charged slapper sacrifices
-  // up to half of it (harder to place, true to a real slap shot).
+  // up to half of it (harder to place, true to a real slap shot). A one-timer is
+  // crisper — it claws some of that accuracy back.
   const toNet = v.norm(v.sub(netCenter(s.team), puck.pos));
-  const assist = (0.15 + (shoot / 10) * 0.35) * (1 - 0.5 * charge);
+  let assist = (0.15 + (shoot / 10) * 0.35) * (1 - 0.5 * charge);
+  if (oneTimer) assist = Math.min(0.9, assist + ONE_TIMER_ASSIST_BONUS);
   dir = v.norm({ x: dir.x * (1 - assist) + toNet.x * assist, z: dir.z * (1 - assist) + toNet.z * assist });
   if (s.status.guaranteedGoal) {
     dir = toNet; // cannon: dead-on
   }
 
-  // power lerps wrist -> slap with charge
+  // power lerps wrist -> slap with charge, then the one-timer bonus on top
   const wrist = 18 + shoot * 1.8;
   const slap = 30 + shoot * 2.8;
-  const power = (wrist + (slap - wrist) * charge) * s.status.shootPowerMult;
+  let power = (wrist + (slap - wrist) * charge) * s.status.shootPowerMult;
+  if (oneTimer) power *= ONE_TIMER_POWER;
   puck.vel = v.scale(dir, power);
   puck.carrier = null;
   puck.pickupCooldownUntil = world.time + 300;
   puck.lastTouch = s.id;
   puck.assistTouch = null;
   s.status.shootChargeStart = 0;
+  s.status.oneTimerUntil = 0; // consumed (whether or not it was a one-timer)
 
   emit(world, { type: 'shot', shooter: s.id, charge });
+  if (oneTimer) {
+    emit(world, { type: 'one_timer', by: s.id });
+    awardStyle(s, 'one_timer', world.time);
+  }
   // count as a shot-on-goal if pointed roughly at the net
   if (v.dot(dir, toNet) > 0.6) awardCharge(s, 'shot');
 }

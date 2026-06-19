@@ -6,10 +6,21 @@ export interface RosterIdentity {
   id: string;
   team: number;
   characterId: string;
+  isGoalie: boolean;
+}
+
+export interface PlayerStatLine {
+  goals: number;
+  assists: number;
+  hits: number;
+  takeaways: number;
+  saves: number;
+  shots: number;
 }
 
 export interface UiState {
   roster: RosterIdentity[];
+  stats: Record<string, PlayerStatLine>; // WO-09 — box score, published on change
   status: ConnStatus;
   error: string | null;
   mySkaterId: string | null;
@@ -37,6 +48,7 @@ export interface UiState {
 
 export const useUi = create<UiState>((set) => ({
   roster: [],
+  stats: {},
   status: 'idle',
   error: null,
   mySkaterId: null,

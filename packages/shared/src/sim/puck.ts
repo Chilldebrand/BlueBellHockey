@@ -1,5 +1,11 @@
 import { awardStyle, breakCombo } from '../config/charge.js';
-import { PUCK_RADIUS, RINK, SKATER_RADIUS } from '../config/rink.js';
+import {
+  PUCK_RADIUS,
+  RINK,
+  SKATER_RADIUS,
+  attackingGoalX,
+  defendingGoalX,
+} from '../config/rink.js';
 import { v, containCircle } from './physics.js';
 import { isDisabled } from './skater.js';
 import type { SkaterState, SkaterStatus, Vec2, WorldState } from './types.js';
@@ -15,6 +21,73 @@ const BANK_VALID_MS = 4000;
 // bends. The offset eases out and back over the window so the puck "dangles".
 export const DEKE_MS = 220;
 export const DEKE_OFFSET = 0.95;
+
+// One-timer (WO-09): window after taking a teammate's pass during which a shot
+// counts as a one-timer (bonus power/accuracy + style). Read by actions.doShoot.
+export const ONE_TIMER_WINDOW_MS = 550;
+
+// Goalie save (WO-09). A loose puck heading at a defended net, reaching the
+// goalie's reach, is stopped: a hard/clean shot pops out a juicy rebound; a soft,
+// centered one is covered (the goalie holds it, then clears). The reach is small
+// enough that a cross-crease shot the goalie hasn't slid over to still beats him.
+const SAVE_REACH = SKATER_RADIUS + 1.3; // ~1.85
+const SAVE_ZONE_X = 6; // only act within this of the goal line
+const COVER_MAX_SPEED = 14; // below this (and centered) the goalie covers instead of rebounding
+const COVER_MAX_OFFSET = 0.8; // puck must be near the goalie's z to be covered
+const REBOUND_SPEED_FACTOR = 0.45;
+const REBOUND_MIN_SPEED = 7;
+
+/**
+ * Goalie stop. Scans goalies; if a loose puck is bearing in on the net within
+ * reach, the goalie saves it — covering (becomes carrier) or kicking out a
+ * rebound — and a `save` event is emitted. Returns true if a save was made (the
+ * caller then skips the normal auto-pickup for this frame).
+ */
+function goalieSave(world: WorldState): boolean {
+  const puck = world.puck;
+  for (const g of Object.values(world.skaters)) {
+    if (!g.isGoalie) continue;
+    if (isDisabled(g, world.time)) continue;
+    const defLine = defendingGoalX(g.team);
+    // puck must be near the net and travelling toward the goal line
+    if (Math.abs(puck.pos.x - defLine) > SAVE_ZONE_X) continue;
+    const heading = g.team === 0 ? puck.vel.x < 0 : puck.vel.x > 0;
+    if (!heading) continue;
+    if (v.dist(puck.pos, g.pos) > SAVE_REACH) continue;
+
+    // a goalie smothering his own team's dump-in isn't a "save" — let pickup handle it
+    const shooter = puck.lastTouch;
+    const shooterTeam = shooter ? world.skaters[shooter]?.team : undefined;
+    if (shooterTeam === g.team) continue;
+
+    const speed = v.len(puck.vel);
+    const offset = Math.abs(puck.pos.z - g.pos.z);
+    awardStyle(g, 'save', world.time);
+
+    if (speed < COVER_MAX_SPEED && offset < COVER_MAX_OFFSET) {
+      // glove/cover: freeze it on the goalie, who clears next (bot logic)
+      puck.carrier = g.id;
+      puck.lastTouch = g.id;
+      puck.assistTouch = null;
+      world.events.push({ type: 'save', by: g.id, shooter, rebound: false });
+    } else {
+      // rebound: pop it back up-ice and off to the side it came from (live scramble)
+      const upIce = attackingGoalX(g.team) > 0 ? 1 : -1;
+      let lateral = puck.pos.z - g.pos.z;
+      if (Math.abs(lateral) < 0.2) lateral = puck.vel.z; // dead-center → keep its drift
+      const dir = v.norm({ x: upIce, z: Math.sign(lateral) * 0.8 });
+      const out = Math.max(REBOUND_MIN_SPEED, speed * REBOUND_SPEED_FACTOR);
+      puck.vel = v.scale(dir, out);
+      puck.carrier = null;
+      puck.lastTouch = g.id;
+      puck.assistTouch = null;
+      puck.pickupCooldownUntil = world.time + 120; // a crasher can bang the rebound home
+      world.events.push({ type: 'save', by: g.id, shooter, rebound: true });
+    }
+    return true;
+  }
+  return false;
+}
 
 /**
  * World-space position of a carried puck for a skater at (pos, facing). During a
@@ -107,6 +180,11 @@ export function stepPuck(world: WorldState, dt: number): void {
     puck.bankedAt = world.time;
   }
 
+  // Goalie save (WO-09): a stop ends the puck's frame here (cover sets a carrier;
+  // a rebound leaves it loose but heading back out), skipping the auto-pickup so a
+  // saved shot is never instantly re-gathered or counted as a goal.
+  if (goalieSave(world)) return;
+
   // auto-pickup
   if (world.time >= puck.pickupCooldownUntil) {
     const grabber = nearestSkater(world);
@@ -129,8 +207,12 @@ export function stepPuck(world: WorldState, dt: number): void {
 
       puck.carrier = grabber.id;
       if (prevId && prevId !== grabber.id) {
-        if (prev && prev.team === grabber.team) puck.assistTouch = prevId;
-        else puck.assistTouch = null;
+        if (prev && prev.team === grabber.team) {
+          puck.assistTouch = prevId;
+          // One-timer (WO-09): collecting a teammate's feed arms a brief window in
+          // which a shot fires as a bonus one-timer (a real catch-and-release).
+          if (!grabber.isGoalie) grabber.status.oneTimerUntil = world.time + ONE_TIMER_WINDOW_MS;
+        } else puck.assistTouch = null;
       }
       puck.lastTouch = grabber.id;
     }

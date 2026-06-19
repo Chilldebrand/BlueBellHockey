@@ -7,7 +7,7 @@ import {
   type RosterEntry,
 } from './world.js';
 import { doDeke, doHit, doPass, doPoke, doShoot, doSteal, SLAP_FULL_MS } from './actions.js';
-import { carryAnchor, DEKE_MS, STICK_REACH } from './puck.js';
+import { carryAnchor, DEKE_MS, ONE_TIMER_WINDOW_MS, STICK_REACH } from './puck.js';
 import { emptyActions, neutralInput, type InputState, type WorldState } from './types.js';
 import { attackingGoalX } from '../config/rink.js';
 import { v } from './physics.js';
@@ -444,5 +444,137 @@ describe('combo multiplier integration (WO-04)', () => {
     b.pos = { x: 1.5, z: 0 };
     doSteal(w, a);
     expect(w.puck.carrier).toBe('a');
+  });
+});
+
+describe('box score, goalie saves & one-timers (WO-09)', () => {
+  it('a goal credits the scorer and assister in the box score', () => {
+    const w = createWorld([
+      { id: 'a', team: 0, characterId: 'blaze', isBot: false, isGoalie: false },
+      { id: 'c', team: 0, characterId: 'sniper', isBot: false, isGoalie: false },
+      { id: 'b', team: 1, characterId: 'tank', isBot: false, isGoalie: false },
+    ]);
+    w.phase = 'period';
+    const gx = attackingGoalX(0);
+    w.puck.carrier = null;
+    w.puck.lastTouch = 'a';
+    w.puck.assistTouch = 'c';
+    w.puck.pos = { x: gx - 1, z: 0 };
+    w.puck.vel = { x: 20, z: 0 };
+    w.puck.pickupCooldownUntil = w.time + 10000;
+    for (let i = 0; i < 30 && w.score[0] === 0; i++) step(w, {}, DT);
+    expect(w.score[0]).toBe(1);
+    expect(w.stats.a.goals).toBe(1);
+    expect(w.stats.c.assists).toBe(1);
+    expect(w.stats.a.assists).toBe(0);
+  });
+
+  it('a goalie robs a hard shot — no goal, a save + rebound, and a tallied save', () => {
+    const w = createWorld([
+      { id: 'a', team: 0, characterId: 'sniper', isBot: false, isGoalie: false },
+      { id: 'g', team: 1, characterId: 'tank', isBot: true, isGoalie: true },
+    ]);
+    w.phase = 'period';
+    const g = w.skaters.g; // sits centered in front of its net by default
+    w.puck.carrier = null;
+    w.puck.lastTouch = 'a';
+    w.puck.assistTouch = null;
+    w.puck.pos = { x: g.pos.x - 1.5, z: g.pos.z };
+    w.puck.vel = { x: 20, z: 0 }; // hard, dead at the goalie
+    w.puck.pickupCooldownUntil = 0;
+    step(w, {}, DT);
+    expect(w.score[0]).toBe(0); // robbed
+    const save = w.events.find((e) => e.type === 'save');
+    expect(save).toBeDefined();
+    expect(save && save.type === 'save' && save.rebound).toBe(true);
+    expect(w.puck.carrier).toBeNull(); // popped out as a live rebound
+    expect(w.stats.g.saves).toBe(1);
+  });
+
+  it('a goalie covers a soft, centered shot (becomes the carrier)', () => {
+    const w = createWorld([
+      { id: 'a', team: 0, characterId: 'sniper', isBot: false, isGoalie: false },
+      { id: 'g', team: 1, characterId: 'tank', isBot: true, isGoalie: true },
+    ]);
+    w.phase = 'period';
+    const g = w.skaters.g;
+    w.puck.carrier = null;
+    w.puck.lastTouch = 'a';
+    w.puck.pos = { x: g.pos.x - 1.5, z: g.pos.z };
+    w.puck.vel = { x: 8, z: 0 }; // soft and centered
+    w.puck.pickupCooldownUntil = 0;
+    step(w, {}, DT);
+    const save = w.events.find((e) => e.type === 'save');
+    expect(save && save.type === 'save' && save.rebound).toBe(false);
+    expect(w.puck.carrier).toBe('g');
+    expect(w.stats.g.saves).toBe(1);
+  });
+
+  it('a cross-crease shot the goalie has not slid over to still beats him', () => {
+    const w = createWorld([
+      { id: 'a', team: 0, characterId: 'sniper', isBot: false, isGoalie: false },
+      { id: 'g', team: 1, characterId: 'tank', isBot: true, isGoalie: true },
+    ]);
+    w.phase = 'period';
+    const g = w.skaters.g; // centered at z = 0
+    const gx = attackingGoalX(0);
+    w.puck.carrier = null;
+    w.puck.lastTouch = 'a';
+    w.puck.pos = { x: gx - 1, z: 2.6 }; // wide of the goalie but inside the posts
+    w.puck.vel = { x: 22, z: 0 };
+    w.puck.pickupCooldownUntil = w.time + 10000;
+    for (let i = 0; i < 30 && w.score[0] === 0; i++) step(w, {}, DT);
+    expect(g.pos.z).toBe(0); // goalie never moved (no AI in the pure sim)
+    expect(w.score[0]).toBe(1); // beat him clean
+  });
+
+  it('shooting right off a pass fires a bonus one-timer', () => {
+    const w = createWorld([
+      { id: 'p', team: 0, characterId: 'maestro', isBot: false, isGoalie: false },
+      { id: 'r', team: 0, characterId: 'sniper', isBot: false, isGoalie: false },
+      { id: 'b', team: 1, characterId: 'tank', isBot: false, isGoalie: false },
+    ]);
+    w.phase = 'period';
+    w.time = 10000;
+    const r = w.skaters.r;
+    r.pos = { x: 0, z: 0 };
+    const aim: InputState = { ...neutralInput(), aim: { x: 1, z: 0 } };
+
+    // cold shot baseline (no recent pass)
+    w.puck.carrier = 'r';
+    r.status.oneTimerUntil = 0;
+    doShoot(w, r, aim);
+    const cold = v.len(w.puck.vel);
+
+    // one-timer: shoot inside the post-pass window
+    w.puck.carrier = 'r';
+    r.status.oneTimerUntil = w.time + 200;
+    w.events = [];
+    doShoot(w, r, aim);
+    const oneT = v.len(w.puck.vel);
+
+    expect(w.events.some((e) => e.type === 'one_timer')).toBe(true);
+    expect(oneT).toBeGreaterThan(cold);
+    expect(r.status.oneTimerUntil).toBe(0); // consumed
+  });
+
+  it('collecting a teammate pass arms the one-timer window', () => {
+    const w = createWorld([
+      { id: 'a', team: 0, characterId: 'maestro', isBot: false, isGoalie: false },
+      { id: 'c', team: 0, characterId: 'sniper', isBot: false, isGoalie: false },
+      { id: 'b', team: 1, characterId: 'tank', isBot: false, isGoalie: false },
+    ]);
+    w.phase = 'period';
+    const a = w.skaters.a;
+    a.pos = { x: 0, z: 0 };
+    a.facing = 0;
+    w.skaters.c.pos = { x: 5, z: 0 }; // teammate ahead in the lane
+    w.skaters.b.pos = { x: -20, z: 12 }; // opponent out of it
+    w.puck.carrier = 'a';
+    doPass(w, a, { ...neutralInput(), aim: { x: 1, z: 0 } });
+    for (let i = 0; i < 50 && w.puck.carrier !== 'c'; i++) step(w, {}, DT);
+    expect(w.puck.carrier).toBe('c');
+    expect(w.skaters.c.status.oneTimerUntil).toBeGreaterThan(w.time);
+    expect(w.skaters.c.status.oneTimerUntil).toBeLessThanOrEqual(w.time + ONE_TIMER_WINDOW_MS);
   });
 });

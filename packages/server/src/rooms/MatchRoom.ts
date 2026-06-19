@@ -78,6 +78,15 @@ export class MatchRoom extends Room<MatchState> {
       if (msg.ready && !this.started) this.startMatch();
     });
 
+    // Postgame (WO-09): rematch replays the same teams; back-to-lobby returns
+    // everyone to character select. Only meaningful once the match has ended.
+    this.onMessage(MSG.REMATCH, () => {
+      if (this.world.phase === 'ended') this.startMatch();
+    });
+    this.onMessage(MSG.BACK_TO_LOBBY, () => {
+      if (this.world.phase === 'ended') this.returnToLobby();
+    });
+
     this.setSimulationInterval((dt) => this.tick(dt), TICK_MS);
   }
 
@@ -138,6 +147,15 @@ export class MatchRoom extends Room<MatchState> {
     syncState(this.state, this.world);
   }
 
+  /** Tear the match down to a fresh lobby (postgame "Back to Lobby"). */
+  private returnToLobby(): void {
+    this.started = false;
+    this.inputs = {};
+    this.lastSeq = {};
+    this.world = createWorld(this.buildRoster()); // phase 'lobby'
+    syncState(this.state, this.world);
+  }
+
   private tick(dtMs: number): void {
     const inputs: Record<string, InputState> = {};
     for (const s of Object.values(this.world.skaters)) {
@@ -163,6 +181,8 @@ export class MatchRoom extends Room<MatchState> {
         e.type === 'hit' ||
         e.type === 'ult' ||
         e.type === 'shot' ||
+        e.type === 'one_timer' ||
+        e.type === 'save' ||
         e.type === 'deke' ||
         e.type === 'poke' ||
         e.type === 'ankle_break' ||

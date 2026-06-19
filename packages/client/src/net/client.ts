@@ -1,6 +1,6 @@
 import { Client, Room } from 'colyseus.js';
 import { MSG, type InputState } from '@bbh/shared';
-import { useUi } from '../store.js';
+import { useUi, type PlayerStatLine } from '../store.js';
 
 export interface SkaterSnap {
   id: string;
@@ -42,6 +42,8 @@ type GameEvent =
   | 'hit'
   | 'ult'
   | 'shot'
+  | 'one_timer'
+  | 'save'
   | 'deke'
   | 'poke'
   | 'ankle_break'
@@ -67,6 +69,7 @@ class NetClient {
   readonly events = new EventBus();
   private seq = 0;
   private rosterSig = '';
+  private statsSig = '';
 
   async connect(serverUrl?: string): Promise<void> {
     const ui = useUi.getState();
@@ -87,6 +90,8 @@ class NetClient {
       room.onMessage('hit', (e: any) => this.events.emit('hit', e));
       room.onMessage('ult', (e: any) => this.events.emit('ult', e));
       room.onMessage('shot', (e: any) => this.events.emit('shot', e));
+      room.onMessage('one_timer', (e: any) => this.events.emit('one_timer', e));
+      room.onMessage('save', (e: any) => this.events.emit('save', e));
       room.onMessage('deke', (e: any) => this.events.emit('deke', e));
       room.onMessage('poke', (e: any) => this.events.emit('poke', e));
       room.onMessage('ankle_break', (e: any) => this.events.emit('ankle_break', e));
@@ -153,7 +158,34 @@ class NetClient {
     const sig = ids.map((s) => `${s.id}:${s.team}:${s.characterId}`).join('|');
     if (sig !== this.rosterSig) {
       this.rosterSig = sig;
-      ui.set({ roster: ids.map((s) => ({ id: s.id, team: s.team, characterId: s.characterId })) });
+      ui.set({
+        roster: ids.map((s) => ({
+          id: s.id,
+          team: s.team,
+          characterId: s.characterId,
+          isGoalie: s.isGoalie,
+        })),
+      });
+    }
+
+    // publish the box score only when a tally changes (WO-09) — keeps the postgame
+    // screen off the 30Hz re-render path.
+    const stats: Record<string, PlayerStatLine> = {};
+    let statsSig = '';
+    state.skaters.forEach((s: any, id: string) => {
+      stats[id] = {
+        goals: s.goals,
+        assists: s.assists,
+        hits: s.hits,
+        takeaways: s.takeaways,
+        saves: s.saves,
+        shots: s.shots,
+      };
+      statsSig += `${id}:${s.goals},${s.assists},${s.hits},${s.takeaways},${s.saves},${s.shots}|`;
+    });
+    if (statsSig !== this.statsSig) {
+      this.statsSig = statsSig;
+      ui.set({ stats });
     }
 
     ui.set({
@@ -183,6 +215,14 @@ class NetClient {
 
   ready(): void {
     this.room?.send(MSG.READY, { ready: true });
+  }
+
+  rematch(): void {
+    this.room?.send(MSG.REMATCH, {});
+  }
+
+  backToLobby(): void {
+    this.room?.send(MSG.BACK_TO_LOBBY, {});
   }
 }
 

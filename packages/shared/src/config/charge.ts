@@ -36,6 +36,8 @@ export const CHARGE = {
     ankle_break: 0.1, // WO-03 — the signature highlight
     bank_play: 0.06, // WO-04 — off-the-wall give-and-go
     nolook_pass: 0.05, // WO-04 — pass while facing away
+    one_timer: 0.07, // WO-09 — shoot straight off a pass
+    save: 0.1, // WO-09 — goalie robs a shooter (defensive style)
   } as Record<string, number>,
 };
 

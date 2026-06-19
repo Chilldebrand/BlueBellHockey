@@ -27,6 +27,8 @@ export function Callouts() {
       net.events.on('ankle_break', () => show('BROKEN ANKLES!', '#ffd23c')),
       net.events.on('bank_play', () => show('OFF THE WALL!', '#27c93f')),
       net.events.on('nolook_pass', () => show('NO LOOK!', '#b347ff')),
+      net.events.on('one_timer', () => show('ONE-TIMER!', '#ff6fae')),
+      net.events.on('save', () => show('SAVE!', '#7fe0ff')),
       net.events.on('shot', (e: { charge?: number }) => {
         if ((e.charge ?? 0) > 0.85) show('SLAPPER!', '#7fc4ff'); // only a full wind-up
       }),

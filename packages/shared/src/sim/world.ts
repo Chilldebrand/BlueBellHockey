@@ -15,6 +15,7 @@ import { isDisabled, stepSkater } from './skater.js';
 import { stepPuck } from './puck.js';
 import {
   emptyActions,
+  emptyStats,
   emptyStatus,
   neutralInput,
   type InputState,
@@ -40,9 +41,11 @@ function startPositions(team: Team, index: number, isGoalie: boolean): { x: numb
 
 export function createWorld(roster: RosterEntry[]): WorldState {
   const skaters: Record<string, SkaterState> = {};
+  const stats: WorldState['stats'] = {};
   const counts: Record<Team, number> = { 0: 0, 1: 0 };
   for (const r of roster) {
     const idx = counts[r.team]++;
+    stats[r.id] = emptyStats();
     skaters[r.id] = {
       id: r.id,
       team: r.team,
@@ -69,6 +72,7 @@ export function createWorld(roster: RosterEntry[]): WorldState {
     pauseUntil: 0,
     score: [0, 0],
     skaters,
+    stats,
     puck: {
       pos: { ...RINK.centerFaceoff },
       vel: { x: 0, z: 0 },
@@ -262,6 +266,31 @@ function tickClock(world: WorldState, dtMs: number): void {
   }
 }
 
+/** Roll this step's one-shot events into the cumulative per-skater box score (WO-09). */
+function tallyStats(world: WorldState): void {
+  for (const e of world.events) {
+    switch (e.type) {
+      case 'goal':
+        if (e.scorer && world.stats[e.scorer]) world.stats[e.scorer].goals++;
+        if (e.assist && world.stats[e.assist]) world.stats[e.assist].assists++;
+        break;
+      case 'hit':
+        if (world.stats[e.by]) world.stats[e.by].hits++;
+        break;
+      case 'steal':
+      case 'poke':
+        if (world.stats[e.by]) world.stats[e.by].takeaways++;
+        break;
+      case 'save':
+        if (world.stats[e.by]) world.stats[e.by].saves++;
+        break;
+      case 'shot':
+        if (world.stats[e.shooter]) world.stats[e.shooter].shots++;
+        break;
+    }
+  }
+}
+
 /** Advance the whole world by dtMs given each skater's input this frame. */
 export function step(
   world: WorldState,
@@ -337,4 +366,6 @@ export function step(
   }
 
   if (!paused) tickClock(world, dtMs);
+
+  tallyStats(world);
 }

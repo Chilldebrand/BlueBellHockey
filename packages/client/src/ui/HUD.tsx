@@ -5,6 +5,7 @@ import { controls, tokenLabel, type BindableAction } from '../input/bindings.js'
 import { Scoreboard } from './Scoreboard.js';
 import { UltMeter } from './UltMeter.js';
 import { Callouts } from './Callouts.js';
+import { Postgame } from './Postgame.js';
 
 export function HUD() {
   const phase = useUi((s) => s.phase);
@@ -21,7 +22,7 @@ export function HUD() {
         <Banner text={`${Math.ceil(phaseTimer / 1000)}`} big />
       )}
       {phase === 'intermission' && <Banner text="INTERMISSION" />}
-      {phase === 'ended' && <Banner text="FINAL" />}
+      {phase === 'ended' && <Postgame />}
       <ControlsHint />
       <AudioControl />
     </div>

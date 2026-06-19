@@ -121,12 +121,25 @@ class Sfx {
   noLook(): void {
     this.burst(0.14, 2600, 0.25); // quick swish
   }
+  oneTimer(): void {
+    // crisp catch-and-release: a quick rising "ting" over a slap crack
+    this.tone(880, 0.1, 'triangle', 0.35, 1480);
+    this.burst(0.14, 1500, 0.4);
+  }
+  save(rebound: boolean): void {
+    // pad/glove thud; a rebound gets an extra ringing "post-like" ping off the kick
+    this.burst(0.12, 300, 0.55);
+    this.tone(160, 0.14, 'square', 0.35, 90);
+    if (rebound) this.tone(1200, 0.09, 'sine', 0.3);
+  }
 
   private wire(): void {
     net.events.on('goal', () => this.goalHorn());
     net.events.on('gamebreaker', () => this.gamebreaker());
     net.events.on('hit', () => this.hit());
     net.events.on('shot', (e: { charge?: number }) => this.shot(e?.charge ?? 0));
+    net.events.on('one_timer', () => this.oneTimer());
+    net.events.on('save', (e: { rebound?: boolean }) => this.save(!!e?.rebound));
     net.events.on('ult', () => this.ult());
     net.events.on('ankle_break', () => this.ankleBreak());
     net.events.on('bank_play', () => this.bankPlay());

@@ -44,6 +44,9 @@ export interface SkaterStatus {
   shootChargeStart: number;
   // Poke check (WO-08): brief cooldown after a jab so it can't be mashed.
   pokeCooldownUntil: number;
+  // One-timer (WO-09): set when a skater takes possession straight off a teammate's
+  // pass; shooting before this lapses fires a bonus-power/accuracy one-timer.
+  oneTimerUntil: number;
 }
 
 export interface SkaterState {
@@ -105,11 +108,13 @@ export type SimEvent =
   | { type: 'goal'; team: Team; scorer: string; assist: string | null }
   | { type: 'gamebreaker'; team: Team; scorer: string; value: number }
   | { type: 'shot'; shooter: string; charge: number } // charge 0..1 (>~0.85 reads as a slapper)
+  | { type: 'one_timer'; by: string } // WO-09 — shot fired straight off a pass
   | { type: 'pass'; from: string; to: string }
   | { type: 'hit'; by: string; target: string }
   | { type: 'steal'; by: string; from: string }
   | { type: 'poke'; by: string; from: string }
   | { type: 'block'; by: string }
+  | { type: 'save'; by: string; shooter: string | null; rebound: boolean } // WO-09 — goalie stop
   | { type: 'deke'; by: string }
   | { type: 'ankle_break'; by: string; target: string }
   | { type: 'bank_play'; by: string }
@@ -118,6 +123,20 @@ export type SimEvent =
   | { type: 'faceoff' }
   | { type: 'period'; period: number }
   | { type: 'phase'; phase: MatchPhase };
+
+/** Cumulative per-skater box-score line (WO-09). Tallied from SimEvents each step. */
+export interface PlayerStats {
+  goals: number;
+  assists: number;
+  hits: number;
+  takeaways: number; // stick lifts + poke checks
+  saves: number; // goalie stops
+  shots: number;
+}
+
+export function emptyStats(): PlayerStats {
+  return { goals: 0, assists: 0, hits: 0, takeaways: 0, saves: 0, shots: 0 };
+}
 
 export interface WorldState {
   time: number; // accumulated sim time in ms
@@ -129,6 +148,8 @@ export interface WorldState {
   score: [number, number];
   skaters: Record<string, SkaterState>;
   puck: PuckState;
+  /** cumulative per-skater box score (WO-09), keyed by skater id */
+  stats: Record<string, PlayerStats>;
   /** one-shot events produced during the most recent step(); consumer reads then they reset */
   events: SimEvent[];
 }
@@ -154,6 +175,7 @@ export function emptyStatus(): SkaterStatus {
     dekeCooldownUntil: 0,
     shootChargeStart: 0,
     pokeCooldownUntil: 0,
+    oneTimerUntil: 0,
   };
 }
 
