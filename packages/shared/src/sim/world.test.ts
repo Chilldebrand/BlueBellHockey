@@ -6,7 +6,7 @@ import {
   step,
   type RosterEntry,
 } from './world.js';
-import { doDeke, doHit, doPass } from './actions.js';
+import { doDeke, doHit, doPass, doPoke, doShoot, doSteal, SLAP_FULL_MS } from './actions.js';
 import { carryAnchor, DEKE_MS, STICK_REACH } from './puck.js';
 import { emptyActions, neutralInput, type InputState, type WorldState } from './types.js';
 import { attackingGoalX } from '../config/rink.js';
@@ -366,5 +366,83 @@ describe('combo multiplier integration (WO-04)', () => {
     a.comboUntil = w.time + 50; // expires almost immediately
     for (let i = 0; i < 5; i++) step(w, {}, DT);
     expect(a.combo).toBe(0);
+  });
+
+  it('a fully-charged slap shot fires the puck much harder than a quick tap (WO-08)', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    w.time = 10000; // so a (time - SLAP_FULL_MS) charge stamp stays positive
+    const a = w.skaters.a;
+    a.pos = { x: 0, z: 0 };
+    const aim: InputState = { ...neutralInput(), aim: { x: 1, z: 0 } };
+
+    // quick tap: no charge accrued
+    w.puck.carrier = 'a';
+    a.status.shootChargeStart = 0;
+    doShoot(w, a, aim);
+    const tap = v.len(w.puck.vel);
+
+    // full hold: a wind-up of SLAP_FULL_MS = charge 1
+    w.puck.carrier = 'a';
+    a.status.shootChargeStart = w.time - SLAP_FULL_MS;
+    doShoot(w, a, aim);
+    const slap = v.len(w.puck.vel);
+
+    expect(slap).toBeGreaterThan(tap * 1.3);
+    expect(a.status.shootChargeStart).toBe(0); // cleared on fire
+  });
+
+  it('hold-to-charge: the shot fires on release, not on press (WO-08)', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const a = w.skaters.a;
+    a.pos = { x: 0, z: 0 };
+    w.puck.carrier = 'a';
+    const press: InputState = {
+      ...neutralInput(),
+      aim: { x: 1, z: 0 },
+      actions: { ...emptyActions(), shoot: true },
+    };
+    const release: InputState = { ...neutralInput(), aim: { x: 1, z: 0 } };
+
+    // press + keep holding: still carrying, winding up
+    for (let i = 0; i < 6; i++) step(w, { a: press }, DT);
+    expect(w.puck.carrier).toBe('a');
+    expect(a.status.shootChargeStart).toBeGreaterThan(0);
+
+    // release fires it loose
+    step(w, { a: release }, DT);
+    expect(w.puck.carrier).toBeNull();
+    expect(a.status.shootChargeStart).toBe(0);
+  });
+
+  it('a poke check knocks the puck loose; a stick lift takes possession (WO-08)', () => {
+    const w = createWorld([
+      { id: 'a', team: 0, characterId: 'pickpocket', isBot: false, isGoalie: false }, // high steal
+      { id: 'b', team: 1, characterId: 'blaze', isBot: false, isGoalie: false },
+    ]);
+    w.phase = 'period';
+    const a = w.skaters.a;
+    const b = w.skaters.b;
+    a.pos = { x: 0, z: 0 };
+    a.facing = 0; // facing +X, toward b
+
+    // poke reach (≈2.3) but beyond stick-lift range (≈1.8): knocks loose, no possession
+    w.puck.carrier = 'b';
+    b.pos = { x: 2.1, z: 0 };
+    doPoke(w, a);
+    expect(w.puck.carrier).toBeNull();
+    expect(v.len(w.puck.vel)).toBeGreaterThan(0);
+    expect(a.status.pokeCooldownUntil).toBeGreaterThan(w.time);
+
+    // a poke on cooldown is a no-op
+    w.puck.carrier = 'b';
+    doPoke(w, a);
+    expect(w.puck.carrier).toBe('b');
+
+    // close range: a stick lift cleanly gains possession
+    b.pos = { x: 1.5, z: 0 };
+    doSteal(w, a);
+    expect(w.puck.carrier).toBe('a');
   });
 });

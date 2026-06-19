@@ -19,12 +19,20 @@ export const SPEED_PER_POINT = 0.9;
 const ACCEL = 30;
 const FRICTION = 7;
 
+// Commitment window (ms) after which winding up a slap shot starts to root you.
+const SLAP_COMMIT_MS = 140;
+
 export function maxSpeedOf(s: SkaterState, carrying: boolean, time = -1): number {
   const sp = effectiveAttr(s, 'speed');
   let m = (BASE_SPEED + sp * SPEED_PER_POINT) * s.status.speedMult;
   if (carrying) m *= 0.92;
   // Deke (WO-03): trade a little speed for separation while the dangle is live.
   if (time >= 0 && s.status.dekeUntil > time) m *= 0.9;
+  // Slap shot (WO-08): once a wind-up passes the commit window you're slowed, so a
+  // charged slapper is telegraphed and a defender can close to interrupt it.
+  if (time >= 0 && s.status.shootChargeStart > 0 && time - s.status.shootChargeStart > SLAP_COMMIT_MS) {
+    m *= 0.6;
+  }
   return m;
 }
 

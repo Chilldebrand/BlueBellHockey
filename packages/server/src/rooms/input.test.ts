@@ -18,6 +18,7 @@ describe('client input sanitization', () => {
       steal: false,
       ult: false,
       deke: false,
+      poke: false,
     });
   });
 

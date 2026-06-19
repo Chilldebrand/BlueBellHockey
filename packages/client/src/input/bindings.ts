@@ -4,7 +4,7 @@
 // Kept framework-free so the per-frame input path never touches React.
 
 export type MoveAction = 'moveUp' | 'moveDown' | 'moveLeft' | 'moveRight';
-export type GameAction = 'shoot' | 'pass' | 'hit' | 'steal' | 'ult' | 'deke';
+export type GameAction = 'shoot' | 'pass' | 'hit' | 'steal' | 'ult' | 'deke' | 'poke';
 export type BindableAction = MoveAction | GameAction;
 
 // A keyboard/mouse binding is a list of tokens. A token is a KeyboardEvent.code
@@ -23,17 +23,18 @@ export interface Bindings {
 }
 
 export const MOVE_ACTIONS: MoveAction[] = ['moveUp', 'moveDown', 'moveLeft', 'moveRight'];
-export const GAME_ACTIONS: GameAction[] = ['shoot', 'pass', 'hit', 'steal', 'ult', 'deke'];
+export const GAME_ACTIONS: GameAction[] = ['shoot', 'pass', 'hit', 'steal', 'poke', 'ult', 'deke'];
 
 export const ACTION_LABELS: Record<BindableAction, string> = {
   moveUp: 'Move Up',
   moveDown: 'Move Down',
   moveLeft: 'Move Left',
   moveRight: 'Move Right',
-  shoot: 'Shoot',
+  shoot: 'Shoot / Slap', // tap = wrist shot, hold = slap shot
   pass: 'Pass',
   hit: 'Hit',
-  steal: 'Steal',
+  steal: 'Stick Lift',
+  poke: 'Poke Check',
   ult: 'Ultimate',
   deke: 'Deke',
 };
@@ -48,7 +49,8 @@ export const DEFAULT_BINDINGS: Bindings = {
     shoot: ['KeyJ', 'Mouse0'],
     pass: ['KeyK', 'Mouse2'],
     hit: ['ShiftLeft', 'KeyL'],
-    steal: ['KeyF'],
+    steal: ['KeyF'], // stick lift
+    poke: ['KeyG'], // poke check
     ult: ['Space', 'KeyE'],
     deke: ['KeyQ'],
   },
@@ -56,7 +58,8 @@ export const DEFAULT_BINDINGS: Bindings = {
     shoot: 0, // A
     pass: 2, // X
     hit: 5, // RB
-    steal: 4, // LB
+    steal: 4, // LB (stick lift)
+    poke: 6, // LT (poke check)
     deke: 1, // B
     ult: 7, // RT
   },

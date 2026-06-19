@@ -74,8 +74,10 @@ export function CharacterModel({ id, glb, team }: { id: string; glb: string; tea
       play(clip, { once: true, fade: 0.08 });
       oneShotUntil.current = performance.now() + dur;
     };
-    const offShot = net.events.on('shot', (e: { shooter: string }) => {
-      if (e.shooter === id) triggerable(CLIPS.shoot, 450)();
+    const offShot = net.events.on('shot', (e: { shooter: string; charge?: number }) => {
+      if (e.shooter !== id) return;
+      const slap = (e.charge ?? 0) > 0.6; // a charged slapper gets the big 2H wind-up
+      triggerable(slap ? CLIPS.slap : CLIPS.shoot, slap ? 600 : 450)();
     });
     const offHit = net.events.on('hit', (e: { by: string }) => {
       if (e.by === id) triggerable(CLIPS.hit, 550)();

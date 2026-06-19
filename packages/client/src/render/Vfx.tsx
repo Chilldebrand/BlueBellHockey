@@ -93,6 +93,21 @@ export function Vfx() {
       });
       cameraShake.add(0.4);
     });
+    const offShot = net.events.on('shot', (e: { shooter: string; charge?: number }) => {
+      if ((e.charge ?? 0) < 0.6) return; // only a charged slapper gets extra juice
+      const s = frameStore.skater(e.shooter);
+      if (!s) return;
+      particles.burst(s.x, 0.5, s.z, {
+        count: 20,
+        speed: 5,
+        spread: 1.3,
+        up: 1,
+        size: 0.16,
+        life: 0.4,
+        color: new THREE.Color('#cdebff'),
+      });
+      cameraShake.add(0.3);
+    });
     const offDeke = net.events.on('deke', (e: { by: string }) => {
       const s = frameStore.skater(e.by);
       if (!s) return;
@@ -127,6 +142,7 @@ export function Vfx() {
       offGoal();
       offGb();
       offHit();
+      offShot();
       offAnkle();
       offDeke();
       offUlt();

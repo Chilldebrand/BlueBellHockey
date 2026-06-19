@@ -6,6 +6,7 @@ export const CLIPS = {
   run: 'Running_A',
   stagger: 'Hit_A',
   shoot: '1H_Melee_Attack_Chop',
+  slap: '2H_Melee_Attack_Chop', // bigger wind-up for a charged slap shot
   pass: '1H_Melee_Attack_Slice_Diagonal',
   hit: '2H_Melee_Attack_Chop',
   cheer: 'Cheer',

@@ -8,7 +8,15 @@ import { effectiveAttr, isDisabled } from './skater.js';
 import type { InputState, SimEvent, SkaterState, WorldState } from './types.js';
 
 const HIT_RANGE = SKATER_RADIUS * 2 + 0.9;
-const STEAL_RANGE = SKATER_RADIUS * 2 + 0.7;
+const STEAL_RANGE = SKATER_RADIUS * 2 + 0.7; // stick lift: close
+// Slap shot (WO-08): hold time (ms) for a fully-charged slapper. A tap (charge 0)
+// fires the original wrist shot; a full hold trades accuracy for big power.
+export const SLAP_FULL_MS = 600;
+// Poke check (WO-08): a longer-reach jab that knocks the puck loose (no guaranteed
+// possession), with a short cooldown so it can't be spammed.
+const POKE_RANGE = SKATER_RADIUS * 2 + 1.2; // 2.6 — reaches past stick-lift range
+export const POKE_COOLDOWN_MS = 450;
+const POKE_LOOSE_SPEED = 9; // how hard the puck pops free
 // Deke / trick (WO-03)
 const DEKE_RANGE = SKATER_RADIUS * 2 + 1.0; // 2.1 — reach to break a defender's ankles
 const DEKE_COOLDOWN_MS = 650; // prevents mashing the trick every frame
@@ -33,23 +41,35 @@ export function doShoot(world: WorldState, s: SkaterState, input: InputState): v
   if (puck.carrier !== s.id) return;
   const shoot = effectiveAttr(s, 'shoot');
 
+  // Hold-to-charge (WO-08): the wind-up held before release ramps the shot from a
+  // quick wrist shot (charge 0) to a powerful but less-accurate slapper (charge 1).
+  const charge =
+    s.status.shootChargeStart > 0
+      ? Math.max(0, Math.min(1, (world.time - s.status.shootChargeStart) / SLAP_FULL_MS))
+      : 0;
+
   let dir = aimDir(s, input);
-  // aim assist toward the net scales with shoot rating
+  // aim assist toward the net scales with shoot rating; a charged slapper sacrifices
+  // up to half of it (harder to place, true to a real slap shot).
   const toNet = v.norm(v.sub(netCenter(s.team), puck.pos));
-  const assist = 0.15 + (shoot / 10) * 0.35;
+  const assist = (0.15 + (shoot / 10) * 0.35) * (1 - 0.5 * charge);
   dir = v.norm({ x: dir.x * (1 - assist) + toNet.x * assist, z: dir.z * (1 - assist) + toNet.z * assist });
   if (s.status.guaranteedGoal) {
     dir = toNet; // cannon: dead-on
   }
 
-  const power = (18 + shoot * 1.8) * s.status.shootPowerMult;
+  // power lerps wrist -> slap with charge
+  const wrist = 18 + shoot * 1.8;
+  const slap = 30 + shoot * 2.8;
+  const power = (wrist + (slap - wrist) * charge) * s.status.shootPowerMult;
   puck.vel = v.scale(dir, power);
   puck.carrier = null;
   puck.pickupCooldownUntil = world.time + 300;
   puck.lastTouch = s.id;
   puck.assistTouch = null;
+  s.status.shootChargeStart = 0;
 
-  emit(world, { type: 'shot', shooter: s.id });
+  emit(world, { type: 'shot', shooter: s.id, charge });
   // count as a shot-on-goal if pointed roughly at the net
   if (v.dot(dir, toNet) > 0.6) awardCharge(s, 'shot');
 }
@@ -136,6 +156,10 @@ export function doHit(world: WorldState, s: SkaterState, input: InputState): voi
   awardStyle(s, 'hit', world.time);
 }
 
+/**
+ * Stick lift: a close-range takeaway that *gains possession*. Works from any angle
+ * but only at short reach. Contest is the lifter's steal vs the carrier's handling.
+ */
 export function doSteal(world: WorldState, s: SkaterState): void {
   if (isDisabled(s, world.time)) return;
   const puck = world.puck;
@@ -154,6 +178,42 @@ export function doSteal(world: WorldState, s: SkaterState): void {
   breakCombo(carrier); // stripped: the victim loses their chain
   emit(world, { type: 'steal', by: s.id, from: carrier.id });
   awardStyle(s, 'steal', world.time);
+}
+
+/**
+ * Poke check: a longer-reach jab at a carrier *in front* of you. Unlike a stick
+ * lift it doesn't grab the puck — it knocks it loose so it pops free (either team
+ * can recover). Easier to land than a clean lift, but you give up the puck and
+ * eat a short cooldown (armed even on a whiff, so it can't be mashed).
+ */
+export function doPoke(world: WorldState, s: SkaterState): void {
+  if (isDisabled(s, world.time)) return;
+  if (s.status.pokeCooldownUntil > world.time) return;
+  s.status.pokeCooldownUntil = world.time + POKE_COOLDOWN_MS; // commit the jab
+
+  const puck = world.puck;
+  if (!puck.carrier || puck.carrier === s.id) return;
+  const carrier = world.skaters[puck.carrier];
+  if (!carrier || carrier.team === s.team) return;
+  if (carrier.status.intangibleUntil > world.time) return;
+
+  const off = v.sub(carrier.pos, s.pos);
+  if (v.len(off) > POKE_RANGE) return;
+  const forward = v.fromAngle(s.facing);
+  if (v.dot(v.norm(off), forward) < 0.3) return; // it's a reach — must be in front
+
+  // contest: poke (steal rating) vs handling; a strong handler resists a loose poke
+  if (effectiveAttr(s, 'steal') + 2 < effectiveAttr(carrier, 'steal')) return;
+
+  const dir = v.norm(off); // knock it loose toward where we jabbed
+  puck.carrier = null;
+  puck.vel = v.scale(dir, POKE_LOOSE_SPEED);
+  puck.pickupCooldownUntil = world.time + 220; // nobody re-sticks instantly
+  puck.lastTouch = s.id; // poker touched it last (assist credit if his team recovers)
+  puck.assistTouch = null;
+  breakCombo(carrier);
+  emit(world, { type: 'poke', by: s.id, from: carrier.id });
+  awardStyle(s, 'poke', world.time);
 }
 
 /**

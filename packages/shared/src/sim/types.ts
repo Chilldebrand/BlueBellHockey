@@ -38,6 +38,12 @@ export interface SkaterStatus {
   dekeDirX: number;
   dekeDirZ: number;
   dekeCooldownUntil: number;
+  // Slap shot (WO-08): hold-to-charge. Set when the carrier presses shoot; the
+  // longer it's held before release, the more the shot ramps wrist -> slap. 0 when
+  // not charging. Synced so clients can telegraph the wind-up.
+  shootChargeStart: number;
+  // Poke check (WO-08): brief cooldown after a jab so it can't be mashed.
+  pokeCooldownUntil: number;
 }
 
 export interface SkaterState {
@@ -75,9 +81,10 @@ export interface ActionFlags {
   shoot: boolean;
   pass: boolean;
   hit: boolean;
-  steal: boolean;
+  steal: boolean; // stick lift: close-range takeaway that gains possession
   ult: boolean;
   deke: boolean;
+  poke: boolean; // poke check: longer-reach jab that knocks the puck loose
 }
 
 export interface InputState {
@@ -97,10 +104,11 @@ export type MatchPhase =
 export type SimEvent =
   | { type: 'goal'; team: Team; scorer: string; assist: string | null }
   | { type: 'gamebreaker'; team: Team; scorer: string; value: number }
-  | { type: 'shot'; shooter: string }
+  | { type: 'shot'; shooter: string; charge: number } // charge 0..1 (>~0.85 reads as a slapper)
   | { type: 'pass'; from: string; to: string }
   | { type: 'hit'; by: string; target: string }
   | { type: 'steal'; by: string; from: string }
+  | { type: 'poke'; by: string; from: string }
   | { type: 'block'; by: string }
   | { type: 'deke'; by: string }
   | { type: 'ankle_break'; by: string; target: string }
@@ -144,11 +152,21 @@ export function emptyStatus(): SkaterStatus {
     dekeDirX: 0,
     dekeDirZ: 0,
     dekeCooldownUntil: 0,
+    shootChargeStart: 0,
+    pokeCooldownUntil: 0,
   };
 }
 
 export function emptyActions(): ActionFlags {
-  return { shoot: false, pass: false, hit: false, steal: false, ult: false, deke: false };
+  return {
+    shoot: false,
+    pass: false,
+    hit: false,
+    steal: false,
+    ult: false,
+    deke: false,
+    poke: false,
+  };
 }
 
 export function neutralInput(): InputState {

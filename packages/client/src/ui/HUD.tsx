@@ -51,10 +51,10 @@ function ControlsHint() {
         lineHeight: 1.5,
       }}
     >
-      {move} move · mouse aim · {primary('shoot')} shoot · {primary('pass')} pass ·{' '}
+      {move} move · mouse aim · {primary('shoot')} shoot (hold = slap) · {primary('pass')} pass ·{' '}
       {primary('hit')} hit<br />
-      {primary('steal')} steal · {primary('deke')} deke · {primary('ult')} ult · M mute ·
-      gamepad supported · ⚙ to remap
+      {primary('steal')} stick lift · {primary('poke')} poke · {primary('deke')} deke ·{' '}
+      {primary('ult')} ult · M mute · ⚙ remap
     </div>
   );
 }

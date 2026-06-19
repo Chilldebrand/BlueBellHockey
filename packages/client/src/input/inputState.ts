@@ -61,6 +61,7 @@ export class InputManager {
       steal: gp.steal || down(kb.steal),
       ult: gp.ult || down(kb.ult),
       deke: gp.deke || down(kb.deke),
+      poke: gp.poke || down(kb.poke),
     };
     return input;
   }

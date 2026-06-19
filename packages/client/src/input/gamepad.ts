@@ -12,6 +12,7 @@ export interface GamepadReading {
   steal: boolean;
   ult: boolean;
   deke: boolean;
+  poke: boolean;
 }
 
 const DEAD = 0.18;
@@ -31,6 +32,7 @@ const DISCONNECTED: GamepadReading = {
   steal: false,
   ult: false,
   deke: false,
+  poke: false,
 };
 
 // Standard-mapping gamepad: left stick move, right stick aim. The digital
@@ -57,6 +59,7 @@ export function readGamepad(bind: PadBindings): GamepadReading {
     steal: down(bind.steal),
     deke: down(bind.deke),
     ult: down(bind.ult),
+    poke: down(bind.poke),
   };
 }
 

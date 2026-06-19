@@ -25,6 +25,8 @@ export class SkaterSchema extends Schema {
   @type('float32') dekeUntil = 0;
   @type('float32') dekeDirX = 0;
   @type('float32') dekeDirZ = 0;
+  // Slap shot (WO-08): wind-up start time so clients can telegraph the charge.
+  @type('float32') shootChargeStart = 0;
 }
 
 export class PuckSchema extends Schema {
@@ -85,6 +87,7 @@ export function syncState(state: MatchState, world: WorldState): void {
     row.dekeUntil = s.status.dekeUntil;
     row.dekeDirX = s.status.dekeDirX;
     row.dekeDirZ = s.status.dekeDirZ;
+    row.shootChargeStart = s.status.shootChargeStart;
   }
 
   state.puck.px = world.puck.pos.x;

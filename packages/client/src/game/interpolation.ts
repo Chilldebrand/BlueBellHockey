@@ -1,3 +1,4 @@
+import { SLAP_FULL_MS } from '@bbh/shared';
 import type { Snapshot } from '../net/client.js';
 
 export const INTERP_DELAY_MS = 100;
@@ -14,6 +15,12 @@ export interface SkaterRender {
   frozen: boolean;
   staggered: boolean;
   intangible: boolean;
+  windup: number; // slap-shot charge 0..1 (0 = not winding up)
+}
+
+function windupOf(shootChargeStart: number, now: number): number {
+  if (shootChargeStart <= 0) return 0;
+  return Math.max(0, Math.min(1, (now - shootChargeStart) / SLAP_FULL_MS));
 }
 
 export interface FrameRender {
@@ -66,6 +73,7 @@ export function sampleAt(buffer: Snapshot[], renderTime: number): FrameRender | 
       frozen: sb.frozenUntil > now,
       staggered: sb.staggeredUntil > now,
       intangible: sb.intangibleUntil > now,
+      windup: windupOf(sb.shootChargeStart, now),
     });
   }
   return {
@@ -89,6 +97,7 @@ function frameFrom(s: Snapshot): FrameRender {
       frozen: sk.frozenUntil > now,
       staggered: sk.staggeredUntil > now,
       intangible: sk.intangibleUntil > now,
+      windup: windupOf(sk.shootChargeStart, now),
     })),
     puck: { x: s.puck.px, z: s.puck.pz, carrier: s.puck.carrier },
   };

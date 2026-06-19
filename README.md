@@ -40,11 +40,20 @@ Colyseus monitor: <http://localhost:2567/colyseus>
 |---|---|---|
 | Move | WASD / arrows | Left stick |
 | Aim | Mouse | Right stick |
-| Shoot | J / Left click | A |
+| Shoot / **Slap** | J / Left click — *tap = wrist, hold = slap* | A |
 | Pass | K / Right click | X |
 | Hit | Shift | RB |
-| Steal | F | LB / B |
+| Stick lift | F | LB |
+| Poke check | G | LT |
+| Deke | Q | B |
 | Ultimate | Space / E | RT |
+
+**Shot types.** Tap shoot for a quick, accurate **wrist shot**; *hold* it to wind up a
+**slap shot** — power ramps up the longer you hold (release to fire), trading aim assist
+for a much faster puck. The wind-up roots you and is telegraphed by a charging ring, so a
+body check during it interrupts the shot. **Takeaways:** a **stick lift** (close range)
+cleanly steals the puck; a **poke check** (longer reach, must be in front) knocks it loose
+without guaranteeing possession; a **hit** bodies the skater.
 
 All bindings above are **defaults** — every keyboard/mouse and gamepad **action**
 can be remapped from the **⚙ Controls** panel (on the lobby screen and in the

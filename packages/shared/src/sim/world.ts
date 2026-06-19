@@ -9,7 +9,7 @@ import {
   tickCharge,
 } from '../config/charge.js';
 import { PUCK_RADIUS, RINK, SKATER_RADIUS, attackingGoalX } from '../config/rink.js';
-import { doDeke, doHit, doPass, doShoot, doSteal, doUlt } from './actions.js';
+import { doDeke, doHit, doPass, doPoke, doShoot, doSteal, doUlt } from './actions.js';
 import { resolveCircles, v } from './physics.js';
 import { isDisabled, stepSkater } from './skater.js';
 import { stepPuck } from './puck.js';
@@ -287,10 +287,27 @@ export function step(
       if (!isDisabled(s, world.time)) {
         if (a.ult && !last.ult) doUlt(world, s);
         if (a.hit && !last.hit) doHit(world, s, input);
-        if (a.steal && !last.steal) doSteal(world, s);
+        if (a.steal && !last.steal) doSteal(world, s); // stick lift
+        if (a.poke && !last.poke) doPoke(world, s); // poke check
         if (a.deke && !last.deke) doDeke(world, s, input);
-        if (a.shoot && !last.shoot) doShoot(world, s, input);
         if (a.pass && !last.pass) doPass(world, s, input);
+        // Slap shot (WO-08): pressing shoot starts the wind-up; the shot fires on
+        // release below, with power/accuracy set by how long it was held.
+        if (a.shoot && !last.shoot && world.puck.carrier === s.id) {
+          s.status.shootChargeStart = world.time;
+        }
+      }
+      // Fire on release — handled outside the disabled guard so a check that
+      // strips or staggers mid-wind-up cancels the shot cleanly.
+      if (!a.shoot && last.shoot) {
+        if (s.status.shootChargeStart > 0 && world.puck.carrier === s.id && !isDisabled(s, world.time)) {
+          doShoot(world, s, input);
+        }
+        s.status.shootChargeStart = 0;
+      }
+      // Drop a stale charge if the puck was lost or the skater got disabled while holding.
+      if (s.status.shootChargeStart > 0 && (world.puck.carrier !== s.id || isDisabled(s, world.time))) {
+        s.status.shootChargeStart = 0;
       }
       s.lastActions = { ...a };
     }

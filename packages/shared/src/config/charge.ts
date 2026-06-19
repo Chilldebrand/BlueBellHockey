@@ -26,7 +26,8 @@ export const CHARGE = {
   awards: {
     goal: 0.14, // still strong, no longer dominant
     assist: 0.12,
-    steal: 0.12, // takeaways are hype
+    steal: 0.12, // takeaways are hype (stick lift)
+    poke: 0.08, // WO-08 — knock the puck loose (recovery not guaranteed)
     block: 0.12, // sells defense
     hit: 0.1, // big checks are style
     shot: 0.03, // discourage meter-farming via shots

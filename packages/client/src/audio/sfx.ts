@@ -89,8 +89,10 @@ class Sfx {
     this.burst(0.18, 240, 0.7);
     this.tone(90, 0.18, 'square', 0.4, 50);
   }
-  shot(): void {
-    this.burst(0.16, 1600, 0.4);
+  shot(charge = 0): void {
+    // a charged slapper is louder, lower, and gets a hard "crack"
+    this.burst(0.16 + charge * 0.1, 1600 - charge * 700, 0.4 + charge * 0.3);
+    if (charge > 0.6) this.tone(150, 0.16, 'square', 0.45, 70);
   }
   ult(): void {
     this.tone(220, 0.5, 'sawtooth', 0.4, 880);
@@ -124,7 +126,7 @@ class Sfx {
     net.events.on('goal', () => this.goalHorn());
     net.events.on('gamebreaker', () => this.gamebreaker());
     net.events.on('hit', () => this.hit());
-    net.events.on('shot', () => this.shot());
+    net.events.on('shot', (e: { charge?: number }) => this.shot(e?.charge ?? 0));
     net.events.on('ult', () => this.ult());
     net.events.on('ankle_break', () => this.ankleBreak());
     net.events.on('bank_play', () => this.bankPlay());

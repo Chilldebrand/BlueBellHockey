@@ -4,6 +4,7 @@ import {
   getCharacter,
   isDisabled,
   RINK,
+  SLAP_FULL_MS,
   emptyActions,
   neutralInput,
   v,
@@ -72,7 +73,15 @@ export function botInput(
       const side = v.dot(v.sub(pressure.pos, s.pos), left) >= 0 ? -1 : 1;
       input.aim = v.scale(left, side);
     } else if (dist < 13) {
-      actions.shoot = true;
+      // Hold-to-charge (WO-08): wind up a slapper from the point with a clear lane,
+      // else snap a quick wrist shot. We read our own wind-up clock (set by the sim
+      // last tick) and "release" by dropping the button so the sim fires it.
+      const charging = s.status.shootChargeStart > 0;
+      const wantSlap = dist > 8 && laneClear(world, s, net, 12);
+      const targetMs = wantSlap ? SLAP_FULL_MS : 0;
+      if (!charging) actions.shoot = true; // begin wind-up
+      else if (world.time - s.status.shootChargeStart >= targetMs) actions.shoot = false; // release -> fire
+      else actions.shoot = true; // keep charging
     } else if (pressure && pressDist < diff.reaction && openMate(world, s)) {
       actions.pass = true;
     }
@@ -89,8 +98,10 @@ export function botInput(
       input.aim = input.move;
       const d = v.dist(carrier!.pos, s.pos);
       if (d < diff.reaction) {
-        actions.steal = true;
+        actions.steal = true; // close: stick lift (gain possession)
         if (Math.random() < 0.35) actions.hit = true;
+      } else if (d < diff.reaction + 1.0) {
+        actions.poke = true; // a touch further: poke it loose
       }
     } else {
       // drop goal-side: position between the puck and our net

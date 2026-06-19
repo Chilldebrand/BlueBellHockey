@@ -28,6 +28,7 @@ function actions(value: unknown): ActionFlags {
     steal: value.steal === true,
     ult: value.ult === true,
     deke: value.deke === true,
+    poke: value.poke === true,
   };
 }
 

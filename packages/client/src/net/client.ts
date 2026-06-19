@@ -23,6 +23,7 @@ export interface SkaterSnap {
   dekeUntil: number;
   dekeDirX: number;
   dekeDirZ: number;
+  shootChargeStart: number;
   ackSeq: number;
 }
 
@@ -42,6 +43,7 @@ type GameEvent =
   | 'ult'
   | 'shot'
   | 'deke'
+  | 'poke'
   | 'ankle_break'
   | 'bank_play'
   | 'nolook_pass';
@@ -86,6 +88,7 @@ class NetClient {
       room.onMessage('ult', (e: any) => this.events.emit('ult', e));
       room.onMessage('shot', (e: any) => this.events.emit('shot', e));
       room.onMessage('deke', (e: any) => this.events.emit('deke', e));
+      room.onMessage('poke', (e: any) => this.events.emit('poke', e));
       room.onMessage('ankle_break', (e: any) => this.events.emit('ankle_break', e));
       room.onMessage('bank_play', (e: any) => this.events.emit('bank_play', e));
       room.onMessage('nolook_pass', (e: any) => this.events.emit('nolook_pass', e));
@@ -122,6 +125,7 @@ class NetClient {
         dekeUntil: s.dekeUntil,
         dekeDirX: s.dekeDirX,
         dekeDirZ: s.dekeDirZ,
+        shootChargeStart: s.shootChargeStart,
         ackSeq: s.ackSeq,
       };
     });
