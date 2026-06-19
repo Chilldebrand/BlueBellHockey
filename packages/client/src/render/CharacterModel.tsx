@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { CHARACTERS } from '@bbh/shared';
 import { CLIPS, locoForSpeed, resolve, type LocoClip } from './clipMap.js';
 import { frameStore } from './frameStore.js';
+import { attachGear } from './gear.js';
 import { net } from '../net/client.js';
 
 // KayKit models face +Z; the parent group already yaws to point +Z along `facing`.
@@ -13,59 +14,8 @@ const MODEL_YAW = 0;
 const MODEL_SCALE = 1.15;
 const TEAM_EMISSIVE = ['#3c6bff', '#ff5a3c'];
 
-// Hockey stick mounts on the KayKit `handslot.r` weapon bone (falls back to hand.r).
-// NOTE: GLTFLoader sanitizes node names and strips the dot, so the loaded bones
-// are actually "handslotr"/"handr"; findBone() matches by a normalized name.
-// The hand bone's local -Y points up in world, so STICK_ROT flips the shaft down
-// (~Math.PI) and tilts it forward so the blade rests on the ice ahead of the skater.
-const STICK_BONE = ['handslot.r', 'hand.r'];
-const STICK_POS = new THREE.Vector3(0, 0, 0);
-const STICK_ROT = new THREE.Euler(Math.PI - 0.5, 0, 0);
-const STICK_SCALE = 1;
-
 // preload every distinct model up front
 for (const glb of new Set(CHARACTERS.map((c) => c.glb))) useGLTF.preload('/' + glb);
-
-/** Build a hockey stick: shaft hanging down from the grip, blade at the bottom. */
-function buildStick(): THREE.Group {
-  const stick = new THREE.Group();
-  const shaftMat = new THREE.MeshStandardMaterial({ color: '#caa46a' });
-  const bladeMat = new THREE.MeshStandardMaterial({ color: '#2a2118' });
-
-  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 1.05, 8), shaftMat);
-  shaft.position.y = -0.5; // grip near origin, shaft extends down
-  shaft.castShadow = true;
-  stick.add(shaft);
-
-  // toe of the blade kicks forward (+Z) at the bottom of the shaft
-  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.07, 0.3), bladeMat);
-  blade.position.set(0, -1.0, 0.13);
-  blade.rotation.x = 0.35;
-  blade.castShadow = true;
-  stick.add(blade);
-
-  stick.position.copy(STICK_POS);
-  stick.rotation.copy(STICK_ROT);
-  stick.scale.setScalar(STICK_SCALE);
-  return stick;
-}
-
-// Match bone names ignoring case and the separators GLTFLoader strips ("." etc.),
-// so "handslot.r" resolves to the loaded "handslotr".
-const normName = (s: string) => s.replace(/[._\s]/g, '').toLowerCase();
-function findBone(root: THREE.Object3D, names: string[]): THREE.Object3D | undefined {
-  const want = names.map(normName);
-  let found: THREE.Object3D | undefined;
-  root.traverse((o) => {
-    if (!found && want.includes(normName(o.name))) found = o;
-  });
-  return found;
-}
-
-function attachStick(root: THREE.Object3D): void {
-  const bone = findBone(root, STICK_BONE);
-  (bone ?? root).add(buildStick());
-}
 
 export function CharacterModel({ id, glb, team }: { id: string; glb: string; team: number }) {
   const { scene, animations } = useGLTF('/' + glb);
@@ -88,7 +38,7 @@ export function CharacterModel({ id, glb, team }: { id: string; glb: string; tea
       };
       mesh.material = Array.isArray(src) ? src.map(tint) : tint(src);
     });
-    attachStick(clone);
+    attachGear(clone, team);
     return clone;
   }, [scene, team]);
 
@@ -130,12 +80,17 @@ export function CharacterModel({ id, glb, team }: { id: string; glb: string; tea
     const offHit = net.events.on('hit', (e: { by: string }) => {
       if (e.by === id) triggerable(CLIPS.hit, 550)();
     });
+    // celebrate when your team scores
+    const offGoal = net.events.on('goal', (e: { team: number }) => {
+      if (e.team === team) triggerable(CLIPS.cheer, 2200)();
+    });
     return () => {
       offShot();
       offHit();
+      offGoal();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, actions]);
+  }, [id, team, actions]);
 
   // start in idle
   useEffect(() => {

@@ -57,15 +57,41 @@ charge model (zero-play → 7:30, perfect cadence → ~2:00).
 
 ## Art
 
-Skaters render as **rigged KayKit GLB models** (`packages/client/public/models/chars/*.glb`),
-cloned per-instance with `three-stdlib`'s `SkeletonUtils`, tinted with a team-color emissive,
-and animated from their built-in clips via `CharacterModel.tsx` + `clipMap.ts`
+**Scene & lighting** (`render/Scene.tsx`). Renders with ACES tone mapping and a
+post-processing stack (`@react-three/postprocessing`): **bloom** — tuned to catch only
+emissive highlights (goal lamps, ult auras, particles) so normal play stays clean — and a
+**vignette**. A network-free image-based-lighting rig (drei `<Environment>` +
+`<Lightformer>`) gives the ice and models real reflections without any HDR download.
+(Gotcha: the `<EffectComposer>` must include a `<ToneMapping>` effect — it applies the final
+sRGB output encode; without it the frame washes out.)
+
+**Rink & arena.** `render/Rink.tsx` draws an NHL sheet — **reflective wet ice**
+(`MeshReflectorMaterial`), white boards + glass, standard markings, red goals, and **goal
+lamps** that flash and bloom when a team scores. `render/Arena.tsx` wraps it in a bowl:
+instanced **crowd-filled stands** on all four sides, an enclosing back wall, overhead light
+banks, perimeter ad boards, and a center-ice logo. Everything in the arena is decorative —
+gameplay collision is server-side against `RINK` only.
+
+**Skaters.** Rigged KayKit GLB models (`packages/client/public/models/chars/*.glb`), cloned
+per-instance with `three-stdlib`'s `SkeletonUtils`, tinted with a team-color emissive, and
+animated from their built-in clips via `CharacterModel.tsx` + `clipMap.ts`
 (`Idle`/`Walking_A`/`Running_A` for skating, `Hit_A` for checks, `1H_Melee_Attack_*` /
-`2H_Melee_Attack_*` one-shots on shoot/hit). Each skater also gets a team-colored ground ring
-for readability, a carrier ring, and an ultimate aura. If a model fails to load, a procedural
-body fallback renders instead (`ModelBoundary`).
+`2H_Melee_Attack_*` one-shots on shoot/hit, `Cheer` when their team scores). Each gets
+procedural **hockey gear** from `render/gear.ts` — a stick on the right-hand bone, team
+gloves on both hands, and striped socks/shin pads on the lower legs — plus a team ground
+ring, carrier ring, and ultimate aura. Skaters **lean** forward with speed and **bank** into
+turns (`Skater.tsx`). If a model fails to load, a procedural body fallback renders instead
+(`ModelBoundary`). (Helmets were tried and dropped — every mascot's signature headwear hides
+or clashes with one.)
+
+**FX & camera** (`render/Vfx.tsx`, `render/fx.ts`). A GPU-instanced particle system drives
+ice spray behind fast skaters, hit/deke/ult bursts, goal confetti, and a speed-scaled
+**puck streak**; the puck also spins with its glide speed (`Puck.tsx`). The broadcast camera
+drifts with the puck, **punches in** toward goals/ults, and **shakes** on impacts.
 
 Two visual constants in `CharacterModel.tsx` are easy to tune if needed: `MODEL_SCALE` and
-`MODEL_YAW` (set `MODEL_YAW = Math.PI` if a model faces away from its travel direction).
+`MODEL_YAW` (set `MODEL_YAW = Math.PI` if a model faces away from its travel direction). The
+`sticktest.html?m=<file>.glb&t=<0|1>` harness renders any single model with its gear for
+closeup review.
 
 Model source & licensing (CC0 KayKit assets via the upstream repo): see `CREDITS.md`.

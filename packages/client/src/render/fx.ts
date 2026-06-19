@@ -99,3 +99,28 @@ class CameraShake {
 }
 
 export const cameraShake = new CameraShake();
+
+// --- camera punch-in ----------------------------------------------------------
+// A decaying impulse that pulls the broadcast camera closer to a focus point
+// (a goal mouth, a player) on big moments, then eases back out.
+class CameraPunch {
+  private v = 0;
+  fx = 0;
+  fz = 2;
+  /** Trigger a punch-in toward (fx, fz). The strongest active punch owns the focus. */
+  add(amount: number, fx: number, fz: number): void {
+    if (amount >= this.v) {
+      this.fx = fx;
+      this.fz = fz;
+    }
+    this.v = Math.min(1, Math.max(this.v, amount));
+  }
+  /** Current strength in [0,1]; decays ~0.8/s (full → 0 in ~1.25s). */
+  sample(dt: number): number {
+    const out = this.v;
+    this.v = Math.max(0, this.v - dt * 0.8);
+    return out;
+  }
+}
+
+export const cameraPunch = new CameraPunch();

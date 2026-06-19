@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { attackingGoalX, getCharacter } from '@bbh/shared';
-import { particles, cameraShake } from './fx.js';
+import { particles, cameraShake, cameraPunch } from './fx.js';
 import { frameStore } from './frameStore.js';
 import { net } from '../net/client.js';
 
@@ -47,6 +47,7 @@ export function Vfx() {
         gravity: 6,
       });
       cameraShake.add(0.6);
+      cameraPunch.add(0.85, gx, 0);
     });
     const offGb = net.events.on('gamebreaker', (e: { team: number }) => {
       const gx = attackingGoalX((e.team as 0 | 1) ?? 0);
@@ -61,6 +62,7 @@ export function Vfx() {
         gravity: 5,
       });
       cameraShake.add(1);
+      cameraPunch.add(1, gx, 0);
     });
     const offHit = net.events.on('hit', (e: { target: string }) => {
       const t = frameStore.skater(e.target);
@@ -119,6 +121,7 @@ export function Vfx() {
         gravity: 4,
       });
       cameraShake.add(0.45);
+      cameraPunch.add(0.6, s.x, s.z);
     });
     return () => {
       offGoal();
@@ -156,19 +159,28 @@ export function Vfx() {
       }
     }
 
-    // puck trail
+    // puck trail / hard-shot streak: emission scales with puck speed, and on a
+    // fast puck we fill the gap between frames so it reads as a continuous comet.
     const p = frameStore.puck();
-    const pd = Math.hypot(p.x - lastPuck.current.x, p.z - lastPuck.current.z);
-    if (pd > 0.18) {
-      particles.spawnOne(p.x, 0.12, p.z, {
-        speed: 0.2,
-        spread: 0.2,
-        size: 0.1,
-        life: 0.25,
-        color: col.set('#7fc4ff'),
-        gravity: 0,
-        drag: 2,
-      });
+    const dx = p.x - lastPuck.current.x;
+    const dz = p.z - lastPuck.current.z;
+    const pd = Math.hypot(dx, dz); // distance travelled this frame
+    if (pd > 0.1) {
+      const fast = pd > 0.35;
+      const size = THREE.MathUtils.clamp(0.08 + pd * 0.22, 0.08, 0.24);
+      const steps = fast ? Math.min(8, Math.ceil(pd / 0.22)) : 1;
+      for (let i = 0; i < steps; i++) {
+        const t = steps > 1 ? i / steps : 1;
+        particles.spawnOne(lastPuck.current.x + dx * t, 0.12, lastPuck.current.z + dz * t, {
+          speed: 0.15,
+          spread: 0.15,
+          size,
+          life: fast ? 0.3 : 0.22,
+          color: col.set(fast ? '#cdebff' : '#7fc4ff'),
+          gravity: 0,
+          drag: 2,
+        });
+      }
     }
     lastPuck.current = { x: p.x, z: p.z };
 

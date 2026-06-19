@@ -1,5 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Environment, Lightformer } from '@react-three/drei';
+import { EffectComposer, Bloom, Vignette, ToneMapping } from '@react-three/postprocessing';
+import { ToneMappingMode } from 'postprocessing';
 import * as THREE from 'three';
 import { useUi } from '../store.js';
 import { net } from '../net/client.js';
@@ -7,10 +10,11 @@ import { inputManager } from '../input/inputState.js';
 import { sampleAt, INTERP_DELAY_MS } from '../game/interpolation.js';
 import { predictLocal, applyPrediction, predictCarriedPuck } from '../game/prediction.js';
 import { frameStore } from './frameStore.js';
-import { cameraShake } from './fx.js';
+import { cameraShake, cameraPunch } from './fx.js';
 import { Skater } from './Skater.js';
 import { Puck } from './Puck.js';
 import { Rink } from './Rink.js';
+import { Arena } from './Arena.js';
 import { Vfx } from './Vfx.js';
 
 const SEND_INTERVAL = 1000 / 30;
@@ -67,13 +71,19 @@ function Driver() {
       frameStore.set(frame);
     }
 
-    // broadcast camera: side view that drifts with the puck, plus shake impulses
+    // broadcast camera: side view that drifts with the puck, punches in on big
+    // moments (goals/ults), plus shake impulses.
     const px = frameStore.puck().x;
     const camX = THREE.MathUtils.clamp(px * 0.4, -12, 12);
-    camera.position.lerp(new THREE.Vector3(camX, 24, -36), Math.min(1, dt * 3));
+    const k = cameraPunch.sample(dt) * 0.7; // blend amount toward the punched-in framing
+    const L = THREE.MathUtils.lerp;
+    const tx = L(camX, cameraPunch.fx * 0.65, k);
+    const ty = L(24, 15, k);
+    const tz = L(-36, -23, k);
+    camera.position.lerp(new THREE.Vector3(tx, ty, tz), Math.min(1, dt * 3));
     cameraShake.sample(dt, shakeOffset);
     camera.position.add(shakeOffset);
-    camera.lookAt(camX, 0, 2);
+    camera.lookAt(L(camX, cameraPunch.fx * 0.85, k), 0, L(2, cameraPunch.fz, k));
   });
 
   return null;
@@ -89,10 +99,14 @@ export function Scene() {
   }, []);
 
   return (
-    <Canvas shadows camera={{ position: [0, 24, -36], fov: 45 }}>
+    <Canvas
+      shadows
+      camera={{ position: [0, 24, -36], fov: 45 }}
+      gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
+    >
       <color attach="background" args={['#0c121c']} />
       <fog attach="fog" args={['#0c121c', 70, 150]} />
-      <hemisphereLight intensity={1.0} color="#ffffff" groundColor="#9fb2c8" />
+      <hemisphereLight intensity={0.55} color="#ffffff" groundColor="#9fb2c8" />
       <directionalLight
         position={[10, 36, -10]}
         intensity={2.1}
@@ -110,6 +124,22 @@ export function Scene() {
       />
       {/* soft fill from the opposite side so shadows aren't pitch black */}
       <directionalLight position={[-14, 20, 12]} intensity={0.5} color="#dce8ff" />
+
+      {/* Network-free image-based lighting: an arena-style rig of emissive panels
+          rendered only into the environment cubemap, giving the wet ice and the
+          glossy models something bright to reflect. */}
+      <Environment resolution={256} frames={1}>
+        <color attach="background" args={['#0a0e16']} />
+        {/* overhead rink banks */}
+        <Lightformer intensity={1.4} color="#ffffff" position={[0, 12, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[60, 24, 1]} />
+        <Lightformer intensity={0.8} color="#dfeaff" position={[0, 10, -18]} rotation={[Math.PI / 3, 0, 0]} scale={[60, 10, 1]} />
+        <Lightformer intensity={0.8} color="#dfeaff" position={[0, 10, 18]} rotation={[-Math.PI / 3, 0, 0]} scale={[60, 10, 1]} />
+        {/* cool/warm side bounce for reflection color */}
+        <Lightformer intensity={0.7} color="#9fc4ff" position={[-30, 6, 0]} rotation={[0, Math.PI / 2, 0]} scale={[40, 12, 1]} />
+        <Lightformer intensity={0.7} color="#ffd9b0" position={[30, 6, 0]} rotation={[0, -Math.PI / 2, 0]} scale={[40, 12, 1]} />
+      </Environment>
+
+      <Arena />
       <Rink />
       <Puck />
       {roster.map((r) => (
@@ -117,6 +147,20 @@ export function Scene() {
       ))}
       <Vfx />
       <Driver />
+
+      {/* NOTE: the ToneMapping effect must be present — it applies tone mapping AND
+          the final sRGB output encode. Without it the composer outputs unencoded
+          linear color (washed-out, grey blacks). */}
+      <EffectComposer multisampling={4}>
+        <Bloom
+          mipmapBlur
+          intensity={0.85}
+          luminanceThreshold={0.9}
+          luminanceSmoothing={0.12}
+        />
+        <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+        <Vignette eskil={false} offset={0.25} darkness={0.7} />
+      </EffectComposer>
     </Canvas>
   );
 }

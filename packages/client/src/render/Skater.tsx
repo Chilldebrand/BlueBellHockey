@@ -21,11 +21,15 @@ export function Skater({
   isLocal: boolean;
 }) {
   const group = useRef<THREE.Group>(null);
+  const tilt = useRef<THREE.Group>(null);
   const ring = useRef<THREE.Mesh>(null);
   const carrierRing = useRef<THREE.Mesh>(null);
   const aura = useRef<THREE.Mesh>(null);
   const glow = useRef<THREE.PointLight>(null);
   const auraPhase = useRef(0);
+  const prevFacing = useRef(0);
+  const pitch = useRef(0);
+  const roll = useRef(0);
 
   const char = safeChar(characterId);
   const jersey = char?.jersey ?? '#cccccc';
@@ -38,6 +42,23 @@ export function Skater({
     group.current.position.x = s.x;
     group.current.position.z = s.z;
     group.current.rotation.y = -s.facing + Math.PI / 2;
+
+    // Skating dynamics: lean forward with speed, bank into turns. Applied to the
+    // model wrapper only so the ground rings stay flat on the ice.
+    if (tilt.current) {
+      let turn = s.facing - prevFacing.current;
+      if (turn > Math.PI) turn -= Math.PI * 2;
+      else if (turn < -Math.PI) turn += Math.PI * 2;
+      prevFacing.current = s.facing;
+      const turnRate = dt > 0 ? turn / dt : 0;
+      const targetPitch = THREE.MathUtils.clamp(s.speed * 0.018, 0, 0.22);
+      const targetRoll = THREE.MathUtils.clamp(turnRate * 0.05, -0.3, 0.3);
+      const k = 1 - Math.pow(0.0001, dt); // frame-rate-independent smoothing
+      pitch.current += (targetPitch - pitch.current) * k;
+      roll.current += (targetRoll - roll.current) * k;
+      tilt.current.rotation.x = -pitch.current; // lean forward into travel (+Z local)
+      tilt.current.rotation.z = roll.current; // bank around the forward axis
+    }
 
     if (ring.current) ring.current.visible = isLocal;
     if (carrierRing.current) carrierRing.current.visible = frameStore.carrier() === id;
@@ -73,11 +94,13 @@ export function Skater({
       </mesh>
       <pointLight ref={glow} color={jersey} intensity={0} distance={6} position={[0, 1.2, 0]} />
 
-      <Suspense fallback={<ProceduralBody jersey={jersey} trim={trim} />}>
-        <ModelBoundary fallback={<ProceduralBody jersey={jersey} trim={trim} />}>
-          <CharacterModel id={id} glb={glb} team={team} />
-        </ModelBoundary>
-      </Suspense>
+      <group ref={tilt}>
+        <Suspense fallback={<ProceduralBody jersey={jersey} trim={trim} />}>
+          <ModelBoundary fallback={<ProceduralBody jersey={jersey} trim={trim} />}>
+            <CharacterModel id={id} glb={glb} team={team} />
+          </ModelBoundary>
+        </Suspense>
+      </group>
     </group>
   );
 }
