@@ -30,6 +30,8 @@ export interface UiState {
   // audio controls (WO-05)
   muted: boolean;
   volume: number; // 0..1
+  // controls remapping panel
+  controlsOpen: boolean;
   set: (patch: Partial<UiState>) => void;
 }
 
@@ -52,6 +54,7 @@ export const useUi = create<UiState>((set) => ({
   myComboUntil: 0,
   muted: false,
   volume: 0.5,
+  controlsOpen: false,
   serverTime: 0,
   set: (patch) => set(patch),
 }));

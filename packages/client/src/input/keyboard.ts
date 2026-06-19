@@ -32,4 +32,11 @@ export class KeyboardMouse {
   mouse(button: number): boolean {
     return this.mouseButtons.has(button);
   }
+
+  // Resolves a binding token: "Mouse0"/"Mouse1"/"Mouse2" hit the mouse-button
+  // set, anything else is a KeyboardEvent.code.
+  isDown(token: string): boolean {
+    if (token.startsWith('Mouse')) return this.mouseButtons.has(Number(token.slice(5)));
+    return this.keys.has(token);
+  }
 }

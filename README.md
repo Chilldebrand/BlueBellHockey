@@ -46,6 +46,12 @@ Colyseus monitor: <http://localhost:2567/colyseus>
 | Steal | F | LB / B |
 | Ultimate | Space / E | RT |
 
+All bindings above are **defaults** — every keyboard/mouse and gamepad **action**
+can be remapped from the **⚙ Controls** panel (on the lobby screen and in the
+in-game HUD). Movement stays on WASD/arrows + left stick and aim on mouse + right
+stick; the digital actions are fully rebindable. Bindings persist in
+`localStorage` (`bbh.controls.v1`).
+
 ## Tests
 
 ```bash

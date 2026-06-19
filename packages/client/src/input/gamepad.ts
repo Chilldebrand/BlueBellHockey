@@ -1,3 +1,5 @@
+import type { PadBindings } from './bindings.js';
+
 export interface GamepadReading {
   connected: boolean;
   moveX: number;
@@ -17,29 +19,31 @@ function dz(x: number): number {
   return Math.abs(x) < DEAD ? 0 : x;
 }
 
-// Standard-mapping gamepad: left stick move, right stick aim,
-// A=shoot, X=pass, RB=hit, LB=steal, B=deke, RT=ult.
-export function readGamepad(): GamepadReading {
+const DISCONNECTED: GamepadReading = {
+  connected: false,
+  moveX: 0,
+  moveZ: 0,
+  aimX: 0,
+  aimZ: 0,
+  shoot: false,
+  pass: false,
+  hit: false,
+  steal: false,
+  ult: false,
+  deke: false,
+};
+
+// Standard-mapping gamepad: left stick move, right stick aim. The digital
+// actions read whichever button index the player has bound; treating a button as
+// "down" on pressed OR value > 0.5 also covers the analog triggers (LT/RT).
+export function readGamepad(bind: PadBindings): GamepadReading {
   const pads = navigator.getGamepads?.() ?? [];
   const pad = pads.find((p): p is Gamepad => !!p);
-  if (!pad) {
-    return {
-      connected: false,
-      moveX: 0,
-      moveZ: 0,
-      aimX: 0,
-      aimZ: 0,
-      shoot: false,
-      pass: false,
-      hit: false,
-      steal: false,
-      ult: false,
-      deke: false,
-    };
-  }
+  if (!pad) return DISCONNECTED;
+
   const a = pad.axes;
   const b = pad.buttons;
-  const pressed = (i: number) => !!b[i]?.pressed;
+  const down = (i: number) => !!b[i]?.pressed || (b[i]?.value ?? 0) > 0.5;
   // left/right stick Y is inverted (up = -1) -> map up to +Z (away)
   return {
     connected: true,
@@ -47,11 +51,47 @@ export function readGamepad(): GamepadReading {
     moveZ: dz(-(a[1] ?? 0)),
     aimX: dz(a[2] ?? 0),
     aimZ: dz(-(a[3] ?? 0)),
-    shoot: pressed(0), // A
-    pass: pressed(2), // X
-    hit: pressed(5), // RB
-    steal: pressed(4), // LB (B freed up for deke)
-    deke: pressed(1), // B
-    ult: (b[7]?.value ?? 0) > 0.5, // RT
+    shoot: down(bind.shoot),
+    pass: down(bind.pass),
+    hit: down(bind.hit),
+    steal: down(bind.steal),
+    deke: down(bind.deke),
+    ult: down(bind.ult),
+  };
+}
+
+// Polls connected gamepads and reports the first freshly-pressed button. Buttons
+// already held when capture starts are ignored (baseline), so the trigger that
+// opened the rebind prompt can't bind itself. Returns a cancel function.
+export function captureGamepadButton(onButton: (index: number) => void): () => void {
+  let raf = 0;
+  let cancelled = false;
+  let baseline: boolean[] | null = null;
+
+  const tick = () => {
+    if (cancelled) return;
+    const pads = navigator.getGamepads?.() ?? [];
+    const pad = pads.find((p): p is Gamepad => !!p);
+    if (pad) {
+      const down = pad.buttons.map((btn) => btn.pressed || btn.value > 0.5);
+      if (baseline === null) {
+        baseline = down; // first frame: ignore anything already held
+      } else {
+        for (let i = 0; i < down.length; i++) {
+          if (down[i] && !baseline[i]) {
+            onButton(i);
+            return; // stop polling (no further rAF scheduled)
+          }
+          if (!down[i]) baseline[i] = false; // allow a re-press of a released button
+        }
+      }
+    }
+    raf = requestAnimationFrame(tick);
+  };
+
+  raf = requestAnimationFrame(tick);
+  return () => {
+    cancelled = true;
+    cancelAnimationFrame(raf);
   };
 }

@@ -5,6 +5,7 @@ import { useUi } from '../store.js';
 export function Lobby() {
   const status = useUi((s) => s.status);
   const error = useUi((s) => s.error);
+  const set = useUi((s) => s.set);
 
   return (
     <div
@@ -40,6 +41,21 @@ export function Lobby() {
         }}
       >
         {status === 'connecting' ? 'Connecting…' : 'PLAY'}
+      </button>
+      <button
+        onClick={() => set({ controlsOpen: true })}
+        style={{
+          padding: '8px 22px',
+          fontSize: 14,
+          fontWeight: 600,
+          background: 'transparent',
+          border: '1px solid #2a3566',
+          borderRadius: 10,
+          color: '#aeb8e8',
+          cursor: 'pointer',
+        }}
+      >
+        ⚙ Controls
       </button>
     </div>
   );

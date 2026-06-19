@@ -1,8 +1,10 @@
 import { neutralInput, v, type InputState } from '@bbh/shared';
 import { KeyboardMouse } from './keyboard.js';
 import { readGamepad } from './gamepad.js';
+import { controls } from './bindings.js';
 
-// Folds keyboard/mouse + gamepad into one normalized InputState each frame.
+// Folds keyboard/mouse + gamepad into one normalized InputState each frame,
+// using the player's (possibly customized) bindings from `controls`.
 export class InputManager {
   private km = new KeyboardMouse();
   /** world-space aim direction set by the renderer from the mouse->ice raycast */
@@ -17,15 +19,21 @@ export class InputManager {
 
   gather(): InputState {
     const input = neutralInput();
-    const gp = readGamepad();
+    // While the controls menu is open, swallow input so rebinding keystrokes
+    // don't fire actions in the live match behind it.
+    if (controls.suspended) return input;
+
+    const kb = controls.keyboard;
+    const gp = readGamepad(controls.gamepad);
+    const down = (tokens: string[]): boolean => tokens.some((t) => this.km.isDown(t));
 
     // movement
     let mx = 0;
     let mz = 0;
-    if (this.km.key('KeyD') || this.km.key('ArrowRight')) mx += 1;
-    if (this.km.key('KeyA') || this.km.key('ArrowLeft')) mx -= 1;
-    if (this.km.key('KeyW') || this.km.key('ArrowUp')) mz += 1;
-    if (this.km.key('KeyS') || this.km.key('ArrowDown')) mz -= 1;
+    if (down(kb.moveRight)) mx += 1;
+    if (down(kb.moveLeft)) mx -= 1;
+    if (down(kb.moveUp)) mz += 1;
+    if (down(kb.moveDown)) mz -= 1;
     if (gp.connected && (gp.moveX || gp.moveZ)) {
       mx = gp.moveX;
       mz = gp.moveZ;
@@ -47,12 +55,12 @@ export class InputManager {
     }
 
     input.actions = {
-      shoot: gp.shoot || this.km.mouse(0) || this.km.key('KeyJ'),
-      pass: gp.pass || this.km.mouse(2) || this.km.key('KeyK'),
-      hit: gp.hit || this.km.key('ShiftLeft') || this.km.key('KeyL'),
-      steal: gp.steal || this.km.key('KeyF'),
-      ult: gp.ult || this.km.key('Space') || this.km.key('KeyE'),
-      deke: gp.deke || this.km.key('KeyQ'),
+      shoot: gp.shoot || down(kb.shoot),
+      pass: gp.pass || down(kb.pass),
+      hit: gp.hit || down(kb.hit),
+      steal: gp.steal || down(kb.steal),
+      ult: gp.ult || down(kb.ult),
+      deke: gp.deke || down(kb.deke),
     };
     return input;
   }

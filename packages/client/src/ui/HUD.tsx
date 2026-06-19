@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useUi } from '../store.js';
 import { net } from '../net/client.js';
+import { controls, tokenLabel, type BindableAction } from '../input/bindings.js';
 import { Scoreboard } from './Scoreboard.js';
 import { UltMeter } from './UltMeter.js';
 import { Callouts } from './Callouts.js';
@@ -21,20 +22,39 @@ export function HUD() {
       )}
       {phase === 'intermission' && <Banner text="INTERMISSION" />}
       {phase === 'ended' && <Banner text="FINAL" />}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 14,
-          left: 14,
-          fontSize: 11,
-          opacity: 0.6,
-          lineHeight: 1.5,
-        }}
-      >
-        WASD / arrows move · mouse aim · J / LMB shoot · K / RMB pass<br />
-        Shift hit · F steal · Q deke · Space / E ultimate · M mute · (gamepad supported)
-      </div>
+      <ControlsHint />
       <AudioControl />
+    </div>
+  );
+}
+
+// Bottom-left key hint, generated from the live bindings so it stays accurate
+// after a player remaps anything. Shows each action's primary (first) binding.
+function ControlsHint() {
+  const bindings = useSyncExternalStore(controls.subscribe, controls.getSnapshot);
+  const primary = (a: BindableAction): string => {
+    const t = bindings.keyboard[a][0];
+    return t ? tokenLabel(t) : '—';
+  };
+  const move = ['moveUp', 'moveLeft', 'moveDown', 'moveRight']
+    .map((a) => primary(a as BindableAction))
+    .join('');
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        bottom: 14,
+        left: 14,
+        fontSize: 11,
+        opacity: 0.6,
+        lineHeight: 1.5,
+      }}
+    >
+      {move} move · mouse aim · {primary('shoot')} shoot · {primary('pass')} pass ·{' '}
+      {primary('hit')} hit<br />
+      {primary('steal')} steal · {primary('deke')} deke · {primary('ult')} ult · M mute ·
+      gamepad supported · ⚙ to remap
     </div>
   );
 }
@@ -104,6 +124,22 @@ function AudioControl() {
         pointerEvents: 'auto',
       }}
     >
+      <button
+        onClick={() => set({ controlsOpen: true })}
+        title="Controls"
+        style={{
+          background: 'rgba(20,28,52,0.7)',
+          border: '1px solid #2a3566',
+          color: '#dfe6ff',
+          borderRadius: 6,
+          width: 30,
+          height: 26,
+          cursor: 'pointer',
+          fontSize: 14,
+        }}
+      >
+        ⚙
+      </button>
       <button
         onClick={() => set({ muted: !muted })}
         title="Mute (M)"
