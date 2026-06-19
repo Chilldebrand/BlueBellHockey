@@ -4,6 +4,7 @@ import type { SkaterState, WorldState } from '../sim/types.js';
 export interface UltimateDef {
   id: string;
   name: string;
+  description: string; // one-line "what it does" for the character-select screen
   durationMs: number; // how long ultActiveUntil lasts (0 = instant)
   activate(world: WorldState, self: SkaterState): void;
 }
@@ -19,6 +20,7 @@ export const ULTIMATES: Record<string, UltimateDef> = {
   afterburner: {
     id: 'afterburner',
     name: 'Afterburner',
+    description: 'Blazing speed burst for 4s — leave defenders in the dust.',
     durationMs: 4000,
     activate(w, s) {
       s.status.speedMult = 1.85;
@@ -28,6 +30,7 @@ export const ULTIMATES: Record<string, UltimateDef> = {
   shockwave: {
     id: 'shockwave',
     name: 'Shockwave Check',
+    description: 'Flatten every nearby opponent with a radial shockwave.',
     durationMs: 0,
     activate(w, s) {
       for (const o of opponents(w, s)) {
@@ -41,6 +44,7 @@ export const ULTIMATES: Record<string, UltimateDef> = {
   cannon: {
     id: 'cannon',
     name: 'Cannon',
+    description: 'Your next shot on net is a guaranteed goal — wind up the howitzer.',
     durationMs: 8000,
     activate(w, s) {
       s.status.guaranteedGoal = true;
@@ -51,6 +55,7 @@ export const ULTIMATES: Record<string, UltimateDef> = {
   vision: {
     id: 'vision',
     name: 'Vision',
+    description: 'Passes auto-find the best teammate and the whole line speeds up.',
     durationMs: 6000,
     activate(w, s) {
       s.status.passPerfectUntil = w.time + 6000;
@@ -65,6 +70,7 @@ export const ULTIMATES: Record<string, UltimateDef> = {
   magnet: {
     id: 'magnet',
     name: 'Magnet',
+    description: 'Pull the loose puck to your stick and strip nearby carriers for 3s.',
     durationMs: 3000,
     activate(w, s) {
       s.status.magnetUntil = w.time + 3000;
@@ -73,6 +79,7 @@ export const ULTIMATES: Record<string, UltimateDef> = {
   overdrive: {
     id: 'overdrive',
     name: 'Overdrive',
+    description: 'Every attribute and your speed surge for 8s — no weaknesses.',
     durationMs: 8000,
     activate(w, s) {
       s.status.attrBonus = 2;
@@ -84,6 +91,7 @@ export const ULTIMATES: Record<string, UltimateDef> = {
   freight_train: {
     id: 'freight_train',
     name: 'Freight Train',
+    description: 'Charge at double speed for 3s, flattening anyone you touch.',
     durationMs: 3000,
     activate(w, s) {
       s.status.speedMult = 2.0;
@@ -94,6 +102,7 @@ export const ULTIMATES: Record<string, UltimateDef> = {
   phase: {
     id: 'phase',
     name: 'Phase',
+    description: 'Turn intangible for 5s — skate clean through bodies.',
     durationMs: 5000,
     activate(w, s) {
       s.status.intangibleUntil = w.time + 5000;
@@ -104,6 +113,7 @@ export const ULTIMATES: Record<string, UltimateDef> = {
   barrage: {
     id: 'barrage',
     name: 'Barrage',
+    description: 'Crank shot power for a relentless 5s of heavy artillery.',
     durationMs: 5000,
     activate(w, s) {
       s.status.shootPowerMult = 1.8;
@@ -113,6 +123,7 @@ export const ULTIMATES: Record<string, UltimateDef> = {
   deep_freeze: {
     id: 'deep_freeze',
     name: 'Deep Freeze',
+    description: 'Freeze the two nearest opponents solid for 3s, then strike.',
     durationMs: 3000,
     activate(w, s) {
       const sorted = opponents(w, s).sort(
