@@ -35,7 +35,8 @@ export interface Snapshot {
 }
 
 export interface ConnectOpts {
-  mode?: 'quick' | 'create' | 'join';
+  mode?: 'quick' | 'create' | 'join'; // connection intent
+  gameMode?: string; // game-mode id (regulation/first5/blitz/1v1) — WO-15
   code?: string;
   team?: 0 | 1 | null;
   serverUrl?: string;
@@ -87,28 +88,39 @@ class NetClient {
   private statsSig = '';
 
   async connect(opts: ConnectOpts = {}): Promise<void> {
-    const mode = opts.mode ?? 'quick';
+    const connMode = opts.mode ?? 'quick';
+    const gameMode = opts.gameMode ?? 'regulation';
     const code = (opts.code ?? '').toUpperCase().trim();
     const ui = useUi.getState();
     ui.set({ status: 'connecting', error: null });
     try {
       const url = opts.serverUrl ?? `ws://${location.hostname}:2567`;
       const client = new Client(url);
-      const joinOpts: Record<string, unknown> = {};
+      const joinOpts: Record<string, unknown> = { mode: gameMode };
       if (opts.team === 0 || opts.team === 1) joinOpts.team = opts.team;
 
       let room: Room;
-      if (mode === 'create') {
+      if (connMode === 'create') {
         joinOpts.code = code || genRoomCode();
         room = await client.create('match', joinOpts); // always a fresh private room
+      } else if (connMode === 'join') {
+        joinOpts.code = code; // join a friend's coded room (inherits its mode)
+        room = await client.joinOrCreate('match', joinOpts);
       } else {
-        joinOpts.code = mode === 'join' ? code : ''; // join a coded room, or public Quick Play
+        // Quick Play: matchmake within a per-mode public bucket (so different modes
+        // don't collide); the '~' prefix marks it non-shareable on the server.
+        joinOpts.code = `~${gameMode}`;
         room = await client.joinOrCreate('match', joinOpts);
       }
       this.room = room;
 
-      room.onMessage('assigned', (m: { skaterId: string; team: 0 | 1; code?: string }) => {
-        useUi.getState().set({ mySkaterId: m.skaterId, myTeam: m.team, roomCode: m.code ?? '' });
+      room.onMessage('assigned', (m: { skaterId: string; team: 0 | 1; code?: string; mode?: string }) => {
+        useUi.getState().set({
+          mySkaterId: m.skaterId,
+          myTeam: m.team,
+          roomCode: m.code ?? '',
+          gameMode: m.mode ?? 'regulation',
+        });
       });
 
       // one-shot gameplay events (hooks for VFX/SFX; registered to avoid warnings)

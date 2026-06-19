@@ -10,6 +10,7 @@ import { doDeke, doHit, doPass, doPoke, doShoot, doSteal, SLAP_FULL_MS } from '.
 import { carryAnchor, DEKE_MS, ONE_TIMER_WINDOW_MS, STICK_REACH } from './puck.js';
 import { emptyActions, neutralInput, type InputState, type WorldState } from './types.js';
 import { attackingGoalX } from '../config/rink.js';
+import { GAME_MODES } from '../config/modes.js';
 import { v } from './physics.js';
 
 /** Launch a loose puck across team 0's attacking line, credited to `scorer`. */
@@ -601,5 +602,41 @@ describe('deferred goal reset for replays (WO-10)', () => {
     expect(w.goalResetPending).toBe(false);
     expect(Math.abs(w.puck.pos.x)).toBeLessThan(0.01);
     expect(Math.abs(w.puck.pos.z)).toBeLessThan(0.01);
+  });
+});
+
+describe('game modes (WO-15)', () => {
+  it('first-to-5 ends the moment a team reaches the goal target', () => {
+    const w = createWorld(roster(), GAME_MODES.first5);
+    expect(w.targetGoals).toBe(5);
+    expect(w.periods).toBe(1);
+    w.phase = 'period';
+    w.score = [4, 0];
+    launchTeam0Goal(w, 'a'); // the 5th
+    for (let i = 0; i < 30 && w.phase !== 'ended'; i++) step(w, {}, DT);
+    expect(w.score[0]).toBe(5);
+    expect(w.phase).toBe('ended');
+  });
+
+  it('blitz is a single period — time expiring with a lead ends the match (no intermission)', () => {
+    const w = createWorld(roster(), GAME_MODES.blitz);
+    expect(w.periods).toBe(1);
+    w.phase = 'period';
+    w.score = [1, 0];
+    w.clock = DT; // about to run out
+    for (let i = 0; i < 4 && w.phase === 'period'; i++) step(w, {}, DT);
+    expect(w.phase).toBe('ended');
+  });
+
+  it('a tie in a single-period mode goes to sudden-death overtime', () => {
+    const w = createWorld(roster(), GAME_MODES.blitz);
+    w.phase = 'period';
+    w.score = [2, 2];
+    w.clock = DT;
+    // clock expires -> pre-OT countdown -> overtime
+    for (let i = 0; i < 200 && w.phase !== 'overtime' && w.phase !== 'ended'; i++) {
+      step(w, {}, DT);
+    }
+    expect(w.phase).toBe('overtime');
   });
 });

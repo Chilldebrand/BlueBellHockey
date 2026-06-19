@@ -5,8 +5,10 @@ import {
   TICK_MS,
   beginCountdown,
   createWorld,
+  getMode,
   neutralInput,
   step,
+  type GameModeDef,
   type InputState,
   type RosterEntry,
   type Team,
@@ -44,11 +46,16 @@ export class MatchRoom extends Room<MatchState> {
   private sessionToSkater = new Map<string, string>();
   private selected = new Map<string, string>(); // slotId -> characterId
   private started = false;
-  private code = ''; // room code ('' = public Quick Play room) — WO-14
+  private displayCode = ''; // shareable private code ('' = public) — WO-14
+  private mode: GameModeDef = getMode(undefined); // game mode — WO-15
 
-  onCreate(options?: { code?: string }): void {
-    this.code = (options?.code ?? '').toString().toUpperCase().slice(0, 6);
-    this.setMetadata({ code: this.code });
+  onCreate(options?: { code?: string; mode?: string }): void {
+    const mmCode = (options?.code ?? '').toString();
+    this.mode = getMode(options?.mode);
+    // Public/quick rooms (empty or a '~mode' bucket) have no shareable code; a
+    // private room shows its code so the host can invite friends.
+    this.displayCode = mmCode && !mmCode.startsWith('~') ? mmCode.toUpperCase().slice(0, 6) : '';
+    this.setMetadata({ code: mmCode, mode: this.mode.id });
     this.setState(new MatchState());
 
     // default character per slot so bots and unselected humans have a build
@@ -57,7 +64,7 @@ export class MatchRoom extends Room<MatchState> {
       this.selected.set(slot.id, CHARACTERS[(i + 6) % CHARACTERS.length].id),
     );
 
-    this.world = createWorld(this.buildRoster());
+    this.world = createWorld(this.buildRoster(), this.mode);
     syncState(this.state, this.world);
 
     this.onMessage<InputMessage>(MSG.INPUT, (client, msg) => {
@@ -72,7 +79,7 @@ export class MatchRoom extends Room<MatchState> {
       const skaterId = this.sessionToSkater.get(client.sessionId);
       if (skaterId && CHARACTERS.some((c) => c.id === msg.characterId)) {
         this.selected.set(skaterId, msg.characterId);
-        this.world = createWorld(this.buildRoster());
+        this.world = createWorld(this.buildRoster(), this.mode);
         syncState(this.state, this.world);
       }
     });
@@ -95,18 +102,25 @@ export class MatchRoom extends Room<MatchState> {
 
   onJoin(client: Client, options?: { team?: number }): void {
     // Team preference (WO-14): take a free slot on the requested team if any,
-    // otherwise fall back to any free slot rather than refusing the join.
+    // otherwise fall back to any free slot. Only the mode's active slots exist
+    // (e.g. 1-on-1 has one per side) — WO-15.
+    const slots = this.activeSlots();
     const want = options?.team === 1 ? 1 : options?.team === 0 ? 0 : null;
     const slot =
-      (want !== null && SKATER_SLOTS.find((s) => s.team === want && !this.isSlotTaken(s.id))) ||
-      SKATER_SLOTS.find((s) => !this.isSlotTaken(s.id));
-    if (!slot) return;
+      (want !== null && slots.find((s) => s.team === want && !this.isSlotTaken(s.id))) ||
+      slots.find((s) => !this.isSlotTaken(s.id));
+    if (!slot) return; // room full for this mode → spectate (no slot)
     this.sessionToSkater.set(client.sessionId, slot.id);
     const row = this.state.skaters.get(slot.id);
     if (row) row.isBot = false;
     const w = this.world.skaters[slot.id];
     if (w) w.isBot = false;
-    client.send('assigned', { skaterId: slot.id, team: slot.team, code: this.code });
+    client.send('assigned', {
+      skaterId: slot.id,
+      team: slot.team,
+      code: this.displayCode,
+      mode: this.mode.id,
+    });
   }
 
   onLeave(client: Client): void {
@@ -127,9 +141,18 @@ export class MatchRoom extends Room<MatchState> {
     return false;
   }
 
+  /** The skater slots active for the current mode (e.g. one per side for 1-on-1). */
+  private activeSlots(): { id: string; team: Team }[] {
+    const n = this.mode.skatersPerTeam;
+    return [
+      ...SKATER_SLOTS.filter((s) => s.team === 0).slice(0, n),
+      ...SKATER_SLOTS.filter((s) => s.team === 1).slice(0, n),
+    ];
+  }
+
   private buildRoster(): RosterEntry[] {
     const humans = new Set(this.sessionToSkater.values());
-    const roster: RosterEntry[] = SKATER_SLOTS.map((slot) => ({
+    const roster: RosterEntry[] = this.activeSlots().map((slot) => ({
       id: slot.id,
       team: slot.team,
       characterId: this.selected.get(slot.id)!,
@@ -150,7 +173,7 @@ export class MatchRoom extends Room<MatchState> {
 
   private startMatch(): void {
     this.started = true;
-    this.world = createWorld(this.buildRoster());
+    this.world = createWorld(this.buildRoster(), this.mode);
     beginCountdown(this.world);
     syncState(this.state, this.world);
   }
@@ -160,7 +183,7 @@ export class MatchRoom extends Room<MatchState> {
     this.started = false;
     this.inputs = {};
     this.lastSeq = {};
-    this.world = createWorld(this.buildRoster()); // phase 'lobby'
+    this.world = createWorld(this.buildRoster(), this.mode); // phase 'lobby'
     syncState(this.state, this.world);
   }
 

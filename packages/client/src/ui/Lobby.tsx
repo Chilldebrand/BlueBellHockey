@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { GAME_MODES, type GameModeId } from '@bbh/shared';
 import { net } from '../net/client.js';
 import { sfx } from '../audio/sfx.js';
 import { useUi } from '../store.js';
 
 type TeamPref = 0 | 1 | null;
+const MODE_IDS = Object.keys(GAME_MODES) as GameModeId[];
 
 export function Lobby() {
   const status = useUi((s) => s.status);
@@ -11,11 +13,12 @@ export function Lobby() {
   const set = useUi((s) => s.set);
   const [team, setTeam] = useState<TeamPref>(null);
   const [code, setCode] = useState('');
+  const [gameMode, setGameMode] = useState<GameModeId>('regulation');
 
   const connecting = status === 'connecting';
   const go = (mode: 'quick' | 'create' | 'join') => {
     sfx.init();
-    net.connect({ mode, code, team });
+    net.connect({ mode, gameMode, code, team });
   };
 
   return (
@@ -34,6 +37,17 @@ export function Lobby() {
       <h1 style={{ fontSize: 52, margin: 0, letterSpacing: 1 }}>BBellHockey</h1>
       <p style={{ opacity: 0.75, marginTop: 0 }}>Online 3v3 Arcade Hockey</p>
       {status === 'error' && <p style={{ color: '#ff6b6b', margin: 0 }}>Connection failed: {error}</p>}
+
+      {/* Game mode */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+        <span style={{ fontSize: 13, opacity: 0.7 }}>Mode</span>
+        {MODE_IDS.map((id) => (
+          <Seg key={id} label={GAME_MODES[id].name} active={gameMode === id} color="#4f7cff" onClick={() => setGameMode(id)} />
+        ))}
+      </div>
+      <div style={{ fontSize: 12, opacity: 0.55, marginTop: -6, maxWidth: 380, textAlign: 'center' }}>
+        {GAME_MODES[gameMode].description}
+      </div>
 
       {/* Team preference */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

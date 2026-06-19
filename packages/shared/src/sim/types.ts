@@ -141,7 +141,12 @@ export function emptyStats(): PlayerStats {
 export interface WorldState {
   time: number; // accumulated sim time in ms
   phase: MatchPhase;
-  period: number; // 1..3 (or 4 for OT)
+  // Game-mode config (WO-15): the same sim runs under these. Set by createWorld.
+  periods: number; // regulation periods before OT/end
+  periodMs: number; // length of each period
+  targetGoals: number; // first to this many goals wins instantly (0 = no target)
+  suddenDeathOT: boolean; // a tie after regulation goes to OT
+  period: number; // 1..periods (or periods+1 for OT)
   clock: number; // ms remaining in current period
   phaseTimer: number; // ms remaining for countdown/intermission/overtime
   pauseUntil: number; // gameplay/clock frozen until this sim-time (goal celebration)

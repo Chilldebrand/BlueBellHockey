@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CHARACTERS, getUltimate, type AttributeKey } from '@bbh/shared';
+import { CHARACTERS, getMode, getUltimate, type AttributeKey } from '@bbh/shared';
 import { net } from '../net/client.js';
 import { useUi } from '../store.js';
 import { CharacterPreview } from '../render/CharacterPreview.js';
@@ -20,6 +20,7 @@ export function CharacterSelect() {
   const set = useUi((s) => s.set);
   const roomCode = useUi((s) => s.roomCode);
   const myTeam = useUi((s) => s.myTeam);
+  const gameMode = useUi((s) => s.gameMode);
   const [hover, setHover] = useState<string | null>(null);
 
   const choose = (id: string) => {
@@ -46,38 +47,38 @@ export function CharacterSelect() {
       }}
     >
       <h1 style={{ margin: '4px 0 2px' }}>Choose your skater</h1>
-      <p style={{ opacity: 0.7, marginTop: 0 }}>3v3 · 3 periods × 3:00 · empty slots filled by bots</p>
+      <p style={{ opacity: 0.7, marginTop: 0 }}>{getMode(gameMode).description} · empty slots filled by bots</p>
 
-      {(roomCode || myTeam !== null) && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 14,
-            marginBottom: 12,
-            padding: '6px 16px',
-            borderRadius: 10,
-            background: 'rgba(20,28,52,0.6)',
-            border: '1px solid #2a3566',
-            fontSize: 13,
-          }}
-        >
-          {roomCode ? (
-            <span>
-              <span style={{ opacity: 0.6 }}>Room code </span>
-              <b style={{ fontSize: 18, letterSpacing: 3, color: '#ffd23c' }}>{roomCode}</b>
-              <span style={{ opacity: 0.6 }}> · share to invite friends</span>
-            </span>
-          ) : (
-            <span style={{ opacity: 0.6 }}>Public match</span>
-          )}
-          {myTeam !== null && (
-            <span style={{ color: myTeam === 0 ? '#3c6bff' : '#ff5a3c', fontWeight: 700 }}>
-              You’re on {myTeam === 0 ? 'HOME' : 'AWAY'}
-            </span>
-          )}
-        </div>
-      )}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 14,
+          marginBottom: 12,
+          padding: '6px 16px',
+          borderRadius: 10,
+          background: 'rgba(20,28,52,0.6)',
+          border: '1px solid #2a3566',
+          fontSize: 13,
+        }}
+      >
+        <span style={{ fontWeight: 700, color: '#7fc4ff' }}>{getMode(gameMode).name}</span>
+        <span style={{ opacity: 0.3 }}>·</span>
+        {roomCode ? (
+          <span>
+            <span style={{ opacity: 0.6 }}>Room code </span>
+            <b style={{ fontSize: 18, letterSpacing: 3, color: '#ffd23c' }}>{roomCode}</b>
+            <span style={{ opacity: 0.6 }}> · share to invite friends</span>
+          </span>
+        ) : (
+          <span style={{ opacity: 0.6 }}>Public match</span>
+        )}
+        {myTeam !== null && (
+          <span style={{ color: myTeam === 0 ? '#3c6bff' : '#ff5a3c', fontWeight: 700 }}>
+            You’re on {myTeam === 0 ? 'HOME' : 'AWAY'}
+          </span>
+        )}
+      </div>
 
       {/* Hero: idle 3D preview + the shown skater's build and ultimate */}
       <div

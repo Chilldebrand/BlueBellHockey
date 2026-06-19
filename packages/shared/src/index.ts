@@ -8,4 +8,5 @@ export * from './config/rink.js';
 export * from './config/characters.js';
 export * from './config/charge.js';
 export * from './config/ultimates.js';
+export * from './config/modes.js';
 export * from './net/messages.js';

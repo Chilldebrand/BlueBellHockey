@@ -2,12 +2,11 @@ import {
   COUNTDOWN_MS,
   INTERMISSION_MS,
   OVERTIME_MS,
-  PERIOD_MS,
-  PERIODS,
   awardStyle,
   breakCombo,
   tickCharge,
 } from '../config/charge.js';
+import { getMode, type GameModeDef } from '../config/modes.js';
 import { PUCK_RADIUS, RINK, SKATER_RADIUS, attackingGoalX } from '../config/rink.js';
 import { doDeke, doHit, doPass, doPoke, doShoot, doSteal, doUlt } from './actions.js';
 import { resolveCircles, v } from './physics.js';
@@ -39,7 +38,8 @@ function startPositions(team: Team, index: number, isGoalie: boolean): { x: numb
   return { x: sign * 6, z: zs[index % zs.length] };
 }
 
-export function createWorld(roster: RosterEntry[]): WorldState {
+export function createWorld(roster: RosterEntry[], mode?: GameModeDef): WorldState {
+  const m = mode ?? getMode(undefined);
   const skaters: Record<string, SkaterState> = {};
   const stats: WorldState['stats'] = {};
   const counts: Record<Team, number> = { 0: 0, 1: 0 };
@@ -66,8 +66,12 @@ export function createWorld(roster: RosterEntry[]): WorldState {
   return {
     time: 0,
     phase: 'lobby',
+    periods: m.periods,
+    periodMs: m.periodMs,
+    targetGoals: m.targetGoals,
+    suddenDeathOT: m.suddenDeathOT,
     period: 1,
-    clock: PERIOD_MS,
+    clock: m.periodMs,
     phaseTimer: 0,
     pauseUntil: 0,
     goalResetPending: false,
@@ -221,7 +225,7 @@ function advancePhase(world: WorldState, dtMs: number): boolean {
       world.phaseTimer -= dtMs;
       if (world.phaseTimer <= 0) {
         // resume into overtime once we're past regulation, otherwise a normal period
-        world.phase = world.period > PERIODS ? 'overtime' : 'period';
+        world.phase = world.period > world.periods ? 'overtime' : 'period';
         world.events.push({ type: 'phase', phase: world.phase });
         world.events.push({ type: 'period', period: world.period });
       }
@@ -233,7 +237,7 @@ function advancePhase(world: WorldState, dtMs: number): boolean {
       world.phaseTimer -= dtMs;
       if (world.phaseTimer <= 0) {
         world.period += 1;
-        world.clock = PERIOD_MS;
+        world.clock = world.periodMs;
         beginCountdown(world);
       }
       return false;
@@ -252,10 +256,10 @@ function tickClock(world: WorldState, dtMs: number): void {
     world.events.push({ type: 'phase', phase: 'ended' });
     return;
   }
-  if (world.period >= PERIODS) {
-    if (world.score[0] === world.score[1]) {
+  if (world.period >= world.periods) {
+    if (world.score[0] === world.score[1] && world.suddenDeathOT) {
       world.phase = 'overtime';
-      world.period = PERIODS + 1;
+      world.period = world.periods + 1;
       world.clock = OVERTIME_MS;
       beginCountdown(world);
     } else {
@@ -366,10 +370,14 @@ export function step(
 
     for (const s of Object.values(world.skaters)) tickCharge(s, dtMs);
 
-    if (
-      world.phase === 'overtime' &&
-      (world.score[0] !== otStartScore[0] || world.score[1] !== otStartScore[1])
-    ) {
+    // Match-ending goal (WO-15): a sudden-death OT goal, or reaching the mode's
+    // goal target (e.g. first-to-5), ends the match immediately.
+    const scoreChanged =
+      world.score[0] !== otStartScore[0] || world.score[1] !== otStartScore[1];
+    const hitTarget =
+      world.targetGoals > 0 &&
+      (world.score[0] >= world.targetGoals || world.score[1] >= world.targetGoals);
+    if (scoreChanged && (world.phase === 'overtime' || hitTarget)) {
       world.phase = 'ended';
       world.events.push({ type: 'phase', phase: 'ended' });
     }
