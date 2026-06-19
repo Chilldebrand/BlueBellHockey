@@ -41,6 +41,7 @@ export interface UiState {
   // audio controls (WO-05)
   muted: boolean;
   volume: number; // 0..1
+  musicOn: boolean; // WO-11 — procedural music bed on/off (SFX/crowd stay on)
   // controls remapping panel
   controlsOpen: boolean;
   // goal replay (WO-10): true while the slow-mo instant replay is playing
@@ -68,6 +69,7 @@ export const useUi = create<UiState>((set) => ({
   myComboUntil: 0,
   muted: false,
   volume: 0.5,
+  musicOn: true,
   controlsOpen: false,
   replayActive: false,
   serverTime: 0,

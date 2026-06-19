@@ -1,5 +1,12 @@
 import { net } from '../net/client.js';
 import { useUi } from '../store.js';
+import { Crowd } from './crowd.js';
+import { Music } from './music.js';
+
+type Mood = 'menu' | 'game';
+function moodForPhase(phase: string): Mood {
+  return phase === 'period' || phase === 'overtime' ? 'game' : 'menu';
+}
 
 // Lightweight synthesized SFX via Web Audio — no asset files. Must be initialized
 // from a user gesture (the PLAY button) so the AudioContext can start.
@@ -7,6 +14,8 @@ class Sfx {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private noise: AudioBuffer | null = null;
+  private crowd: Crowd | null = null;
+  private music: Music | null = null;
   private started = false;
   private baseVolume = 0.5; // 0..1 from the player's control
   private muted = false;
@@ -24,13 +33,24 @@ class Sfx {
     this.applyGain();
     this.master.connect(this.ctx.destination);
 
-    // pre-baked white-noise buffer for impacts / whooshes
+    // pre-baked white-noise buffer for impacts / whooshes / the crowd bed
     const len = this.ctx.sampleRate * 0.5;
     this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
     const data = this.noise.getChannelData(0);
     for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
 
+    // living crowd + procedural music bed (WO-11)
+    this.crowd = new Crowd(this.ctx, this.master, this.noise);
+    this.music = new Music(this.ctx, this.master);
+    const ui = useUi.getState();
+    this.music.setMood(ui.musicOn ? moodForPhase(ui.phase) : null);
+
     this.wire();
+  }
+
+  /** Drive the crowd's sustained excitement from rink danger (0..1). */
+  setCrowdDanger(d: number): void {
+    this.crowd?.setDanger(d);
   }
 
   private now(): number {
@@ -134,19 +154,35 @@ class Sfx {
   }
 
   private wire(): void {
-    net.events.on('goal', () => this.goalHorn());
-    net.events.on('gamebreaker', () => this.gamebreaker());
-    net.events.on('hit', () => this.hit());
+    net.events.on('goal', () => {
+      this.goalHorn();
+      this.crowd?.roar();
+    });
+    net.events.on('gamebreaker', () => {
+      this.gamebreaker();
+      this.crowd?.roar();
+    });
+    net.events.on('hit', () => {
+      this.hit();
+      this.crowd?.bump(0.35);
+    });
     net.events.on('shot', (e: { charge?: number }) => this.shot(e?.charge ?? 0));
     net.events.on('one_timer', () => this.oneTimer());
-    net.events.on('save', (e: { rebound?: boolean }) => this.save(!!e?.rebound));
+    net.events.on('save', (e: { rebound?: boolean }) => {
+      this.save(!!e?.rebound);
+      this.crowd?.bump(0.5); // a robbery gets a rise out of the building
+    });
     net.events.on('ult', () => this.ult());
-    net.events.on('ankle_break', () => this.ankleBreak());
+    net.events.on('ankle_break', () => {
+      this.ankleBreak();
+      this.crowd?.bump(0.45);
+    });
     net.events.on('bank_play', () => this.bankPlay());
     net.events.on('nolook_pass', () => this.noLook());
 
     // derived cues + live mixer from match state
     let prevPhase = useUi.getState().phase;
+    let prevMusicOn = useUi.getState().musicOn;
     let wasReady = false;
     let prevVol = this.baseVolume;
     let prevMuted = this.muted;
@@ -154,6 +190,11 @@ class Sfx {
       if (st.phase !== prevPhase) {
         if (st.phase === 'period') this.whistle();
         prevPhase = st.phase;
+        if (st.musicOn) this.music?.setMood(moodForPhase(st.phase));
+      }
+      if (st.musicOn !== prevMusicOn) {
+        this.music?.setMood(st.musicOn ? moodForPhase(st.phase) : null);
+        prevMusicOn = st.musicOn;
       }
       const ready = st.myUltCharge >= 1;
       if (ready && !wasReady) this.ready();

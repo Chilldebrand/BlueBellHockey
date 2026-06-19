@@ -145,6 +145,7 @@ function FlashOverlay() {
 function AudioControl() {
   const muted = useUi((s) => s.muted);
   const volume = useUi((s) => s.volume);
+  const musicOn = useUi((s) => s.musicOn);
   const set = useUi((s) => s.set);
 
   useEffect(() => {
@@ -182,6 +183,22 @@ function AudioControl() {
         }}
       >
         ⚙
+      </button>
+      <button
+        onClick={() => set({ musicOn: !musicOn })}
+        title={`Music ${musicOn ? 'on' : 'off'}`}
+        style={{
+          background: musicOn ? 'rgba(79,124,255,0.35)' : 'rgba(20,28,52,0.7)',
+          border: `1px solid ${musicOn ? '#4f7cff' : '#2a3566'}`,
+          color: musicOn ? '#dfe6ff' : '#7d88b5',
+          borderRadius: 6,
+          width: 30,
+          height: 26,
+          cursor: 'pointer',
+          fontSize: 14,
+        }}
+      >
+        🎵
       </button>
       <button
         onClick={() => set({ muted: !muted })}

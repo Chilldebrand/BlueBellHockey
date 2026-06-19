@@ -6,12 +6,14 @@ import { ToneMappingMode } from 'postprocessing';
 import * as THREE from 'three';
 import { useUi } from '../store.js';
 import { net } from '../net/client.js';
+import { RINK } from '@bbh/shared';
 import { inputManager } from '../input/inputState.js';
 import { sampleAt, INTERP_DELAY_MS } from '../game/interpolation.js';
 import { predictLocal, applyPrediction, predictCarriedPuck } from '../game/prediction.js';
 import { frameStore } from './frameStore.js';
 import { cameraShake, cameraPunch } from './fx.js';
 import { goalReplay } from './replay.js';
+import { sfx } from '../audio/sfx.js';
 import { Skater } from './Skater.js';
 import { Puck } from './Puck.js';
 import { Rink } from './Rink.js';
@@ -21,6 +23,13 @@ import { Vfx } from './Vfx.js';
 const SEND_INTERVAL = 1000 / 30;
 const GROUND = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const shakeOffset = new THREE.Vector3();
+
+// Crowd excitement from how close the puck is to a net (WO-11): 0 at center ice,
+// ramping to 1 right on the goal line.
+const DANGER_START = 18;
+function puckDanger(px: number): number {
+  return THREE.MathUtils.clamp((Math.abs(px) - DANGER_START) / (RINK.goalLineX - DANGER_START), 0, 1);
+}
 
 function Driver() {
   const { camera, pointer, raycaster } = useThree();
@@ -62,6 +71,7 @@ function Driver() {
       frameStore.set(replayFrame);
       predicted.current = null; // drop stale prediction so we reconcile cleanly after
       const px = replayFrame.puck.x;
+      sfx.setCrowdDanger(puckDanger(px));
       const camX = THREE.MathUtils.clamp(px * 0.5, -14, 14);
       camera.position.lerp(new THREE.Vector3(camX, 11, -22), Math.min(1, dt * 4));
       camera.lookAt(camX * 0.9, 1.1, 0);
@@ -89,6 +99,7 @@ function Driver() {
     // broadcast camera: side view that drifts with the puck, punches in on big
     // moments (goals/ults), plus shake impulses.
     const px = frameStore.puck().x;
+    sfx.setCrowdDanger(puckDanger(px));
     const camX = THREE.MathUtils.clamp(px * 0.4, -12, 12);
     const k = cameraPunch.sample(dt) * 0.7; // blend amount toward the punched-in framing
     const L = THREE.MathUtils.lerp;
