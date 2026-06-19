@@ -143,7 +143,7 @@ function GoalLamp({ x, litByTeam }: { x: number; litByTeam: 0 | 1 }) {
   );
 }
 
-export function Rink() {
+export function Rink({ reflections = true }: { reflections?: boolean }) {
   const iceGeo = useMemo(
     () => new THREE.ShapeGeometry(roundedRect(RINK.halfLength, RINK.halfWidth, RINK.cornerRadius)),
     [],
@@ -161,21 +161,26 @@ export function Rink() {
 
   return (
     <group>
-      {/* polished wet ice — real-time reflections of the skaters/boards */}
+      {/* polished wet ice — real-time reflections (high quality) or a plain glossy
+          sheet (lower quality, skipping the per-frame reflection pass) (WO-13) */}
       <mesh geometry={iceGeo} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <MeshReflectorMaterial
-          color={ICE}
-          resolution={1024}
-          mixBlur={1.4}
-          mixStrength={0.7}
-          blur={[400, 150]}
-          mirror={0.25}
-          roughness={0.65}
-          metalness={0.1}
-          depthScale={0}
-          minDepthThreshold={0.9}
-          maxDepthThreshold={1}
-        />
+        {reflections ? (
+          <MeshReflectorMaterial
+            color={ICE}
+            resolution={1024}
+            mixBlur={1.4}
+            mixStrength={0.7}
+            blur={[400, 150]}
+            mirror={0.25}
+            roughness={0.65}
+            metalness={0.1}
+            depthScale={0}
+            minDepthThreshold={0.9}
+            maxDepthThreshold={1}
+          />
+        ) : (
+          <meshStandardMaterial color={ICE} roughness={0.5} metalness={0.1} />
+        )}
       </mesh>
       {/* white boards */}
       <mesh geometry={boardGeo} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>

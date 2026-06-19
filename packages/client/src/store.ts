@@ -2,6 +2,28 @@ import { create } from 'zustand';
 
 export type ConnStatus = 'idle' | 'connecting' | 'connected' | 'error';
 
+export type QualityLevel = 'low' | 'medium' | 'high';
+
+const QUALITY_KEY = 'bbh.quality';
+function initialQuality(): QualityLevel {
+  try {
+    const q = localStorage.getItem(QUALITY_KEY);
+    if (q === 'low' || q === 'medium' || q === 'high') return q;
+  } catch {
+    /* ignore */
+  }
+  return 'high';
+}
+/** Persist + apply a graphics-quality choice (WO-13). */
+export function setQuality(q: QualityLevel): void {
+  try {
+    localStorage.setItem(QUALITY_KEY, q);
+  } catch {
+    /* ignore */
+  }
+  useUi.getState().set({ quality: q });
+}
+
 export interface RosterIdentity {
   id: string;
   team: number;
@@ -46,6 +68,8 @@ export interface UiState {
   controlsOpen: boolean;
   // goal replay (WO-10): true while the slow-mo instant replay is playing
   replayActive: boolean;
+  // graphics quality (WO-13): scales shadows / post-fx / reflections / dpr
+  quality: QualityLevel;
   set: (patch: Partial<UiState>) => void;
 }
 
@@ -72,6 +96,7 @@ export const useUi = create<UiState>((set) => ({
   musicOn: true,
   controlsOpen: false,
   replayActive: false,
+  quality: initialQuality(),
   serverTime: 0,
   set: (patch) => set(patch),
 }));

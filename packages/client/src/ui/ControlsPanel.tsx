@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { useUi } from '../store.js';
+import { useUi, setQuality, type QualityLevel } from '../store.js';
 import {
   controls,
   tokenLabel,
@@ -24,6 +24,7 @@ const BORDER = '#2a3566';
 export function ControlsPanel() {
   const open = useUi((s) => s.controlsOpen);
   const set = useUi((s) => s.set);
+  const quality = useUi((s) => s.quality);
   const bindings = useSyncExternalStore(controls.subscribe, controls.getSnapshot);
   const [capture, setCapture] = useState<Capture>(null);
 
@@ -122,11 +123,29 @@ export function ControlsPanel() {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-          <h2 style={{ margin: 0, fontSize: 24, letterSpacing: 1 }}>Controls</h2>
+          <h2 style={{ margin: 0, fontSize: 24, letterSpacing: 1 }}>Settings</h2>
           <button onClick={close} style={iconBtn} title="Close">
             ✕
           </button>
         </div>
+
+        <Section title="Graphics">
+          <div style={{ display: 'flex', gap: 8 }}>
+            {(['low', 'medium', 'high'] as QualityLevel[]).map((qOpt) => (
+              <button
+                key={qOpt}
+                onClick={() => setQuality(qOpt)}
+                style={{ ...qualityBtn, ...(quality === qOpt ? qualityBtnActive : null) }}
+              >
+                {qOpt[0].toUpperCase() + qOpt.slice(1)}
+              </button>
+            ))}
+          </div>
+          <div style={{ fontSize: 11, opacity: 0.55, marginTop: 7 }}>
+            Lower quality disables shadows, bloom, and ice reflections for weaker GPUs.
+          </div>
+        </Section>
+
         <p style={{ opacity: 0.6, fontSize: 12, marginTop: 6, marginBottom: 16 }}>
           Click <b>＋</b> to add a key/mouse button, a chip’s <b>✕</b> to remove it, or{' '}
           <b>Set</b> to map a gamepad button. Left stick moves, right stick aims, mouse aims.
@@ -314,6 +333,24 @@ const iconBtn: React.CSSProperties = {
   color: '#8c97c9',
   fontSize: 18,
   cursor: 'pointer',
+};
+
+const qualityBtn: React.CSSProperties = {
+  flex: 1,
+  background: 'rgba(20,28,52,0.5)',
+  border: `1px solid ${BORDER}`,
+  color: '#aeb8e8',
+  borderRadius: 8,
+  padding: '8px 0',
+  fontSize: 14,
+  fontWeight: 700,
+  cursor: 'pointer',
+};
+
+const qualityBtnActive: React.CSSProperties = {
+  background: ACCENT,
+  border: `1px solid ${ACCENT}`,
+  color: '#fff',
 };
 
 const ghostBtn: React.CSSProperties = {

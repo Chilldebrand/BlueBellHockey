@@ -115,9 +115,22 @@ function Driver() {
   return null;
 }
 
+// Graphics-quality tiers (WO-13). Each scales the expensive levers: device pixel
+// ratio, shadows, IBL resolution, post-processing, and the ice's real-time
+// reflection pass. Default 'high' preserves the original look; lower tiers are for
+// weaker GPUs.
+type Post = 'none' | 'lite' | 'full';
+const QUALITY: Record<string, { dpr: [number, number]; shadows: boolean; shadowMap: number; env: number; post: Post; reflections: boolean }> = {
+  low: { dpr: [0.75, 1], shadows: false, shadowMap: 512, env: 64, post: 'none', reflections: false },
+  medium: { dpr: [1, 1.5], shadows: true, shadowMap: 1024, env: 128, post: 'lite', reflections: false },
+  high: { dpr: [1, 2], shadows: true, shadowMap: 2048, env: 256, post: 'full', reflections: true },
+};
+
 export function Scene() {
   const roster = useUi((s) => s.roster);
   const myId = useUi((s) => s.mySkaterId);
+  const quality = useUi((s) => s.quality);
+  const q = QUALITY[quality] ?? QUALITY.high;
 
   useEffect(() => {
     inputManager.attach();
@@ -138,7 +151,9 @@ export function Scene() {
 
   return (
     <Canvas
-      shadows
+      key={quality}
+      shadows={q.shadows}
+      dpr={q.dpr}
       camera={{ position: [0, 24, -36], fov: 45 }}
       gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
     >
@@ -150,8 +165,8 @@ export function Scene() {
         intensity={2.1}
         color="#ffffff"
         castShadow
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
+        shadow-mapSize-width={q.shadowMap}
+        shadow-mapSize-height={q.shadowMap}
         shadow-bias={-0.0004}
         shadow-camera-left={-36}
         shadow-camera-right={36}
@@ -166,7 +181,7 @@ export function Scene() {
       {/* Network-free image-based lighting: an arena-style rig of emissive panels
           rendered only into the environment cubemap, giving the wet ice and the
           glossy models something bright to reflect. */}
-      <Environment resolution={256} frames={1}>
+      <Environment resolution={q.env} frames={1}>
         <color attach="background" args={['#0a0e16']} />
         {/* overhead rink banks */}
         <Lightformer intensity={1.4} color="#ffffff" position={[0, 12, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[60, 24, 1]} />
@@ -178,7 +193,7 @@ export function Scene() {
       </Environment>
 
       <Arena />
-      <Rink />
+      <Rink reflections={q.reflections} />
       <Puck />
       {roster.map((r) => (
         <Skater key={r.id} id={r.id} team={r.team} characterId={r.characterId} isLocal={r.id === myId} />
@@ -186,19 +201,25 @@ export function Scene() {
       <Vfx />
       <Driver />
 
-      {/* NOTE: the ToneMapping effect must be present — it applies tone mapping AND
-          the final sRGB output encode. Without it the composer outputs unencoded
-          linear color (washed-out, grey blacks). */}
-      <EffectComposer multisampling={4}>
-        <Bloom
-          mipmapBlur
-          intensity={0.85}
-          luminanceThreshold={0.9}
-          luminanceSmoothing={0.12}
-        />
-        <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
-        <Vignette eskil={false} offset={0.25} darkness={0.7} />
-      </EffectComposer>
+      {/* Post-processing scales with quality (WO-13). 'low' drops the composer
+          entirely (the Canvas's own ACES tone mapping then encodes output); 'lite'
+          keeps tone mapping + vignette but no bloom; 'full' is the original stack.
+          NOTE: whenever the composer IS present it must include a ToneMapping effect
+          — it applies tone mapping AND the final sRGB encode, else the frame washes
+          out to grey blacks. */}
+      {q.post === 'full' && (
+        <EffectComposer multisampling={4}>
+          <Bloom mipmapBlur intensity={0.85} luminanceThreshold={0.9} luminanceSmoothing={0.12} />
+          <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+          <Vignette eskil={false} offset={0.25} darkness={0.7} />
+        </EffectComposer>
+      )}
+      {q.post === 'lite' && (
+        <EffectComposer multisampling={0}>
+          <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+          <Vignette eskil={false} offset={0.25} darkness={0.7} />
+        </EffectComposer>
+      )}
     </Canvas>
   );
 }
