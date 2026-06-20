@@ -96,7 +96,7 @@ describe('world simulation', () => {
     expect(w.score[1]).toBe(2);
   });
 
-  it('a goal with the scorer ult active is a Gamebreaker worth more + steals a point (WO-02)', () => {
+  it('a Gamebreaker is worth +2 and does not steal from the opponent (WO-02)', () => {
     const w = createWorld(roster());
     w.phase = 'period';
     w.score = [0, 3];
@@ -104,21 +104,40 @@ describe('world simulation', () => {
     launchTeam0Goal(w, 'a');
     for (let i = 0; i < 30 && w.score[0] === 0; i++) step(w, {}, DT);
     expect(w.score[0]).toBe(GAMEBREAKER_GOAL_VALUE); // +2
-    expect(w.score[1]).toBe(2); // 3 - 1 stolen
+    expect(w.score[1]).toBe(3); // opponent untouched — no point stolen
     const gb = w.events.find((e) => e.type === 'gamebreaker');
     expect(gb).toBeDefined();
     expect(gb && gb.type === 'gamebreaker' && gb.value).toBe(GAMEBREAKER_GOAL_VALUE);
   });
 
-  it('a Gamebreaker never drops the opponent below 0 (uint8 underflow guard, WO-02)', () => {
+  it("a leader's Gamebreaker never knocks the trailing team back, so comebacks stay possible (WO-02)", () => {
     const w = createWorld(roster());
     w.phase = 'period';
-    w.score = [0, 0]; // opponent already at 0
-    w.skaters.a.ultActiveUntil = w.time + 10000;
-    launchTeam0Goal(w, 'a');
-    for (let i = 0; i < 30 && w.score[0] === 0; i++) step(w, {}, DT);
-    expect(w.score[0]).toBe(GAMEBREAKER_GOAL_VALUE);
-    expect(w.score[1]).toBe(0); // stayed clamped at 0
+    w.score = [1, 5]; // team 0 trailing badly
+    w.skaters.b.ultActiveUntil = w.time + 10000; // the leader (team 1) pops a Gamebreaker
+    const gx = attackingGoalX(1); // team 1 attacks -X
+    w.puck.carrier = null;
+    w.puck.lastTouch = 'b';
+    w.puck.assistTouch = null;
+    w.puck.pos = { x: gx + 1, z: 0 }; // in front of the net, driving in
+    w.puck.vel = { x: -20, z: 0 };
+    w.puck.pickupCooldownUntil = w.time + 10000;
+    for (let i = 0; i < 30 && w.score[1] === 5; i++) step(w, {}, DT);
+    expect(w.score[1]).toBe(5 + GAMEBREAKER_GOAL_VALUE); // leader gains +2
+    expect(w.score[0]).toBe(1); // trailing team is NOT dropped a point
+  });
+
+  it('a full meter held through the goal celebration is not auto-spent on the faceoff (WO-20)', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const a = w.skaters.a;
+    a.ultCharge = 1; // Gamebreaker ready
+    w.pauseUntil = w.time + 1000; // simulate the goal-celebration freeze
+    const holdUlt: InputState = { ...neutralInput(), actions: { ...emptyActions(), ult: true } };
+    // hold the Gamebreaker key through the pause and into the resumed faceoff
+    for (let i = 0; i < 50; i++) step(w, { a: holdUlt }, DT);
+    expect(a.ultCharge).toBe(1); // still full — the held key didn't phantom-fire on resume
+    expect(a.ultActiveUntil).toBe(0); // never activated
   });
 
   it('a loose puck resting behind the goal line does not score (WO-18)', () => {

@@ -212,10 +212,12 @@ function checkContact(world: WorldState, attacker: SkaterState, target: SkaterSt
 }
 
 // Gamebreaker (WO-02): a goal scored while the scorer's ultimate is live is worth
-// more and steals a point from the opponent (NBA Street Vol. 2 rules). Tunable —
-// drop STEALS_POINT to false (or VALUE to 1) if matches feel decided by one swing.
+// more. It used to also steal a point from the opponent (NBA Street Vol. 2 rules),
+// but that knocked the trailing team back every time the leader popped one and made
+// comebacks too hard, so the steal is off — a Gamebreaker is a big +2, not a -1 to
+// the other side. Flip STEALS_POINT back on (or drop VALUE to 1) to retune.
 export const GAMEBREAKER_GOAL_VALUE = 2;
-export const GAMEBREAKER_STEALS_POINT = true;
+export const GAMEBREAKER_STEALS_POINT = false;
 const SCORE_MAX = 255; // score0/score1 are uint8 in the schema
 
 function detectGoal(world: WorldState, prevPos: Vec2): void {
@@ -423,6 +425,15 @@ export function step(
     if (scoreChanged && (world.phase === 'overtime' || hitTarget)) {
       world.phase = 'ended';
       world.events.push({ type: 'phase', phase: 'ended' });
+    }
+  } else {
+    // Not simulating actions (countdown, goal celebration, intermission): keep each
+    // skater's lastActions in step with their held input so a button held across the
+    // stoppage isn't read as a fresh press the instant play resumes. Without this,
+    // holding the Gamebreaker key through a goal celebration auto-fires the ult on
+    // the faceoff and wastes a full meter (WO-20).
+    for (const s of Object.values(world.skaters)) {
+      s.lastActions = { ...(inputs[s.id]?.actions ?? emptyActions()) };
     }
   }
 
