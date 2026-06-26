@@ -399,17 +399,17 @@ Goalie saves should use readable hockey-style reactions.
 
 **Steps:**
 
-- [ ] Re-read loose puck pickup, carried puck logic, poke handling, and animation event wiring.
-- [ ] Write failing tests for loose-puck stick reach within typical range without direct overlap.
-- [ ] Implement forgiving auto-pickup only for loose pucks.
-- [ ] Write failing tests proving passive reach cannot steal from a puck carrier.
-- [ ] Keep possessed-puck takeaways limited to active defensive actions.
-- [ ] Write failing tests for poke check range, cooldown, whiff commitment, and knock-loose behavior.
-- [ ] Implement long-reach poke check as knock-loose, not auto-possession.
-- [ ] Add a small movement/turning penalty during poke and recovery.
-- [ ] Add or improve poke animation event state so the long reach is visible.
-- [ ] Run `npm.cmd run test --workspace @bbh/shared`.
-- [ ] Run `npm.cmd run typecheck`.
+- [x] Re-read loose puck pickup, carried puck logic, poke handling, and animation event wiring.
+- [x] Write failing tests for loose-puck stick reach within typical range without direct overlap.
+- [x] Implement forgiving auto-pickup only for loose pucks.
+- [x] Write failing tests proving passive reach cannot steal from a puck carrier.
+- [x] Keep possessed-puck takeaways limited to active defensive actions.
+- [x] Write failing tests for poke check range, cooldown, whiff commitment, and knock-loose behavior.
+- [x] Implement long-reach poke check as knock-loose, not auto-possession.
+- [x] Add a small movement/turning penalty during poke and recovery.
+- [x] Add or improve poke animation event state so the long reach is visible.
+- [x] Run `npm.cmd run test --workspace @bbh/shared`.
+- [x] Run `npm.cmd run typecheck`.
 - [ ] Commit with a message like `Improve stick reach and poke checks`.
 
 **Acceptance:**

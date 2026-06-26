@@ -1079,6 +1079,37 @@ describe('combo multiplier integration (WO-04)', () => {
     doSteal(w, a);
     expect(w.puck.carrier).toBe('a');
   });
+
+  it('a whiffed poke commits the skater to a brief slower recovery', () => {
+    const free = createWorld(roster());
+    free.phase = 'period';
+    free.skaters.a.pos = { x: 0, z: 0 };
+    free.puck.pos = { x: 20, z: 0 };
+    free.puck.pickupCooldownUntil = Infinity;
+
+    const whiff = createWorld(roster());
+    whiff.phase = 'period';
+    whiff.skaters.a.pos = { x: 0, z: 0 };
+    whiff.puck.pos = { x: 20, z: 0 };
+    whiff.puck.pickupCooldownUntil = Infinity;
+
+    const skate: InputState = { ...neutralInput(), move: { x: 1, z: 0 } };
+    const pokeAndSkate: InputState = {
+      ...neutralInput(),
+      move: { x: 1, z: 0 },
+      actions: { ...emptyActions(), poke: true },
+    };
+
+    step(free, { a: skate }, DT);
+    step(whiff, { a: pokeAndSkate }, DT);
+    for (let i = 0; i < 8; i++) {
+      step(free, { a: skate }, DT);
+      step(whiff, { a: skate }, DT);
+    }
+
+    expect(whiff.skaters.a.status.pokeCooldownUntil).toBeGreaterThan(whiff.time);
+    expect(v.len(whiff.skaters.a.vel)).toBeLessThan(v.len(free.skaters.a.vel) * 0.9);
+  });
 });
 
 describe('box score, goalie saves & one-timers (WO-09)', () => {

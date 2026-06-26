@@ -31,6 +31,7 @@ export const SPRINT_MULT = 1.14;
 const SPRINT_TURN_ACCEL_MULT = 0.45;
 export const CARRY_SPEED_MULT = 0.92;
 export const SPRINT_CARRY_SPEED_MULT = 0.84;
+export const POKE_RECOVERY_SPEED_MULT = 0.82;
 
 // Commitment window (ms) after which winding up a slap shot starts to root you.
 export const SLAP_COMMIT_MS = 140;
@@ -42,6 +43,7 @@ export function maxSpeedOf(s: SkaterState, carrying: boolean, time = -1, sprinti
   if (carrying) m *= sprinting ? SPRINT_CARRY_SPEED_MULT : CARRY_SPEED_MULT;
   // Deke (WO-03): trade a little speed for separation while the dangle is live.
   if (time >= 0 && s.status.dekeUntil > time) m *= 0.9;
+  if (time >= 0 && s.status.pokeCooldownUntil > time) m *= POKE_RECOVERY_SPEED_MULT;
   // Slap shot (WO-08): once a wind-up passes the commit window you're slowed, so a
   // charged slapper is telegraphed and a defender can close to interrupt it.
   if (time >= 0 && s.status.shootChargeStart > 0 && time - s.status.shootChargeStart > SLAP_COMMIT_MS) {
