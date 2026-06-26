@@ -444,6 +444,7 @@ describe('world simulation', () => {
 
     expect(w.score[0]).toBe(0);
     expect(w.puck.pos.x).toBeLessThan(gx + RINK.goalDepth);
+    expect(w.events.map((e) => e.type as string)).toContain('puck_post');
   });
 
   it('leaves playable room for skaters and the puck behind the net', () => {

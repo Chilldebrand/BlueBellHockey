@@ -241,6 +241,7 @@ export class MatchRoom extends Room<MatchState> {
         e.type === 'hit' ||
         e.type === 'ult' ||
         e.type === 'shot' ||
+        e.type === 'puck_post' ||
         e.type === 'one_timer' ||
         e.type === 'save' ||
         e.type === 'pickup' ||

@@ -173,7 +173,7 @@ function collidePost(
   restitution: number,
   post: Vec2,
   prevPos?: Vec2,
-): void {
+): boolean {
   const postRadius = 0.12;
   const minD = radius + postRadius;
   let hit = false;
@@ -188,7 +188,7 @@ function collidePost(
   }
   const off = v.sub(pos, post);
   const d = v.len(off);
-  if (!hit && d >= minD) return;
+  if (!hit && d >= minD) return false;
   const postSide = Math.sign(post.z);
   const outsideMouth = postSide !== 0 && postSide * pos.z > RINK.goalWidth / 2 - radius;
   const n = outsideMouth
@@ -196,12 +196,13 @@ function collidePost(
     : d > 1e-6
       ? v.scale(off, 1 / d)
       : v.norm(v.sub(pos, prevPos ?? post));
-  if (v.len2(n) < 1e-9) return;
+  if (v.len2(n) < 1e-9) return false;
   pos.x = post.x + n.x * minD;
   pos.z = post.z + n.z * minD;
   const vn = v.dot(vel, n);
   vel.x -= (1 + restitution) * vn * n.x;
   vel.z -= (1 + restitution) * vn * n.z;
+  return true;
 }
 
 /**
@@ -217,7 +218,8 @@ export function collideNets(
   radius: number,
   restitution: number,
   prevPos?: Vec2,
-): void {
+): boolean {
+  let postHit = false;
   const hw = RINK.goalWidth / 2;
   for (const sign of [1, -1] as const) {
     const gx = sign * RINK.goalLineX; // mouth plane (front of the net)
@@ -229,9 +231,10 @@ export function collideNets(
     // side walls, from the mouth back to the back wall
     thinWall(pos, vel, radius, restitution, 'z', hw, 'x', xLo, xHi);
     thinWall(pos, vel, radius, restitution, 'z', -hw, 'x', xLo, xHi);
-    collidePost(pos, vel, radius, restitution, { x: gx, z: hw }, prevPos);
-    collidePost(pos, vel, radius, restitution, { x: gx, z: -hw }, prevPos);
+    postHit = collidePost(pos, vel, radius, restitution, { x: gx, z: hw }, prevPos) || postHit;
+    postHit = collidePost(pos, vel, radius, restitution, { x: gx, z: -hw }, prevPos) || postHit;
   }
+  return postHit;
 }
 
 function sweptWall(
@@ -287,8 +290,8 @@ export function collideSkaterWithNets(
     hit = sweptWall(pos, vel, radius, restitution, 'x', xBack, 'z', -hw, hw, prevPos) || hit;
     hit = sweptWall(pos, vel, radius, restitution, 'z', hw, 'x', xLo, xHi, prevPos) || hit;
     hit = sweptWall(pos, vel, radius, restitution, 'z', -hw, 'x', xLo, xHi, prevPos) || hit;
-    collidePost(pos, vel, radius, restitution, { x: gx, z: hw }, prevPos);
-    collidePost(pos, vel, radius, restitution, { x: gx, z: -hw }, prevPos);
+    hit = collidePost(pos, vel, radius, restitution, { x: gx, z: hw }, prevPos) || hit;
+    hit = collidePost(pos, vel, radius, restitution, { x: gx, z: -hw }, prevPos) || hit;
   }
   return hit;
 }

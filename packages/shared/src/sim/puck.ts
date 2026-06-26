@@ -189,6 +189,7 @@ function collideCrossbar(world: WorldState, prevPos: Vec2): void {
     puck.y = RINK.goalHeight + PUCK_RADIUS;
     puck.mouthEntryTeam = null;
     puck.mouthEntryValid = false;
+    world.events.push({ type: 'puck_post', impact: 'crossbar' });
   }
 }
 
@@ -310,7 +311,9 @@ export function stepPuck(world: WorldState, dt: number, opts: StepPuckOptions = 
   collideCrossbar(world, prevPos);
   // Net collision (WO-18): keep the puck out of the net except through the mouth.
   // Twine deadens the puck, so a low restitution — it rattles in rather than springs.
-  collideNets(puck.pos, puck.vel, PUCK_RADIUS, NET_RESTITUTION, prevPos);
+  if (collideNets(puck.pos, puck.vel, PUCK_RADIUS, NET_RESTITUTION, prevPos)) {
+    world.events.push({ type: 'puck_post', impact: 'post' });
+  }
 
   if (!gameplayInteractions) return { pos: rawPos, y: rawY, goalEligible: true };
 

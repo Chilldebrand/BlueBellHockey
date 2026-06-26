@@ -129,6 +129,7 @@ export type SimEvent =
   | { type: 'gamebreaker'; team: Team; scorer: string; value: number }
   | { type: 'shot'; shooter: string; charge: number } // charge 0..1 (>~0.85 reads as a slapper)
   | { type: 'one_timer'; by: string } // WO-09 — shot fired straight off a pass
+  | { type: 'puck_post'; impact: 'post' | 'crossbar' }
   | { type: 'pass'; from: string; to: string }
   | { type: 'hit'; by: string; target: string }
   | { type: 'steal'; by: string; from: string }

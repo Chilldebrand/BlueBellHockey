@@ -65,6 +65,7 @@ type GameEvent =
   | 'hit'
   | 'ult'
   | 'shot'
+  | 'puck_post'
   | 'one_timer'
   | 'save'
   | 'pickup'
@@ -146,6 +147,7 @@ class NetClient {
       room.onMessage('hit', (e: any) => this.events.emit('hit', e));
       room.onMessage('ult', (e: any) => this.events.emit('ult', e));
       room.onMessage('shot', (e: any) => this.events.emit('shot', e));
+      room.onMessage('puck_post', (e: any) => this.events.emit('puck_post', e));
       room.onMessage('one_timer', (e: any) => this.events.emit('one_timer', e));
       room.onMessage('save', (e: any) => this.events.emit('save', e));
       room.onMessage('pickup', (e: any) => this.events.emit('pickup', e));

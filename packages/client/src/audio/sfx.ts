@@ -146,6 +146,10 @@ class Sfx {
     this.tone(880, 0.1, 'triangle', 0.35, 1480);
     this.burst(0.14, 1500, 0.4);
   }
+  post(): void {
+    this.tone(1240, 0.22, 'triangle', 0.42, 880);
+    setTimeout(() => this.tone(1860, 0.12, 'sine', 0.22), 35);
+  }
   save(rebound: boolean): void {
     // pad/glove thud; a rebound gets an extra ringing "post-like" ping off the kick
     this.burst(0.12, 300, 0.55);
@@ -173,6 +177,7 @@ class Sfx {
       this.crowd?.bump(0.35);
     });
     net.events.on('shot', (e: { charge?: number }) => this.shot(e?.charge ?? 0));
+    net.events.on('puck_post', () => this.post());
     net.events.on('one_timer', () => this.oneTimer());
     net.events.on('save', (e: { rebound?: boolean }) => {
       this.save(!!e?.rebound);
