@@ -117,6 +117,7 @@ export interface InputState {
   aim: Vec2; // direction (need not be normalized)
   shotPlacement?: number; // controller left-stick horizontal shot placement, -1..1
   lowShot?: boolean; // intentional low release: keeps the puck on the ice
+  cancelShoot?: boolean; // clears a held slap windup without firing
   actions: ActionFlags;
 }
 

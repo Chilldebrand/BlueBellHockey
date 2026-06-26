@@ -492,9 +492,12 @@ export function step(
       if (s.status.passChargeStart > 0 && (world.puck.carrier !== s.id || isDisabled(s, world.time))) {
         s.status.passChargeStart = 0;
       }
+      if (input.cancelShoot && s.status.shootChargeStart > 0) {
+        clearShootWindup(s);
+      }
       // Fire on release — handled outside the disabled guard so a check that
       // strips or staggers mid-wind-up cancels the shot cleanly.
-      if (!a.shoot && last.shoot) {
+      if (!input.cancelShoot && !a.shoot && last.shoot) {
         if (s.status.shootChargeStart > 0 && world.puck.carrier === s.id && !isDisabled(s, world.time)) {
           doShoot(world, s, input);
         }

@@ -1130,6 +1130,27 @@ describe('combo multiplier integration (WO-04)', () => {
     expect(w.events.some((e) => e.type === 'shot')).toBe(false);
   });
 
+  it('neutral right-stick cancel clears slap-shot windup without firing', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const a = w.skaters.a;
+    w.puck.carrier = 'a';
+
+    const holdingShoot: InputState = {
+      ...neutralInput(),
+      move: { x: 1, z: 0 },
+      actions: { ...emptyActions(), shoot: true },
+    };
+    step(w, { a: holdingShoot }, DT);
+    expect(a.status.shootChargeStart).toBeGreaterThan(0);
+
+    step(w, { a: { ...neutralInput(), cancelShoot: true } }, DT);
+
+    expect(a.status.shootChargeStart).toBe(0);
+    expect(w.puck.carrier).toBe('a');
+    expect(w.events.some((e) => e.type === 'shot')).toBe(false);
+  });
+
   it('a poke check knocks the puck loose; a stick lift takes possession (WO-08)', () => {
     const w = createWorld([
       { id: 'a', team: 0, characterId: 'pickpocket', isBot: false, isGoalie: false }, // high steal

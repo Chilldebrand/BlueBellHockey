@@ -7,6 +7,7 @@ import { controls } from './bindings.js';
 // using the player's (possibly customized) bindings from `controls`.
 export class InputManager {
   private km = new KeyboardMouse();
+  private shotStickMode: 'idle' | 'windup' | 'wristTap' | 'upHeld' = 'idle';
   /** world-space aim direction set by the renderer from the mouse->ice raycast */
   mouseAim: { x: number; z: number } | null = null;
 
@@ -58,8 +59,11 @@ export class InputManager {
       input.aim = v.len({ x: mx, z: mz }) > 0 ? { x: mx, z: mz } : { x: 0, z: 0 };
     }
 
+    const stickShot = this.readRightStickShot(gp.connected, opts.hasPuck === true, gp.aimZ);
+    input.cancelShoot = stickShot.cancelShoot;
+
     input.actions = {
-      shoot: gp.shoot || down(kb.shoot),
+      shoot: stickShot.shoot ?? (gp.shoot || down(kb.shoot)),
       pass: gp.pass || down(kb.pass),
       hit: gp.hit || (!opts.hasPuck && gp.hitGesture) || down(kb.hit),
       steal: gp.steal || down(kb.steal),
@@ -70,6 +74,54 @@ export class InputManager {
       switchPlayer: gp.switchPlayer || down(kb.switchPlayer),
     };
     return input;
+  }
+
+  private readRightStickShot(
+    connected: boolean,
+    hasPuck: boolean,
+    aimZ: number,
+  ): { shoot?: boolean; cancelShoot?: boolean } {
+    if (!connected || !hasPuck) {
+      this.shotStickMode = 'idle';
+      return {};
+    }
+
+    const up = aimZ > 0.65;
+    const down = aimZ < -0.65;
+    const neutral = Math.abs(aimZ) < 0.35;
+
+    if (this.shotStickMode === 'windup') {
+      if (down) return { shoot: true };
+      if (up) {
+        this.shotStickMode = 'upHeld';
+        return { shoot: false };
+      }
+      if (neutral) {
+        this.shotStickMode = 'idle';
+        return { shoot: false, cancelShoot: true };
+      }
+      return { shoot: true };
+    }
+
+    if (this.shotStickMode === 'wristTap') {
+      this.shotStickMode = up ? 'upHeld' : 'idle';
+      return { shoot: false };
+    }
+
+    if (this.shotStickMode === 'upHeld') {
+      if (!up) this.shotStickMode = 'idle';
+      return {};
+    }
+
+    if (down) {
+      this.shotStickMode = 'windup';
+      return { shoot: true };
+    }
+    if (up) {
+      this.shotStickMode = 'wristTap';
+      return { shoot: true };
+    }
+    return {};
   }
 }
 
