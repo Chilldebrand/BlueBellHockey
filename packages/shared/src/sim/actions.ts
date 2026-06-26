@@ -19,9 +19,6 @@ export const SLAP_FULL_MS = 600;
 const POKE_RANGE = SKATER_RADIUS * 2 + 1.2; // 2.6 — reaches past stick-lift range
 export const POKE_COOLDOWN_MS = 450;
 const POKE_LOOSE_SPEED = 9; // how hard the puck pops free
-// Penalty (WO-17): a check on a skater who isn't the carrier and is away from the
-// puck is interference / a late hit — the offender is boxed and their team plays a
-// man down for a brief power play.
 // Deke / trick (WO-03)
 const DEKE_RANGE = SKATER_RADIUS * 2 + 1.0; // 2.1 — reach to break a defender's ankles
 const DEKE_COOLDOWN_MS = 650; // prevents mashing the trick every frame
@@ -214,7 +211,7 @@ export function doHit(world: WorldState, s: SkaterState, input: InputState): voi
   for (const o of Object.values(world.skaters)) {
     if (o.team === s.team) continue;
     if (o.status.intangibleUntil > world.time) continue;
-    // Don't re-hit a skater who's already down (staggered/frozen/boxed) — matches
+    // Don't re-hit a skater who's already down (staggered/frozen) — matches
     // the freight-train contact rule in world.ts so the two check paths agree (WO-19).
     if (isDisabled(o, world.time)) continue;
     const off = v.sub(o.pos, s.pos);
@@ -228,9 +225,6 @@ export function doHit(world: WorldState, s: SkaterState, input: InputState): voi
   }
   if (!target) return;
 
-  // Foul check (WO-17): bodying a skater who isn't the carrier and is away from the
-  // puck is interference. Freight Train (checkingUntil) is exempt — flattening
-  // everyone is the whole point of that ultimate.
   const targetHadPuck = world.puck.carrier === target.id;
 
   const toTarget = v.norm(v.sub(target.pos, s.pos));

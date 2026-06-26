@@ -1,7 +1,6 @@
 import { getCharacter } from '../config/characters.js';
-import { SKATER_RADIUS } from '../config/rink.js';
+import { RINK, SKATER_RADIUS } from '../config/rink.js';
 import { v, containCircle } from './physics.js';
-import { RINK } from '../config/rink.js';
 import type { AttributeKey, InputState, SkaterState, WorldState } from './types.js';
 
 export function effectiveAttr(s: SkaterState, key: AttributeKey): number {
@@ -15,12 +14,6 @@ export function isDisabled(s: SkaterState, time: number): boolean {
     s.status.staggeredUntil > time ||
     s.status.downedUntil > time
   );
-}
-
-// Penalty box (WO-17): a boxed skater sits just outside the boards on their bench
-// side, out of the play, until the penalty expires.
-export function penaltyBoxPos(team: number): { x: number; z: number } {
-  return { x: team === 0 ? -8 : 8, z: team === 0 ? -(RINK.halfWidth + 1.6) : RINK.halfWidth + 1.6 };
 }
 
 // Arcade feel pass (WO-00): faster top speed, snappier accel, longer glide.

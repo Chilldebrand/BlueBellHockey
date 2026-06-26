@@ -22,7 +22,6 @@ export class SkaterSchema extends Schema {
   @type('float32') staggeredUntil = 0;
   @type('float32') downedUntil = 0;
   @type('float32') intangibleUntil = 0;
-  @type('float32') penaltyUntil = 0; // WO-17 — boxed for a penalty
   @type('float32') goalieSaveUntil = 0;
   @type('string') goalieSaveType = 'none';
   @type('int8') goalieSaveSide = 0;
@@ -113,7 +112,6 @@ export function syncState(state: MatchState, world: WorldState): void {
     row.staggeredUntil = s.status.staggeredUntil;
     row.downedUntil = s.status.downedUntil;
     row.intangibleUntil = s.status.intangibleUntil;
-    row.penaltyUntil = s.status.penaltyUntil;
     row.goalieSaveUntil = s.status.goalieSaveUntil;
     row.goalieSaveType = s.status.goalieSaveType;
     row.goalieSaveSide = s.status.goalieSaveSide;

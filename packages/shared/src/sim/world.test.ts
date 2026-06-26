@@ -1512,7 +1512,7 @@ describe('ice pickups (WO-16)', () => {
   });
 });
 
-describe('penalties / power play (WO-17)', () => {
+describe('arcade hits without penalties (WO-06)', () => {
   function pair() {
     return [
       { id: 'a', team: 0, characterId: 'tank', isBot: false, isGoalie: false },
@@ -1520,7 +1520,7 @@ describe('penalties / power play (WO-17)', () => {
     ] as RosterEntry[];
   }
 
-  it('a check on a player away from the puck is a penalty — the hitter is boxed', () => {
+  it('an off-puck check still hits without boxing the hitter', () => {
     const w = createWorld(pair());
     w.phase = 'period';
     const a = w.skaters.a;
@@ -1531,12 +1531,11 @@ describe('penalties / power play (WO-17)', () => {
     w.puck.carrier = null;
     w.puck.pos = { x: 20, z: 0 }; // puck far from b → interference
     doHit(w, a, neutralInput());
-    expect(a.status.penaltyUntil).toBe(0);
     expect(w.events.map((e) => e.type as string)).not.toContain('penalty');
     expect(w.events.map((e) => e.type)).toContain('hit');
   });
 
-  it('a clean check on the puck carrier is not a penalty', () => {
+  it('a clean check on the puck carrier strips the puck without a penalty event', () => {
     const w = createWorld(pair());
     w.phase = 'period';
     const a = w.skaters.a;
@@ -1547,8 +1546,7 @@ describe('penalties / power play (WO-17)', () => {
     w.puck.carrier = 'b';
     w.puck.pos = { ...b.pos };
     doHit(w, a, neutralInput());
-    expect(a.status.penaltyUntil).toBe(0);
-    expect(w.events.some((e) => e.type === 'penalty')).toBe(false);
+    expect(w.events.map((e) => e.type as string)).not.toContain('penalty');
     expect(w.puck.carrier).toBeNull(); // the clean hit still stripped the puck
   });
 
@@ -1640,14 +1638,4 @@ describe('penalties / power play (WO-17)', () => {
     expect(v.len(w.skaters.a.vel)).toBeLessThan(2.2);
   });
 
-  it('a boxed skater is held off-ice and inert while the penalty runs', () => {
-    const w = createWorld(pair());
-    w.phase = 'period';
-    const a = w.skaters.a;
-    a.status.penaltyUntil = w.time + 5000;
-    a.pos = { x: 0, z: 0 };
-    step(w, { a: { ...neutralInput(), move: { x: 1, z: 0 } } }, DT);
-    expect(Math.abs(a.pos.z)).toBeLessThan(18);
-    expect(a.pos.x).toBeGreaterThan(0);
-  });
 });
