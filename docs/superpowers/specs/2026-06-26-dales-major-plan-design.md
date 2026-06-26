@@ -587,18 +587,18 @@ Goalie saves should use readable hockey-style reactions.
 
 **Steps:**
 
-- [ ] Re-read current goalie target caching, crease constraints, and auto-pass behavior.
-- [ ] Define goalie movement states in `goalie.ts`: idle ready stance, puck tracking, lateral slide, and close-puck challenge.
-- [ ] Keep existing anti-twitch target caching.
-- [ ] Write failing tests proving a far puck keeps the goalie mostly settled.
-- [ ] Write failing tests proving tiny puck jitter does not change the cached target.
-- [ ] Write failing tests proving a close left-side attack shifts the goalie left.
-- [ ] Write failing tests proving a close right-side attack shifts the goalie right.
-- [ ] Write failing tests proving the goalie stays inside crease limits and does not chase into open ice.
-- [ ] Implement lateral crease movement using puck angle and puck-carrier danger.
-- [ ] Preserve goalie cover and auto-pass behavior after holding the puck.
-- [ ] Run `npm.cmd run test --workspace @bbh/server -- goalie`.
-- [ ] Run `npm.cmd run typecheck`.
+- [x] Re-read current goalie target caching, crease constraints, and auto-pass behavior.
+- [x] Define goalie movement states in `goalie.ts`: idle ready stance, puck tracking, lateral slide, and close-puck challenge.
+- [x] Keep existing anti-twitch target caching.
+- [x] Write failing tests proving a far puck keeps the goalie mostly settled.
+- [x] Write failing tests proving tiny puck jitter does not change the cached target.
+- [x] Write failing tests proving a close left-side attack shifts the goalie left.
+- [x] Write failing tests proving a close right-side attack shifts the goalie right.
+- [x] Write failing tests proving the goalie stays inside crease limits and does not chase into open ice.
+- [x] Implement lateral crease movement using puck angle and puck-carrier danger.
+- [x] Preserve goalie cover and auto-pass behavior after holding the puck.
+- [x] Run `npm.cmd run test --workspace @bbh/server -- goalie`.
+- [x] Run `npm.cmd run typecheck`.
 - [ ] Commit with a message like `Rework goalie crease movement`.
 
 **Acceptance:**
@@ -625,21 +625,21 @@ Goalie saves should use readable hockey-style reactions.
 
 **Steps:**
 
-- [ ] Re-read current goalie save code in `puck.ts` and save pose sync fields.
-- [ ] Extend save pose typing if needed so outcomes can represent `pad`, `body`, `glove`, `blocker`, and `cover`.
-- [ ] Write failing tests proving low shots produce pad or butterfly saves.
-- [ ] Write failing tests proving high glove-side shots produce glove saves.
-- [ ] Write failing tests proving high blocker-side shots produce blocker deflections.
-- [ ] Write failing tests proving mid-height shots can produce body/chest saves.
-- [ ] Write failing tests proving soft centered shots can be covered.
-- [ ] Write failing tests proving hard saves create rebounds.
-- [ ] Implement save outcome selection from puck height, lateral side, puck speed, and goalie position.
-- [ ] Sync the selected save pose through server state and client snapshots.
-- [ ] Preserve save events, save stat tallying, and rebound versus cover behavior.
-- [ ] Run `npm.cmd run test --workspace @bbh/shared -- goalie`.
-- [ ] Run `npm.cmd run test --workspace @bbh/server -- state`.
-- [ ] Run `npm.cmd run test --workspace @bbh/client -- interpolation`.
-- [ ] Run `npm.cmd run typecheck`.
+- [x] Re-read current goalie save code in `puck.ts` and save pose sync fields.
+- [x] Extend save pose typing if needed so outcomes can represent `pad`, `body`, `glove`, `blocker`, and `cover`.
+- [x] Write failing tests proving low shots produce pad or butterfly saves.
+- [x] Write failing tests proving high glove-side shots produce glove saves.
+- [x] Write failing tests proving high blocker-side shots produce blocker deflections.
+- [x] Write failing tests proving mid-height shots can produce body/chest saves.
+- [x] Write failing tests proving soft centered shots can be covered.
+- [x] Write failing tests proving hard saves create rebounds.
+- [x] Implement save outcome selection from puck height, lateral side, puck speed, and goalie position.
+- [x] Sync the selected save pose through server state and client snapshots.
+- [x] Preserve save events, save stat tallying, and rebound versus cover behavior.
+- [x] Run `npm.cmd run test --workspace @bbh/shared -- goalie`.
+- [x] Run `npm.cmd run test --workspace @bbh/server -- state`.
+- [x] Run `npm.cmd run test --workspace @bbh/client -- interpolation`.
+- [x] Run `npm.cmd run typecheck`.
 - [ ] Commit with a message like `Expand goalie save outcomes`.
 
 **Acceptance:**

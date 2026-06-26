@@ -61,7 +61,7 @@ export interface SkaterStatus {
   goalieTargetUntil: number;
   // Goalie save pose: synced to render a procedural save matched to shot height/side.
   goalieSaveUntil: number;
-  goalieSaveType: 'none' | 'pad' | 'body' | 'glove';
+  goalieSaveType: 'none' | 'pad' | 'body' | 'glove' | 'blocker' | 'cover';
   goalieSaveSide: -1 | 0 | 1;
 }
 

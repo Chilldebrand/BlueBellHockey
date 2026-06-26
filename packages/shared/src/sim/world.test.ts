@@ -1297,7 +1297,29 @@ describe('box score, goalie saves & one-timers (WO-09)', () => {
     const save = w.events.find((e) => e.type === 'save');
     expect(save && save.type === 'save' && save.rebound).toBe(false);
     expect(w.puck.carrier).toBe('g');
+    expect(g.status.goalieSaveType).toBe('cover');
     expect(w.stats.g.saves).toBe(1);
+  });
+
+  it('a high blocker-side shot produces a blocker save pose', () => {
+    const w = createWorld([
+      { id: 'a', team: 0, characterId: 'sniper', isBot: false, isGoalie: false },
+      { id: 'g', team: 1, characterId: 'tank', isBot: true, isGoalie: true },
+    ]);
+    w.phase = 'period';
+    const g = w.skaters.g;
+    w.puck.carrier = null;
+    w.puck.lastTouch = 'a';
+    w.puck.pos = { x: g.pos.x - 1.5, z: g.pos.z - 0.45 };
+    w.puck.vel = { x: 18, z: 0 };
+    w.puck.y = 1.35;
+    w.puck.pickupCooldownUntil = w.time + 10000;
+
+    step(w, {}, DT);
+
+    expect(w.events.some((e) => e.type === 'save')).toBe(true);
+    expect(g.status.goalieSaveType).toBe('blocker');
+    expect(g.status.goalieSaveSide).toBe(-1);
   });
 
   it('a cross-crease shot the goalie has not slid over to still beats him', () => {

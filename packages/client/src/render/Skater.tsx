@@ -73,6 +73,12 @@ export function Skater({
         } else if (s.goalieSaveType === 'glove') {
           targetPitch = -0.08;
           targetRoll += side * 0.55;
+        } else if (s.goalieSaveType === 'blocker') {
+          targetPitch = 0.02;
+          targetRoll += side * 0.46;
+        } else if (s.goalieSaveType === 'cover') {
+          targetPitch = 0.42;
+          targetRoll *= 0.35;
         } else {
           targetPitch = 0.12;
           targetRoll += side * 0.25;

@@ -29,7 +29,7 @@ export interface SkaterSnap {
   shootGlideDirX: number;
   shootGlideDirZ: number;
   goalieSaveUntil: number;
-  goalieSaveType: 'none' | 'pad' | 'body' | 'glove';
+  goalieSaveType: 'none' | 'pad' | 'body' | 'glove' | 'blocker' | 'cover';
   goalieSaveSide: -1 | 0 | 1;
   ackSeq: number;
 }

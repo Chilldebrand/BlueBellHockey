@@ -18,7 +18,7 @@ export interface SkaterRender {
   intangible: boolean;
   windup: number; // slap-shot charge 0..1 (0 = not winding up)
   goalieSaving: boolean;
-  goalieSaveType: 'none' | 'pad' | 'body' | 'glove';
+  goalieSaveType: 'none' | 'pad' | 'body' | 'glove' | 'blocker' | 'cover';
   goalieSaveSide: -1 | 0 | 1;
 }
 

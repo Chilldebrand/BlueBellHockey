@@ -64,10 +64,10 @@ const REBOUND_SPEED_FACTOR = 0.45;
 const REBOUND_MIN_SPEED = 7;
 const SAVE_POSE_MS = 520;
 
-function goalieSaveType(y: number): 'pad' | 'body' | 'glove' {
+function goalieSaveType(y: number, side: -1 | 0 | 1): 'pad' | 'body' | 'glove' | 'blocker' {
   if (y < 0.55) return 'pad';
   if (y < 1.1) return 'body';
-  return 'glove';
+  return side < 0 ? 'blocker' : 'glove';
 }
 
 /**
@@ -101,13 +101,15 @@ function goalieSave(world: WorldState, prevPos: Vec2): boolean {
     const saveZ = Math.abs(puck.pos.z - g.pos.z) <= Math.abs(closest.z - g.pos.z) ? puck.pos.z : closest.z;
     const lateral = saveZ - g.pos.z;
     const offset = Math.abs(lateral);
+    const saveSide = (Math.abs(lateral) < 0.1 ? 0 : Math.sign(lateral)) as -1 | 0 | 1;
     g.status.goalieSaveUntil = world.time + SAVE_POSE_MS;
-    g.status.goalieSaveType = goalieSaveType(puck.y);
-    g.status.goalieSaveSide = (Math.abs(lateral) < 0.1 ? 0 : Math.sign(lateral)) as -1 | 0 | 1;
+    g.status.goalieSaveType = goalieSaveType(puck.y, saveSide);
+    g.status.goalieSaveSide = saveSide;
     awardStyle(g, 'save', world.time);
 
     if (speed < COVER_MAX_SPEED && offset < COVER_MAX_OFFSET) {
       // glove/cover: freeze it on the goalie, who clears next (bot logic)
+      g.status.goalieSaveType = 'cover';
       puck.carrier = g.id;
       puck.lastTouch = g.id;
       puck.assistTouch = null;
