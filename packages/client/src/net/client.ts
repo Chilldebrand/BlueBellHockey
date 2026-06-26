@@ -24,6 +24,9 @@ export interface SkaterSnap {
   dekeDirX: number;
   dekeDirZ: number;
   shootChargeStart: number;
+  goalieSaveUntil: number;
+  goalieSaveType: 'none' | 'pad' | 'body' | 'glove';
+  goalieSaveSide: -1 | 0 | 1;
   ackSeq: number;
 }
 
@@ -31,7 +34,7 @@ export interface Snapshot {
   t: number; // client receive time (performance.now)
   serverTime: number;
   skaters: Record<string, SkaterSnap>;
-  puck: { px: number; pz: number; vx: number; vz: number; carrier: string };
+  puck: { px: number; pz: number; py: number; vx: number; vz: number; vy: number; carrier: string };
 }
 
 export interface ConnectOpts {
@@ -40,6 +43,7 @@ export interface ConnectOpts {
   code?: string;
   team?: 0 | 1 | null;
   serverUrl?: string;
+  lockToCharacter?: boolean;
 }
 
 // Friendly room code (WO-14): 4 chars from an unambiguous alphabet (no O/0/I/1).
@@ -102,6 +106,7 @@ class NetClient {
       const client = new Client(url);
       const joinOpts: Record<string, unknown> = { mode: gameMode };
       if (opts.team === 0 || opts.team === 1) joinOpts.team = opts.team;
+      if (opts.lockToCharacter) joinOpts.lockToCharacter = true;
 
       let room: Room;
       if (connMode === 'create') {
@@ -176,6 +181,9 @@ class NetClient {
         dekeDirX: s.dekeDirX,
         dekeDirZ: s.dekeDirZ,
         shootChargeStart: s.shootChargeStart,
+        goalieSaveUntil: s.goalieSaveUntil,
+        goalieSaveType: s.goalieSaveType,
+        goalieSaveSide: s.goalieSaveSide,
         ackSeq: s.ackSeq,
       };
     });
@@ -189,6 +197,8 @@ class NetClient {
         pz: state.puck.pz,
         vx: state.puck.vx,
         vz: state.puck.vz,
+        py: state.puck.py,
+        vy: state.puck.vy,
         carrier: state.puck.carrier,
       },
     });

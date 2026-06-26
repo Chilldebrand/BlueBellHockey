@@ -52,8 +52,21 @@ export function Skater({
       else if (turn < -Math.PI) turn += Math.PI * 2;
       prevFacing.current = s.facing;
       const turnRate = dt > 0 ? turn / dt : 0;
-      const targetPitch = THREE.MathUtils.clamp(s.speed * 0.018, 0, 0.22);
-      const targetRoll = THREE.MathUtils.clamp(turnRate * 0.05, -0.3, 0.3);
+      let targetPitch = THREE.MathUtils.clamp(s.speed * 0.018, 0, 0.22);
+      let targetRoll = THREE.MathUtils.clamp(turnRate * 0.05, -0.3, 0.3);
+      if (s.goalieSaving) {
+        const side = s.goalieSaveSide || 1;
+        if (s.goalieSaveType === 'pad') {
+          targetPitch = 0.34;
+          targetRoll += side * 0.42;
+        } else if (s.goalieSaveType === 'glove') {
+          targetPitch = -0.08;
+          targetRoll += side * 0.55;
+        } else {
+          targetPitch = 0.12;
+          targetRoll += side * 0.25;
+        }
+      }
       const k = 1 - Math.pow(0.0001, dt); // frame-rate-independent smoothing
       pitch.current += (targetPitch - pitch.current) * k;
       roll.current += (targetRoll - roll.current) * k;

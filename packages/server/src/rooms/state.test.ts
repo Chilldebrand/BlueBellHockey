@@ -21,4 +21,25 @@ describe('syncState', () => {
     expect(row?.isBot).toBe(false);
     expect(row?.isGoalie).toBe(true);
   });
+
+  it('syncs puck height and goalie save pose fields', () => {
+    const state = new MatchState();
+    const w = createWorld([
+      { id: 'g', team: 1, characterId: 'tank', isBot: true, isGoalie: true },
+    ]);
+    w.puck.y = 1.25;
+    w.puck.vy = 4.5;
+    w.skaters.g.status.goalieSaveUntil = 1234;
+    w.skaters.g.status.goalieSaveType = 'glove';
+    w.skaters.g.status.goalieSaveSide = -1;
+
+    syncState(state, w);
+
+    expect(state.puck.py).toBeCloseTo(1.25);
+    expect(state.puck.vy).toBeCloseTo(4.5);
+    const goalie = state.skaters.get('g');
+    expect(goalie?.goalieSaveUntil).toBe(1234);
+    expect(goalie?.goalieSaveType).toBe('glove');
+    expect(goalie?.goalieSaveSide).toBe(-1);
+  });
 });

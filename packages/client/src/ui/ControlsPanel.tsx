@@ -3,10 +3,11 @@ import { useUi, setQuality, type QualityLevel } from '../store.js';
 import {
   controls,
   tokenLabel,
-  padLabel,
+  padBindingLabel,
   ACTION_LABELS,
   MOVE_ACTIONS,
   GAME_ACTIONS,
+  type PadBinding,
   type BindableAction,
   type GameAction,
 } from '../input/bindings.js';
@@ -218,7 +219,7 @@ function Row({
 }: {
   action: BindableAction;
   tokens: string[];
-  padButton: number | null;
+  padButton: PadBinding;
   capture: Capture;
   setCapture: (c: Capture) => void;
 }) {
@@ -268,7 +269,7 @@ function Row({
           title="Map a gamepad button"
           style={{ ...padBtn, ...(capturingPad ? listeningStyle : null) }}
         >
-          🎮 {capturingPad ? 'Press…' : padLabel(padButton)}
+          🎮 {capturingPad ? 'Press…' : padBindingLabel(padButton)}
         </button>
       )}
     </div>

@@ -3,7 +3,7 @@ import type { FrameRender, SkaterRender } from '../game/interpolation.js';
 // Mutable per-frame pose store, written once per render frame by the Driver and
 // read by each Skater's useFrame. Keeps React out of the 60fps update path.
 let skaters = new Map<string, SkaterRender>();
-let puck = { x: 0, z: 0, carrier: '' };
+let puck = { x: 0, z: 0, y: 0, carrier: '' };
 
 export const frameStore = {
   set(f: FrameRender): void {
@@ -15,7 +15,7 @@ export const frameStore = {
   skater(id: string): SkaterRender | undefined {
     return skaters.get(id);
   },
-  puck(): { x: number; z: number; carrier: string } {
+  puck(): { x: number; z: number; y: number; carrier: string } {
     return puck;
   },
   carrier(): string {

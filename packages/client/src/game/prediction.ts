@@ -13,24 +13,32 @@ import type { SkaterRender } from './interpolation.js';
 // authoritative position advanced by the current input, then smooth toward the
 // server. Avoids the input-lag of pure interpolation without full input replay.
 // Movement constants are imported from shared so prediction tracks the sim's feel.
+export interface PredictedPose {
+  id: string;
+  x: number;
+  z: number;
+  facing: number;
+}
 
 export function predictLocal(
   buffer: Snapshot[],
   localId: string,
   input: InputState,
   dt: number,
-  prev: { x: number; z: number; facing: number } | null,
-): { x: number; z: number; facing: number } | null {
+  prev: PredictedPose | null,
+): PredictedPose | null {
   if (buffer.length === 0) return prev;
   const latest = buffer[buffer.length - 1];
   const s = latest.skaters[localId];
-  if (!s) return prev;
+  if (!s) return prev?.id === localId ? prev : null;
 
-  const maxSpeed = BASE_SPEED + getCharacter(s.characterId).attrs.speed * SPEED_PER_POINT;
+  const maxSpeed =
+    (BASE_SPEED + getCharacter(s.characterId).attrs.speed * SPEED_PER_POINT) *
+    (input.actions.sprint ? 1.18 : 1);
   const moveLen = v.len(input.move);
 
   // start from previous predicted pos (or server pos), reconcile toward server
-  const base = prev ?? { x: s.px, z: s.pz, facing: s.facing };
+  const base = prev?.id === localId ? prev : { id: localId, x: s.px, z: s.pz, facing: s.facing };
   let x = base.x + (s.px - base.x) * Math.min(1, 8 * dt); // reconcile
   let z = base.z + (s.pz - base.z) * Math.min(1, 8 * dt);
   let facing = base.facing;
@@ -43,7 +51,7 @@ export function predictLocal(
   } else if (v.len(input.aim) > 0.1) {
     facing = Math.atan2(input.aim.z, input.aim.x);
   }
-  return { x, z, facing };
+  return { id: localId, x, z, facing };
 }
 
 /**
@@ -56,8 +64,8 @@ export function predictLocal(
 export function predictCarriedPuck(
   buffer: Snapshot[],
   localId: string,
-  predicted: { x: number; z: number; facing: number } | null,
-): { x: number; z: number } | null {
+  predicted: PredictedPose | null,
+): { x: number; z: number; y: number } | null {
   if (!predicted || buffer.length === 0) return null;
   const latest = buffer[buffer.length - 1];
   if (latest.puck.carrier !== localId) return null;
@@ -66,20 +74,21 @@ export function predictCarriedPuck(
   // advance sim-time from the latest snapshot by the real elapsed since we got it,
   // so the deke envelope is evaluated at roughly the current authoritative time.
   const time = latest.serverTime + (performance.now() - latest.t);
-  return carryAnchor(
+  const anchor = carryAnchor(
     { x: predicted.x, z: predicted.z },
     predicted.facing,
     { dekeUntil: s.dekeUntil, dekeDirX: s.dekeDirX, dekeDirZ: s.dekeDirZ },
     time,
   );
+  return { ...anchor, y: 0 };
 }
 
 export function applyPrediction(
   skaters: SkaterRender[],
   localId: string,
-  predicted: { x: number; z: number; facing: number } | null,
+  predicted: PredictedPose | null,
 ): void {
-  if (!predicted) return;
+  if (!predicted || predicted.id !== localId) return;
   const me = skaters.find((s) => s.id === localId);
   if (me) {
     me.x = predicted.x;

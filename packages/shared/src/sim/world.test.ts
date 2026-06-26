@@ -6,11 +6,11 @@ import {
   step,
   type RosterEntry,
 } from './world.js';
-import { doDeke, doHit, doPass, doPoke, doShoot, doSteal, SLAP_FULL_MS } from './actions.js';
+import { controllerShotTargetZ, doDeke, doHit, doPass, doPoke, doShoot, doSteal, shotQuality, SLAP_FULL_MS } from './actions.js';
 import { carryAnchor, DEKE_MS, ONE_TIMER_WINDOW_MS, STICK_REACH } from './puck.js';
 import { stepPickups } from './pickups.js';
 import { emptyActions, neutralInput, type InputState, type WorldState } from './types.js';
-import { attackingGoalX, RINK, SKATER_RADIUS } from '../config/rink.js';
+import { attackingGoalX, PUCK_RADIUS, RINK, SKATER_RADIUS } from '../config/rink.js';
 import { GAME_MODES } from '../config/modes.js';
 import { v } from './physics.js';
 
@@ -34,6 +34,142 @@ function roster(): RosterEntry[] {
 
 const DT = 1000 / 30;
 
+
+describe('controller shot placement', () => {
+  it('maps neutral stick to center net and full stick to the posts', () => {
+    expect(controllerShotTargetZ(0, 0.5)).toBeCloseTo(0, 5);
+    expect(controllerShotTargetZ(1, 0.5)).toBeCloseTo(RINK.goalWidth / 2, 5);
+    expect(controllerShotTargetZ(-1, 0.5)).toBeCloseTo(-RINK.goalWidth / 2, 5);
+    expect(controllerShotTargetZ(0.5, 0.5)).toBeCloseTo(RINK.goalWidth / 4, 5);
+  });
+
+  it('only sends max-input shots wide on the wide roll', () => {
+    expect(controllerShotTargetZ(1, 0.19)).toBeGreaterThan(RINK.goalWidth / 2);
+    expect(controllerShotTargetZ(1, 0.2)).toBeCloseTo(RINK.goalWidth / 2, 5);
+    expect(controllerShotTargetZ(0.94, 0.01)).toBeLessThan(RINK.goalWidth / 2);
+  });
+});
+
+describe('shot quality', () => {
+  it('rewards shooters squared up to the selected target', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const a = w.skaters.a;
+    const target = { x: attackingGoalX(a.team), z: 0 };
+    a.pos = { x: 10, z: 0 };
+    a.facing = 0;
+    const squared = shotQuality(w, a, target);
+    a.facing = Math.PI;
+    const backwards = shotQuality(w, a, target);
+    expect(squared.powerMult).toBeGreaterThan(backwards.powerMult);
+    expect(squared.errorMaxZ).toBeLessThan(backwards.errorMaxZ);
+  });
+
+  it('penalizes bad angle shots near the boards compared to slot shots', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const a = w.skaters.a;
+    const target = { x: attackingGoalX(a.team), z: 0 };
+    a.facing = 0;
+    a.vel = { x: 0, z: 0 };
+    a.pos = { x: 12, z: 0 };
+    const slot = shotQuality(w, a, target);
+    a.pos = { x: RINK.goalLineX - 1, z: RINK.halfWidth - 1 };
+    const badAngle = shotQuality(w, a, target);
+    expect(slot.powerMult).toBeGreaterThan(badAngle.powerMult);
+    expect(slot.errorMaxZ).toBeLessThan(badAngle.errorMaxZ);
+  });
+});
+
+describe('controller shot execution', () => {
+  it('shoots toward center net when controller placement is neutral', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    w.rng = () => 0.5;
+    const a = w.skaters.a;
+    a.pos = { x: 10, z: 4 };
+    a.facing = 0;
+    w.puck.carrier = 'a';
+    w.puck.pos = { ...a.pos };
+    doShoot(w, a, { ...neutralInput(), shotPlacement: 0 });
+    const dir = v.norm(w.puck.vel);
+    const expected = v.norm(v.sub({ x: attackingGoalX(a.team), z: 0 }, a.pos));
+    expect(v.dot(dir, expected)).toBeGreaterThan(0.98);
+  });
+
+  it('shoots toward the selected goal-mouth placement', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    w.rng = () => 0.5;
+    const a = w.skaters.a;
+    a.pos = { x: 10, z: 0 };
+    a.facing = 0;
+    w.puck.carrier = 'a';
+    w.puck.pos = { ...a.pos };
+    doShoot(w, a, { ...neutralInput(), shotPlacement: 0.5 });
+    const dir = v.norm(w.puck.vel);
+    const expected = v.norm(v.sub({ x: attackingGoalX(a.team), z: RINK.goalWidth / 4 }, a.pos));
+    expect(v.dot(dir, expected)).toBeGreaterThan(0.999);
+    expect(dir.z).toBeGreaterThan(0.05);
+  });
+
+  it('reduces shot power when the shooter is facing backwards', () => {
+    const front = createWorld(roster());
+    front.phase = 'period';
+    front.rng = () => 0.5;
+    front.puck.carrier = 'a';
+    front.skaters.a.pos = { x: 10, z: 0 };
+    front.skaters.a.facing = 0;
+    front.puck.pos = { ...front.skaters.a.pos };
+    doShoot(front, front.skaters.a, { ...neutralInput(), shotPlacement: 0 });
+
+    const back = createWorld(roster());
+    back.phase = 'period';
+    back.rng = () => 0.5;
+    back.puck.carrier = 'a';
+    back.skaters.a.pos = { x: 10, z: 0 };
+    back.skaters.a.facing = Math.PI;
+    back.puck.pos = { ...back.skaters.a.pos };
+    doShoot(back, back.skaters.a, { ...neutralInput(), shotPlacement: 0 });
+
+    expect(v.len(front.puck.vel)).toBeGreaterThan(v.len(back.puck.vel));
+  });
+
+  it('adds lift to normal shots, more lift to charged shots, and keeps intentional low shots flat', () => {
+    const wrist = createWorld(roster());
+    wrist.phase = 'period';
+    wrist.rng = () => 0.5;
+    wrist.puck.carrier = 'a';
+    wrist.skaters.a.pos = { x: 10, z: 0 };
+    wrist.skaters.a.facing = 0;
+    wrist.puck.pos = { ...wrist.skaters.a.pos };
+    doShoot(wrist, wrist.skaters.a, { ...neutralInput(), shotPlacement: 0 });
+
+    const slap = createWorld(roster());
+    slap.phase = 'period';
+    slap.rng = () => 0.5;
+    slap.time = 10000;
+    slap.puck.carrier = 'a';
+    slap.skaters.a.pos = { x: 10, z: 0 };
+    slap.skaters.a.facing = 0;
+    slap.skaters.a.status.shootChargeStart = slap.time - SLAP_FULL_MS;
+    slap.puck.pos = { ...slap.skaters.a.pos };
+    doShoot(slap, slap.skaters.a, { ...neutralInput(), shotPlacement: 0 });
+
+    const low = createWorld(roster());
+    low.phase = 'period';
+    low.rng = () => 0.5;
+    low.puck.carrier = 'a';
+    low.skaters.a.pos = { x: 10, z: 0 };
+    low.skaters.a.facing = 0;
+    low.puck.pos = { ...low.skaters.a.pos };
+    doShoot(low, low.skaters.a, { ...neutralInput(), shotPlacement: 0, lowShot: true });
+
+    expect(wrist.puck.vy).toBeGreaterThan(1);
+    expect(slap.puck.vy).toBeGreaterThan(wrist.puck.vy);
+    expect(low.puck.vy).toBe(0);
+  });
+});
 describe('world simulation', () => {
   it('starts in lobby and counts down into a period', () => {
     const w = createWorld(roster());
@@ -54,7 +190,48 @@ describe('world simulation', () => {
     expect(w.puck.carrier).toBe('a');
   });
 
-  it('a free puck across the goal line scores', () => {
+  it('a held sprint input raises a skater top speed', () => {
+    const normal = createWorld(roster());
+    normal.phase = 'period';
+    normal.skaters.a.pos = { x: 0, z: 0 };
+
+    const sprint = createWorld(roster());
+    sprint.phase = 'period';
+    sprint.skaters.a.pos = { x: 0, z: 0 };
+
+    const normalInput: InputState = { ...neutralInput(), move: { x: 1, z: 0 } };
+    const sprintInput: InputState = {
+      ...neutralInput(),
+      move: { x: 1, z: 0 },
+      actions: { ...emptyActions(), sprint: true },
+    };
+
+    for (let i = 0; i < 20; i++) {
+      step(normal, { a: normalInput }, DT);
+      step(sprint, { a: sprintInput }, DT);
+    }
+
+    expect(v.len(sprint.skaters.a.vel)).toBeGreaterThan(v.len(normal.skaters.a.vel) * 1.12);
+  });
+
+  it('a partial puck crossing the goal line does not score', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const gx = attackingGoalX(0);
+    w.puck.carrier = null;
+    w.puck.lastTouch = 'a';
+    w.puck.pos = { x: gx - 0.03, z: 0 };
+    w.puck.vel = { x: 2, z: 0 };
+    w.puck.pickupCooldownUntil = w.time + 10000;
+
+    step(w, {}, DT);
+
+    expect(w.puck.pos.x).toBeGreaterThanOrEqual(gx);
+    expect(w.puck.pos.x).toBeLessThan(gx + PUCK_RADIUS);
+    expect(w.score[0]).toBe(0);
+  });
+
+  it('a free puck fully across the goal line through the mouth scores', () => {
     const w = createWorld(roster());
     w.phase = 'period';
     const gx = attackingGoalX(0);
@@ -66,6 +243,69 @@ describe('world simulation', () => {
     const before = w.score[0];
     for (let i = 0; i < 30; i++) step(w, {}, DT);
     expect(w.score[0]).toBe(before + 1);
+  });
+
+  it('scores airborne pucks below the crossbar but rejects shots above it', () => {
+    const under = createWorld(roster());
+    under.phase = 'period';
+    const gx = attackingGoalX(0);
+    under.puck.carrier = null;
+    under.puck.lastTouch = 'a';
+    under.puck.pos = { x: gx - 1, z: 0 };
+    under.puck.vel = { x: 20, z: 0 };
+    under.puck.y = RINK.goalHeight - PUCK_RADIUS * 2;
+    under.puck.vy = 0;
+    under.puck.pickupCooldownUntil = under.time + 10000;
+    for (let i = 0; i < 30 && under.score[0] === 0; i++) step(under, {}, DT);
+
+    const over = createWorld(roster());
+    over.phase = 'period';
+    over.puck.carrier = null;
+    over.puck.lastTouch = 'a';
+    over.puck.pos = { x: gx - 1, z: 0 };
+    over.puck.vel = { x: 20, z: 0 };
+    over.puck.y = RINK.goalHeight + PUCK_RADIUS;
+    over.puck.vy = 0;
+    over.puck.pickupCooldownUntil = over.time + 10000;
+    for (let i = 0; i < 30; i++) step(over, {}, DT);
+
+    expect(under.score[0]).toBe(1);
+    expect(over.score[0]).toBe(0);
+  });
+
+  it('gravity brings a lifted puck back to the ice with a deadened bounce', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    w.puck.carrier = null;
+    w.puck.pos = { x: 0, z: 0 };
+    w.puck.vel = { x: 8, z: 0 };
+    w.puck.y = 1;
+    w.puck.vy = 0;
+    w.puck.pickupCooldownUntil = w.time + 10000;
+
+    step(w, {}, DT);
+    expect(w.puck.y).toBeLessThan(1);
+    expect(w.puck.vy).toBeLessThan(0);
+
+    for (let i = 0; i < 90; i++) step(w, {}, DT);
+    expect(w.puck.y).toBeGreaterThanOrEqual(0);
+    expect(w.puck.y).toBeLessThan(0.05);
+    expect(Math.abs(w.puck.vy)).toBeLessThan(1);
+  });
+
+  it('a puck outside the posts does not score even if it fully crosses the goal line', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const gx = attackingGoalX(0);
+    w.puck.carrier = null;
+    w.puck.lastTouch = 'a';
+    w.puck.pos = { x: gx - 1, z: RINK.goalWidth / 2 - PUCK_RADIUS / 2 };
+    w.puck.vel = { x: 30, z: 0 };
+    w.puck.pickupCooldownUntil = w.time + 10000;
+
+    for (let i = 0; i < 30; i++) step(w, {}, DT);
+
+    expect(w.score[0]).toBe(0);
   });
 
   it('a check knocks the target back and staggers them (WO-00 feel)', () => {
@@ -175,6 +415,127 @@ describe('world simulation', () => {
     expect(minX).toBeGreaterThan(gx + 1);
   });
 
+  it('a puck entering from the side netting never scores', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const gx = attackingGoalX(0);
+    w.puck.carrier = null;
+    w.puck.lastTouch = 'a';
+    w.puck.pos = { x: gx + RINK.goalDepth / 2, z: RINK.goalWidth / 2 + 0.5 };
+    w.puck.vel = { x: 0, z: -12 };
+    w.puck.pickupCooldownUntil = w.time + 10000;
+
+    for (let i = 0; i < 30; i++) step(w, {}, DT);
+
+    expect(w.score[0]).toBe(0);
+  });
+
+  it('a puck that hits the post rebounds without scoring', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const gx = attackingGoalX(0);
+    w.puck.carrier = null;
+    w.puck.lastTouch = 'a';
+    w.puck.pos = { x: gx - 0.4, z: RINK.goalWidth / 2 + PUCK_RADIUS * 0.4 };
+    w.puck.vel = { x: 18, z: -1.5 };
+    w.puck.pickupCooldownUntil = w.time + 10000;
+
+    for (let i = 0; i < 10; i++) step(w, {}, DT);
+
+    expect(w.score[0]).toBe(0);
+    expect(w.puck.pos.x).toBeLessThan(gx + RINK.goalDepth);
+  });
+
+  it('leaves playable room for skaters and the puck behind the net', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const gx = attackingGoalX(0);
+    const xBack = gx + RINK.goalDepth;
+    const behindNetX = xBack + 2.5;
+    const a = w.skaters.a;
+    a.pos = { x: behindNetX, z: RINK.goalWidth / 2 + 1 };
+    a.vel = { x: 0, z: 0 };
+    w.puck.carrier = null;
+    w.puck.pos = { x: behindNetX, z: -(RINK.goalWidth / 2 + 1) };
+    w.puck.vel = { x: 0, z: 0 };
+    w.puck.pickupCooldownUntil = w.time + 10000;
+
+    step(w, {}, DT);
+
+    expect(a.pos.x).toBeCloseTo(behindNetX, 3);
+    expect(w.puck.pos.x).toBeCloseTo(behindNetX, 3);
+    expect(w.score[0]).toBe(0);
+  });
+
+  it('blocks a skater from skating through the back wall of the net', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const gx = attackingGoalX(0);
+    const xBack = gx + RINK.goalDepth;
+    const a = w.skaters.a;
+    a.pos = { x: xBack + SKATER_RADIUS + 0.05, z: 0 };
+    a.vel = { x: 0, z: 0 };
+    w.puck.pickupCooldownUntil = w.time + 10000;
+
+    for (let i = 0; i < 20; i++) {
+      step(w, { a: { ...neutralInput(), move: { x: -1, z: 0 } } }, DT);
+    }
+
+    expect(a.pos.x).toBeGreaterThanOrEqual(xBack + SKATER_RADIUS - 0.01);
+  });
+
+  it('blocks a skater from skating through side netting', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const gx = attackingGoalX(0);
+    const a = w.skaters.a;
+    a.pos = { x: gx + RINK.goalDepth / 2, z: RINK.goalWidth / 2 + SKATER_RADIUS + 0.05 };
+    a.vel = { x: 0, z: 0 };
+    w.puck.pickupCooldownUntil = w.time + 10000;
+
+    for (let i = 0; i < 20; i++) {
+      step(w, { a: { ...neutralInput(), move: { x: 0, z: -1 } } }, DT);
+    }
+
+    expect(a.pos.z).toBeGreaterThanOrEqual(RINK.goalWidth / 2 + SKATER_RADIUS - 0.01);
+  });
+
+  it('lets a skater enter the goal mouth but not pass through the back of the net', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const gx = attackingGoalX(0);
+    const xBack = gx + RINK.goalDepth;
+    const a = w.skaters.a;
+    a.pos = { x: gx - SKATER_RADIUS - 0.05, z: 0 };
+    a.vel = { x: 0, z: 0 };
+    w.puck.pickupCooldownUntil = w.time + 10000;
+
+    for (let i = 0; i < 20; i++) {
+      step(w, { a: { ...neutralInput(), move: { x: 1, z: 0 } } }, DT);
+    }
+
+    expect(a.pos.x).toBeGreaterThan(gx);
+    expect(a.pos.x).toBeLessThanOrEqual(xBack - SKATER_RADIUS + 0.01);
+  });
+
+  it('lets skaters move behind and around the outside of the net', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const gx = attackingGoalX(0);
+    const xBack = gx + RINK.goalDepth;
+    const a = w.skaters.a;
+    a.pos = { x: xBack + SKATER_RADIUS + 0.5, z: RINK.goalWidth / 2 + SKATER_RADIUS + 0.5 };
+    a.vel = { x: 0, z: 0 };
+    w.puck.pickupCooldownUntil = w.time + 10000;
+
+    for (let i = 0; i < 15; i++) {
+      step(w, { a: { ...neutralInput(), move: { x: 0, z: 1 } } }, DT);
+    }
+
+    expect(a.pos.x).toBeGreaterThan(xBack + SKATER_RADIUS);
+    expect(a.pos.z).toBeGreaterThan(RINK.goalWidth / 2 + SKATER_RADIUS + 0.5);
+  });
+
   it('an angled shot through the open mouth still scores (WO-18)', () => {
     const w = createWorld(roster());
     w.phase = 'period';
@@ -185,6 +546,21 @@ describe('world simulation', () => {
     w.puck.vel = { x: 30, z: -10 }; // crosses the line at z ~1.5, inside the mouth
     w.puck.pickupCooldownUntil = w.time + 10000;
     for (let i = 0; i < 30 && w.score[0] === 0; i++) step(w, {}, DT);
+    expect(w.score[0]).toBe(1);
+  });
+
+  it('a fast puck tunneling fully through the mouth still scores', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const gx = attackingGoalX(0);
+    w.puck.carrier = null;
+    w.puck.lastTouch = 'a';
+    w.puck.pos = { x: gx - 4, z: 0 };
+    w.puck.vel = { x: 180, z: 0 };
+    w.puck.pickupCooldownUntil = w.time + 10000;
+
+    step(w, {}, DT);
+
     expect(w.score[0]).toBe(1);
   });
 
@@ -646,6 +1022,30 @@ describe('box score, goalie saves & one-timers (WO-09)', () => {
     expect(w.stats.g.saves).toBe(1);
   });
 
+  it('a goalie saves a fast shot that crosses the projected save lane between ticks', () => {
+    const w = createWorld([
+      { id: 'a', team: 0, characterId: 'sniper', isBot: false, isGoalie: false },
+      { id: 'g', team: 1, characterId: 'tank', isBot: true, isGoalie: true },
+    ]);
+    w.phase = 'period';
+    const g = w.skaters.g;
+    w.puck.carrier = null;
+    w.puck.lastTouch = 'a';
+    w.puck.pos = { x: g.pos.x - 4, z: g.pos.z + 0.35 };
+    w.puck.vel = { x: 180, z: 0 };
+    w.puck.y = 1.2;
+    w.puck.vy = 0;
+    w.puck.pickupCooldownUntil = w.time + 10000;
+
+    step(w, {}, DT);
+
+    const save = w.events.find((e) => e.type === 'save');
+    expect(save).toBeDefined();
+    expect(g.status.goalieSaveUntil).toBeGreaterThan(w.time);
+    expect(g.status.goalieSaveType).toBe('glove');
+    expect(g.status.goalieSaveSide).toBe(1);
+  });
+
   it('a goalie covers a soft, centered shot (becomes the carrier)', () => {
     const w = createWorld([
       { id: 'a', team: 0, characterId: 'sniper', isBot: false, isGoalie: false },
@@ -749,6 +1149,11 @@ describe('deferred goal reset for replays (WO-10)', () => {
     expect(w.goalResetPending).toBe(true);
     // the puck sits across the goal line, not teleported back to center
     expect(w.puck.pos.x).toBeGreaterThan(gx - 1);
+    const posAtGoal = { ...w.puck.pos };
+
+    for (let i = 0; i < 5; i++) step(w, {}, DT);
+    expect(v.dist(w.puck.pos, posAtGoal)).toBeGreaterThan(0.05);
+    expect(w.goalResetPending).toBe(true);
 
     // run out the celebration pause; the deferred faceoff then drops it at center
     let guard = 0;

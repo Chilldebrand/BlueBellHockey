@@ -1,6 +1,6 @@
 import { awardCharge, awardStyle, breakCombo } from '../config/charge.js';
 import { getCharacter } from '../config/characters.js';
-import { attackingGoalX, SKATER_RADIUS } from '../config/rink.js';
+import { attackingGoalX, RINK, SKATER_RADIUS } from '../config/rink.js';
 import { getUltimate } from '../config/ultimates.js';
 import { v } from './physics.js';
 import { DEKE_MS, ONE_TIMER_WINDOW_MS } from './puck.js';
@@ -30,6 +30,50 @@ const ANKLE_BREAK_MS = 900; // stagger applied to a beaten defender
 // crisp redirect — extra power and a tighter line on net.
 const ONE_TIMER_POWER = 1.25;
 const ONE_TIMER_ASSIST_BONUS = 0.2;
+const WRIST_LIFT = 3.2;
+const SLAP_LIFT = 6.0;
+const ONE_TIMER_LIFT_BONUS = 0.8;
+export const SHOT_PLACEMENT_DEADZONE = 0.15;
+export const WIDE_INPUT_THRESHOLD = 0.95;
+export const WIDE_CHANCE = 0.2;
+export const WIDE_MARGIN = 0.65;
+
+export function controllerShotTargetZ(stickX: number, wideRoll: number): number {
+  const clamped = Math.max(-1, Math.min(1, stickX));
+  const placed = Math.abs(clamped) < SHOT_PLACEMENT_DEADZONE ? 0 : clamped;
+  const postZ = RINK.goalWidth / 2;
+  const base = placed * postZ;
+  const atMax = Math.abs(placed) >= WIDE_INPUT_THRESHOLD;
+  if (atMax && wideRoll < WIDE_CHANCE) {
+    return Math.sign(placed || 1) * (postZ + WIDE_MARGIN);
+  }
+  return base;
+}
+export interface ShotQuality {
+  powerMult: number;
+  errorMaxZ: number;
+}
+
+export function shotQuality(world: WorldState, s: SkaterState, target: { x: number; z: number }): ShotQuality {
+  void world;
+  const toTarget = v.norm(v.sub(target, s.pos));
+  const facing = v.fromAngle(s.facing);
+  const alignment = v.dot(facing, toTarget);
+  const alignment01 = Math.max(0, Math.min(1, (alignment + 1) / 2));
+
+  const movementSpeed = v.len(s.vel);
+  const movingIntoShot = movementSpeed > 0.1 ? Math.max(-1, Math.min(1, v.dot(v.norm(s.vel), toTarget))) : 0;
+  const movementBonus = movingIntoShot > 0 ? movingIntoShot * 0.08 : movingIntoShot * 0.1;
+
+  const lateral = Math.abs(s.pos.z) / RINK.halfWidth;
+  const behindOrSharp = s.team === 0 ? s.pos.x > RINK.goalLineX - 2 : s.pos.x < -RINK.goalLineX + 2;
+  const locationPenalty = Math.min(0.25, lateral * 0.18 + (behindOrSharp ? 0.12 : 0));
+
+  const powerMult = Math.max(0.52, Math.min(1.08, 0.58 + alignment01 * 0.42 + movementBonus - locationPenalty));
+  const errorMaxZ = Math.max(0.05, 1.25 - alignment01 * 0.85 + locationPenalty * 1.8 - movementBonus);
+
+  return { powerMult, errorMaxZ };
+}
 
 function emit(world: WorldState, e: SimEvent): void {
   world.events.push(e);
@@ -59,14 +103,29 @@ export function doShoot(world: WorldState, s: SkaterState, input: InputState): v
   // One-timer (WO-09): a shot taken before the post-pass window lapses.
   const oneTimer = s.status.oneTimerUntil > world.time;
 
-  let dir = aimDir(s, input);
-  // aim assist toward the net scales with shoot rating; a charged slapper sacrifices
-  // up to half of it (harder to place, true to a real slap shot). A one-timer is
-  // crisper — it claws some of that accuracy back.
+  const placement = input.shotPlacement;
+  const usingControllerPlacement = typeof placement === 'number';
+  const wideRoll = world.rng();
+  const target = usingControllerPlacement
+    ? { x: attackingGoalX(s.team), z: controllerShotTargetZ(placement, wideRoll) }
+    : netCenter(s.team);
+
+  let dir = usingControllerPlacement ? v.norm(v.sub(target, puck.pos)) : aimDir(s, input);
   const toNet = v.norm(v.sub(netCenter(s.team), puck.pos));
-  let assist = (0.15 + (shoot / 10) * 0.35) * (1 - 0.5 * charge);
-  if (oneTimer) assist = Math.min(0.9, assist + ONE_TIMER_ASSIST_BONUS);
-  dir = v.norm({ x: dir.x * (1 - assist) + toNet.x * assist, z: dir.z * (1 - assist) + toNet.z * assist });
+
+  if (!usingControllerPlacement) {
+    let assist = (0.15 + (shoot / 10) * 0.35) * (1 - 0.5 * charge);
+    if (oneTimer) assist = Math.min(0.9, assist + ONE_TIMER_ASSIST_BONUS);
+    dir = v.norm({ x: dir.x * (1 - assist) + toNet.x * assist, z: dir.z * (1 - assist) + toNet.z * assist });
+  }
+
+  const quality = shotQuality(world, s, target);
+  if (usingControllerPlacement) {
+    const errorRoll = world.rng() * 2 - 1;
+    const adjustedTarget = { x: target.x, z: target.z + errorRoll * quality.errorMaxZ };
+    dir = v.norm(v.sub(adjustedTarget, puck.pos));
+  }
+
   if (s.status.guaranteedGoal) {
     dir = toNet; // cannon: dead-on
   }
@@ -74,9 +133,11 @@ export function doShoot(world: WorldState, s: SkaterState, input: InputState): v
   // power lerps wrist -> slap with charge, then the one-timer bonus on top
   const wrist = 18 + shoot * 1.8;
   const slap = 30 + shoot * 2.8;
-  let power = (wrist + (slap - wrist) * charge) * s.status.shootPowerMult;
+  let power = (wrist + (slap - wrist) * charge) * s.status.shootPowerMult * quality.powerMult;
   if (oneTimer) power *= ONE_TIMER_POWER;
   puck.vel = v.scale(dir, power);
+  puck.y = 0;
+  puck.vy = input.lowShot ? 0 : WRIST_LIFT + (SLAP_LIFT - WRIST_LIFT) * charge + (oneTimer ? ONE_TIMER_LIFT_BONUS : 0);
   puck.carrier = null;
   puck.pickupCooldownUntil = world.time + 300;
   puck.lastTouch = s.id;

@@ -66,6 +66,28 @@ function Spot({ x, z, color }: { x: number; z: number; color: string }) {
   );
 }
 
+// Painted blue goalie crease: a half-circle in front of each goal mouth, plus a
+// stronger outline so it reads through the glossy ice.
+function GoalieCrease({ team }: { team: 0 | 1 }) {
+  const sign = team === 0 ? -1 : 1;
+  const x = sign * RINK.goalLineX;
+  const thetaStart = team === 0 ? -Math.PI / 2 : Math.PI / 2;
+  const radius = RINK.goalWidth / 2 + 0.9;
+  return (
+    <group position={[x, 0, 0]}>
+      <mesh position={[0, 0.024, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[radius, 48, thetaStart, Math.PI]} />
+        <meshBasicMaterial color="#7fc4ff" transparent opacity={0.24} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh position={[0, 0.026, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[radius - 0.08, radius + 0.08, 48, 1, thetaStart, Math.PI]} />
+        <meshBasicMaterial color={BLUE} transparent opacity={0.78} side={THREE.DoubleSide} />
+      </mesh>
+      <Line x={0} color={BLUE} w={0.12} len={radius * 2} />
+    </group>
+  );
+}
+
 // An enclosed hockey net. `sign` points outward (away from center): the mouth is
 // the open face at local x=0, the twine/back wall sits at local x = sign*depth.
 // This matches the sim's net collision (WO-18) so what you see is what stops the
@@ -144,11 +166,6 @@ function Goal({ team }: { team: 0 | 1 }) {
       <mesh position={[back / 2, (h + bh) / 2, 0]}>
         <boxGeometry args={[depth, 0.04, hw * 2]} />
         {twine}
-      </mesh>
-      {/* blue crease in front of the mouth */}
-      <mesh position={[-sign * 1, 0.025, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[2, hw * 2]} />
-        <meshBasicMaterial color={BLUE} transparent opacity={0.22} />
       </mesh>
     </group>
   );
@@ -271,6 +288,8 @@ export function Rink({ reflections = true }: { reflections?: boolean }) {
       <Spot x={-6.5} z={RINK.faceoffZ} color={RED} />
       <Spot x={-6.5} z={-RINK.faceoffZ} color={RED} />
 
+      <GoalieCrease team={0} />
+      <GoalieCrease team={1} />
       <Goal team={0} />
       <Goal team={1} />
 

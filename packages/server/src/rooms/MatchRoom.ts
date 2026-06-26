@@ -16,6 +16,7 @@ import {
 } from '@bbh/shared';
 import { MatchState, syncState } from './state.js';
 import { sanitizeClientInput, sanitizeInputSeq } from './input.js';
+import { canTeamControl, nextSkaterOnTeam } from './control.js';
 import { botInput } from '../ai/bot.js';
 import { goalieInput } from '../ai/goalie.js';
 import type {
@@ -44,6 +45,8 @@ export class MatchRoom extends Room<MatchState> {
   private inputs: Record<string, InputState> = {};
   private lastSeq: Record<string, number> = {};
   private sessionToSkater = new Map<string, string>();
+  private sessionLocked = new Map<string, boolean>();
+  private lastSwitchHeld = new Map<string, boolean>();
   private selected = new Map<string, string>(); // slotId -> characterId
   private started = false;
   private displayCode = ''; // shareable private code ('' = public) — WO-14
@@ -100,7 +103,7 @@ export class MatchRoom extends Room<MatchState> {
     this.setSimulationInterval((dt) => this.tick(dt), TICK_MS);
   }
 
-  onJoin(client: Client, options?: { team?: number }): void {
+  onJoin(client: Client, options?: { team?: number; lockToCharacter?: boolean }): void {
     // Team preference (WO-14): take a free slot on the requested team if any,
     // otherwise fall back to any free slot. Only the mode's active slots exist
     // (e.g. 1-on-1 has one per side) — WO-15.
@@ -111,6 +114,7 @@ export class MatchRoom extends Room<MatchState> {
       slots.find((s) => !this.isSlotTaken(s.id));
     if (!slot) return; // room full for this mode → spectate (no slot)
     this.sessionToSkater.set(client.sessionId, slot.id);
+    this.sessionLocked.set(client.sessionId, options?.lockToCharacter === true);
     const row = this.state.skaters.get(slot.id);
     if (row) row.isBot = false;
     const w = this.world.skaters[slot.id];
@@ -133,6 +137,8 @@ export class MatchRoom extends Room<MatchState> {
       if (row) row.isBot = true;
       delete this.inputs[skaterId];
       this.sessionToSkater.delete(client.sessionId);
+      this.sessionLocked.delete(client.sessionId);
+      this.lastSwitchHeld.delete(client.sessionId);
     }
   }
 
@@ -188,6 +194,8 @@ export class MatchRoom extends Room<MatchState> {
   }
 
   private tick(dtMs: number): void {
+    this.processControlSwitches();
+
     const inputs: Record<string, InputState> = {};
     for (const s of Object.values(this.world.skaters)) {
       if (s.isGoalie) inputs[s.id] = goalieInput(this.world, s);
@@ -196,6 +204,7 @@ export class MatchRoom extends Room<MatchState> {
     }
 
     step(this.world, inputs, dtMs);
+    this.followTeamCarrier();
     syncState(this.state, this.world);
 
     // attach last-processed input seq for client reconciliation
@@ -224,6 +233,74 @@ export class MatchRoom extends Room<MatchState> {
       ) {
         this.broadcast(e.type, e);
       }
+    }
+  }
+
+  private humansOnTeam(team: Team): number {
+    let count = 0;
+    for (const skaterId of this.sessionToSkater.values()) {
+      const s = this.world.skaters[skaterId];
+      if (s?.team === team) count++;
+    }
+    return count;
+  }
+
+  private hasTeamControl(client: Client | string, team: Team): boolean {
+    const sessionId = typeof client === 'string' ? client : client.sessionId;
+    return canTeamControl({
+      locked: this.sessionLocked.get(sessionId) === true,
+      humansOnTeam: this.humansOnTeam(team),
+    });
+  }
+
+  private setControlledSkater(sessionId: string, skaterId: string): void {
+    const prev = this.sessionToSkater.get(sessionId);
+    if (prev === skaterId) return;
+    if (prev) {
+      const oldWorld = this.world.skaters[prev];
+      if (oldWorld) oldWorld.isBot = true;
+      const oldRow = this.state.skaters.get(prev);
+      if (oldRow) oldRow.isBot = true;
+      delete this.inputs[prev];
+    }
+    this.sessionToSkater.set(sessionId, skaterId);
+    const nextWorld = this.world.skaters[skaterId];
+    if (nextWorld) nextWorld.isBot = false;
+    const nextRow = this.state.skaters.get(skaterId);
+    if (nextRow) nextRow.isBot = false;
+    this.clients.find((c) => c.sessionId === sessionId)?.send('assigned', {
+      skaterId,
+      team: nextWorld?.team ?? 0,
+      code: this.displayCode,
+      mode: this.mode.id,
+    });
+  }
+
+  private processControlSwitches(): void {
+    for (const [sessionId, skaterId] of this.sessionToSkater) {
+      const current = this.world.skaters[skaterId];
+      if (!current) continue;
+      const input = this.inputs[skaterId] ?? neutralInput();
+      const held = input.actions.switchPlayer;
+      const wasHeld = this.lastSwitchHeld.get(sessionId) === true;
+      this.lastSwitchHeld.set(sessionId, held);
+      if (!held || wasHeld) continue;
+      if (this.world.puck.carrier === skaterId) continue;
+      if (!this.hasTeamControl(sessionId, current.team)) continue;
+      this.setControlledSkater(sessionId, nextSkaterOnTeam(this.activeSlots(), skaterId, current.team));
+    }
+  }
+
+  private followTeamCarrier(): void {
+    const carrierId = this.world.puck.carrier;
+    if (!carrierId) return;
+    const carrier = this.world.skaters[carrierId];
+    if (!carrier || carrier.isGoalie) return;
+    for (const [sessionId, skaterId] of this.sessionToSkater) {
+      const current = this.world.skaters[skaterId];
+      if (!current || current.team !== carrier.team) continue;
+      if (!this.hasTeamControl(sessionId, carrier.team)) continue;
+      this.setControlledSkater(sessionId, carrierId);
     }
   }
 }

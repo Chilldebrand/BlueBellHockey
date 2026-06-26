@@ -13,6 +13,7 @@ export function Puck() {
     const g = group.current;
     if (!g) return;
     g.position.x = p.x;
+    g.position.y = 0.12 + p.y;
     g.position.z = p.z;
 
     // spin about the vertical axis, scaled by glide speed; eased off while carried

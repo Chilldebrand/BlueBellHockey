@@ -16,6 +16,9 @@ export interface SkaterRender {
   staggered: boolean;
   intangible: boolean;
   windup: number; // slap-shot charge 0..1 (0 = not winding up)
+  goalieSaving: boolean;
+  goalieSaveType: 'none' | 'pad' | 'body' | 'glove';
+  goalieSaveSide: -1 | 0 | 1;
 }
 
 function windupOf(shootChargeStart: number, now: number): number {
@@ -25,7 +28,7 @@ function windupOf(shootChargeStart: number, now: number): number {
 
 export interface FrameRender {
   skaters: SkaterRender[];
-  puck: { x: number; z: number; carrier: string };
+  puck: { x: number; z: number; y: number; carrier: string };
 }
 
 function lerp(a: number, b: number, t: number): number {
@@ -59,11 +62,19 @@ function buildFrame(a: Snapshot, b: Snapshot, t: number): FrameRender {
       staggered: sb.staggeredUntil > now,
       intangible: sb.intangibleUntil > now,
       windup: windupOf(sb.shootChargeStart, now),
+      goalieSaving: sb.goalieSaveUntil > now,
+      goalieSaveType: sb.goalieSaveType,
+      goalieSaveSide: sb.goalieSaveSide,
     });
   }
   return {
     skaters,
-    puck: { x: lerp(a.puck.px, b.puck.px, t), z: lerp(a.puck.pz, b.puck.pz, t), carrier: b.puck.carrier },
+    puck: {
+      x: lerp(a.puck.px, b.puck.px, t),
+      z: lerp(a.puck.pz, b.puck.pz, t),
+      y: lerp(a.puck.py, b.puck.py, t),
+      carrier: b.puck.carrier,
+    },
   };
 }
 
@@ -125,7 +136,10 @@ function frameFrom(s: Snapshot): FrameRender {
       staggered: sk.staggeredUntil > now,
       intangible: sk.intangibleUntil > now,
       windup: windupOf(sk.shootChargeStart, now),
+      goalieSaving: sk.goalieSaveUntil > now,
+      goalieSaveType: sk.goalieSaveType,
+      goalieSaveSide: sk.goalieSaveSide,
     })),
-    puck: { x: s.puck.px, z: s.puck.pz, carrier: s.puck.carrier },
+    puck: { x: s.puck.px, z: s.puck.pz, y: s.puck.py, carrier: s.puck.carrier },
   };
 }

@@ -1,7 +1,7 @@
 // Rink dimensions in world units (metres-ish). Centered at origin.
 // X is goal-to-goal (length), Z is side-to-side (width), Y is up.
 export const RINK = {
-  halfLength: 30,
+  halfLength: 34,
   halfWidth: 18,
   cornerRadius: 8,
   boardRestitution: 0.6,

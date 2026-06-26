@@ -18,6 +18,12 @@ function vec(value: unknown): Vec2 {
   return { x: axis(value.x), z: axis(value.z) };
 }
 
+function scalar(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(AXIS_MIN, Math.min(AXIS_MAX, value))
+    : undefined;
+}
+
 function actions(value: unknown): ActionFlags {
   const base = emptyActions();
   if (!isRecord(value)) return base;
@@ -29,15 +35,20 @@ function actions(value: unknown): ActionFlags {
     ult: value.ult === true,
     deke: value.deke === true,
     poke: value.poke === true,
+    sprint: value.sprint === true,
+    switchPlayer: value.switchPlayer === true,
   };
 }
 
 export function sanitizeClientInput(value: unknown): InputState {
   const input = neutralInput();
   if (!isRecord(value)) return input;
+  const shotPlacement = scalar(value.shotPlacement);
   return {
     move: vec(value.move),
     aim: vec(value.aim),
+    ...(shotPlacement === undefined ? {} : { shotPlacement }),
+    lowShot: value.lowShot === true,
     actions: actions(value.actions),
   };
 }

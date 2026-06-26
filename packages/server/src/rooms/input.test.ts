@@ -19,6 +19,8 @@ describe('client input sanitization', () => {
       ult: false,
       deke: false,
       poke: false,
+      sprint: false,
+      switchPlayer: false,
     });
   });
 
@@ -26,5 +28,38 @@ describe('client input sanitization', () => {
     expect(sanitizeInputSeq(12.8)).toBe(12);
     expect(sanitizeInputSeq(-1)).toBe(0);
     expect(sanitizeInputSeq(Number.NaN)).toBe(0);
+  });
+
+  it('sanitizes controller shot placement to the left-stick range', () => {
+    const over = sanitizeClientInput({ move: null, aim: null, shotPlacement: 2, actions: {} });
+    const under = sanitizeClientInput({ move: null, aim: null, shotPlacement: -2, actions: {} });
+    const bad = sanitizeClientInput({ move: null, aim: null, shotPlacement: 'wide', actions: {} });
+
+    expect(over.shotPlacement).toBe(1);
+    expect(under.shotPlacement).toBe(-1);
+    expect(bad.shotPlacement).toBeUndefined();
+  });
+
+  it('only accepts intentional low-shot input as a boolean', () => {
+    expect(sanitizeClientInput({ move: null, aim: null, lowShot: true, actions: {} }).lowShot).toBe(true);
+    expect(sanitizeClientInput({ move: null, aim: null, lowShot: 'true', actions: {} }).lowShot).toBe(false);
+  });
+
+  it('only accepts sprint and player switching as booleans', () => {
+    const good = sanitizeClientInput({
+      move: null,
+      aim: null,
+      actions: { sprint: true, switchPlayer: true },
+    });
+    const bad = sanitizeClientInput({
+      move: null,
+      aim: null,
+      actions: { sprint: 1, switchPlayer: 'true' },
+    });
+
+    expect(good.actions.sprint).toBe(true);
+    expect(good.actions.switchPlayer).toBe(true);
+    expect(bad.actions.sprint).toBe(false);
+    expect(bad.actions.switchPlayer).toBe(false);
   });
 });

@@ -1,6 +1,5 @@
-// Tracks raw keyboard + mouse-button state. Raw axes are W=+Z (away), S=-Z,
-// A=-X, D=+X; InputManager.gather() then inverts X to match the broadcast
-// camera (which views the ice from -Z and mirrors X on screen).
+// Tracks raw keyboard + mouse-button state. InputManager.gather() maps these
+// screen-space controls onto the rink axes for the active camera.
 export class KeyboardMouse {
   private keys = new Set<string>();
   private mouseButtons = new Set<number>();

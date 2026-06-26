@@ -82,6 +82,9 @@ export function CharacterModel({ id, glb, team }: { id: string; glb: string; tea
     const offHit = net.events.on('hit', (e: { by: string }) => {
       if (e.by === id) triggerable(CLIPS.hit, 550)();
     });
+    const offPoke = net.events.on('poke', (e: { by: string }) => {
+      if (e.by === id) triggerable(CLIPS.poke, 380)();
+    });
     // celebrate when your team scores
     const offGoal = net.events.on('goal', (e: { team: number }) => {
       if (e.team === team) triggerable(CLIPS.cheer, 2200)();
@@ -89,6 +92,7 @@ export function CharacterModel({ id, glb, team }: { id: string; glb: string; tea
     return () => {
       offShot();
       offHit();
+      offPoke();
       offGoal();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

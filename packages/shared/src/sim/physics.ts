@@ -1,5 +1,5 @@
-import { RINK } from '../config/rink.js';
-import type { Vec2 } from './types.js';
+import { PUCK_RADIUS, RINK } from '../config/rink.js';
+import type { Team, Vec2 } from './types.js';
 
 export const v = {
   add: (a: Vec2, b: Vec2): Vec2 => ({ x: a.x + b.x, z: a.z + b.z }),
@@ -22,6 +22,92 @@ function clampToBox(p: Vec2, hx: number, hz: number): Vec2 {
     x: Math.max(-hx, Math.min(hx, p.x)),
     z: Math.max(-hz, Math.min(hz, p.z)),
   };
+}
+
+export interface NetVolume {
+  team: Team;
+  sign: 1 | -1;
+  goalLineX: number;
+  backX: number;
+  xLo: number;
+  xHi: number;
+  halfWidth: number;
+  mouthHalfWidthForPuck: number;
+}
+
+export function netVolumeForTeam(team: Team, puckRadius = PUCK_RADIUS): NetVolume {
+  const sign = team === 0 ? 1 : -1;
+  const goalLineX = sign * RINK.goalLineX;
+  const backX = goalLineX + sign * RINK.goalDepth;
+  return {
+    team,
+    sign,
+    goalLineX,
+    backX,
+    xLo: Math.min(goalLineX, backX),
+    xHi: Math.max(goalLineX, backX),
+    halfWidth: RINK.goalWidth / 2,
+    mouthHalfWidthForPuck: RINK.goalWidth / 2 - puckRadius,
+  };
+}
+
+export function isPuckFullyAcrossGoalLine(
+  team: Team,
+  pos: Vec2,
+  puckRadius = PUCK_RADIUS,
+): boolean {
+  const net = netVolumeForTeam(team, puckRadius);
+  return net.sign * (pos.x - net.goalLineX) >= puckRadius;
+}
+
+export function isPuckCenterInNetVolume(
+  team: Team,
+  pos: Vec2,
+  puckRadius = PUCK_RADIUS,
+): boolean {
+  const net = netVolumeForTeam(team, puckRadius);
+  return (
+    pos.x >= net.xLo + puckRadius &&
+    pos.x <= net.xHi - puckRadius &&
+    Math.abs(pos.z) <= net.mouthHalfWidthForPuck
+  );
+}
+
+export function sweptFrontMouthEntry(
+  team: Team,
+  prev: Vec2,
+  next: Vec2,
+  puckRadius = PUCK_RADIUS,
+): boolean {
+  const net = netVolumeForTeam(team, puckRadius);
+  const scoringX = net.goalLineX + net.sign * puckRadius;
+  const prevSide = net.sign * (prev.x - scoringX);
+  const nextSide = net.sign * (next.x - scoringX);
+  if (prevSide >= 0 || nextSide < 0) return false;
+  const dx = next.x - prev.x;
+  if (Math.abs(dx) < 1e-6) return false;
+  const t = (scoringX - prev.x) / dx;
+  if (t < 0 || t > 1) return false;
+  const zAtScoringPlane = prev.z + (next.z - prev.z) * t;
+  return Math.abs(zAtScoringPlane) <= net.mouthHalfWidthForPuck;
+}
+
+export function sweptGoalLineMouthEntry(
+  team: Team,
+  prev: Vec2,
+  next: Vec2,
+  puckRadius = PUCK_RADIUS,
+): boolean {
+  const net = netVolumeForTeam(team, puckRadius);
+  const prevSide = net.sign * (prev.x - net.goalLineX);
+  const nextSide = net.sign * (next.x - net.goalLineX);
+  if (prevSide >= 0 || nextSide < 0) return false;
+  const dx = next.x - prev.x;
+  if (Math.abs(dx) < 1e-6) return false;
+  const t = (net.goalLineX - prev.x) / dx;
+  if (t < 0 || t > 1) return false;
+  const zAtGoalLine = prev.z + (next.z - prev.z) * t;
+  return Math.abs(zAtGoalLine) <= net.mouthHalfWidthForPuck;
 }
 
 /**
@@ -80,6 +166,44 @@ function thinWall(
   vel[axis] = -vel[axis] * restitution;
 }
 
+function collidePost(
+  pos: Vec2,
+  vel: Vec2,
+  radius: number,
+  restitution: number,
+  post: Vec2,
+  prevPos?: Vec2,
+): void {
+  const postRadius = 0.12;
+  const minD = radius + postRadius;
+  let hit = false;
+  if (prevPos) {
+    const sweep = v.sub(pos, prevPos);
+    const l2 = v.len2(sweep);
+    if (l2 > 1e-9) {
+      const t = Math.max(0, Math.min(1, v.dot(v.sub(post, prevPos), sweep) / l2));
+      const closest = { x: prevPos.x + sweep.x * t, z: prevPos.z + sweep.z * t };
+      hit = v.dist(closest, post) < minD;
+    }
+  }
+  const off = v.sub(pos, post);
+  const d = v.len(off);
+  if (!hit && d >= minD) return;
+  const postSide = Math.sign(post.z);
+  const outsideMouth = postSide !== 0 && postSide * pos.z > RINK.goalWidth / 2 - radius;
+  const n = outsideMouth
+    ? { x: 0, z: postSide }
+    : d > 1e-6
+      ? v.scale(off, 1 / d)
+      : v.norm(v.sub(pos, prevPos ?? post));
+  if (v.len2(n) < 1e-9) return;
+  pos.x = post.x + n.x * minD;
+  pos.z = post.z + n.z * minD;
+  const vn = v.dot(vel, n);
+  vel.x -= (1 + restitution) * vn * n.x;
+  vel.z -= (1 + restitution) * vn * n.z;
+}
+
 /**
  * Net collision (WO-18). Each goal is a solid back wall + two side walls with the
  * mouth left open toward center, so a loose puck can only get inside from the
@@ -92,6 +216,7 @@ export function collideNets(
   vel: Vec2,
   radius: number,
   restitution: number,
+  prevPos?: Vec2,
 ): void {
   const hw = RINK.goalWidth / 2;
   for (const sign of [1, -1] as const) {
@@ -104,7 +229,68 @@ export function collideNets(
     // side walls, from the mouth back to the back wall
     thinWall(pos, vel, radius, restitution, 'z', hw, 'x', xLo, xHi);
     thinWall(pos, vel, radius, restitution, 'z', -hw, 'x', xLo, xHi);
+    collidePost(pos, vel, radius, restitution, { x: gx, z: hw }, prevPos);
+    collidePost(pos, vel, radius, restitution, { x: gx, z: -hw }, prevPos);
   }
+}
+
+function sweptWall(
+  pos: Vec2,
+  vel: Vec2,
+  radius: number,
+  restitution: number,
+  axis: 'x' | 'z',
+  wall: number,
+  span: 'x' | 'z',
+  lo: number,
+  hi: number,
+  prevPos?: Vec2,
+): boolean {
+  const prev = prevPos ?? pos;
+  const prevDist = prev[axis] - wall;
+  const dist = pos[axis] - wall;
+  const crossed = prevDist * dist <= 0 && Math.abs(prevDist - dist) > 1e-6;
+  if (Math.abs(dist) >= radius && !crossed) return false;
+
+  let spanAtWall = pos[span];
+  if (crossed) {
+    const t = Math.max(0, Math.min(1, prevDist / (prevDist - dist)));
+    spanAtWall = prev[span] + (pos[span] - prev[span]) * t;
+  }
+  if (spanAtWall < lo - radius || spanAtWall > hi + radius) return false;
+
+  const side = Math.sign(prevDist) || Math.sign(dist) || 1;
+  pos[axis] = wall + side * radius;
+  const vn = vel[axis] * side;
+  if (vn < 0) vel[axis] -= (1 + restitution) * vn * side;
+  return true;
+}
+
+/**
+ * Skaters can enter the open mouth, but the back wall, side netting, and posts
+ * are solid so they cannot pass through the physical net.
+ */
+export function collideSkaterWithNets(
+  pos: Vec2,
+  vel: Vec2,
+  radius: number,
+  restitution: number,
+  prevPos?: Vec2,
+): boolean {
+  let hit = false;
+  const hw = RINK.goalWidth / 2;
+  for (const sign of [1, -1] as const) {
+    const gx = sign * RINK.goalLineX;
+    const xBack = gx + sign * RINK.goalDepth;
+    const xLo = Math.min(gx, xBack);
+    const xHi = Math.max(gx, xBack);
+    hit = sweptWall(pos, vel, radius, restitution, 'x', xBack, 'z', -hw, hw, prevPos) || hit;
+    hit = sweptWall(pos, vel, radius, restitution, 'z', hw, 'x', xLo, xHi, prevPos) || hit;
+    hit = sweptWall(pos, vel, radius, restitution, 'z', -hw, 'x', xLo, xHi, prevPos) || hit;
+    collidePost(pos, vel, radius, restitution, { x: gx, z: hw }, prevPos);
+    collidePost(pos, vel, radius, restitution, { x: gx, z: -hw }, prevPos);
+  }
+  return hit;
 }
 
 /** Resolve overlap between two circles by pushing them apart equally. */

@@ -7,9 +7,17 @@ import {
   tickCharge,
 } from '../config/charge.js';
 import { getMode, type GameModeDef } from '../config/modes.js';
-import { PUCK_RADIUS, RINK, SKATER_RADIUS, attackingGoalX } from '../config/rink.js';
+import { PUCK_RADIUS, RINK, SKATER_RADIUS } from '../config/rink.js';
 import { doDeke, doHit, doPass, doPoke, doShoot, doSteal, doUlt } from './actions.js';
-import { containCircle, resolveCircles, v } from './physics.js';
+import {
+  containCircle,
+  collideSkaterWithNets,
+  netVolumeForTeam,
+  resolveCircles,
+  sweptFrontMouthEntry,
+  sweptGoalLineMouthEntry,
+  v,
+} from './physics.js';
 import { isDisabled, stepSkater } from './skater.js';
 import { stepPuck } from './puck.js';
 import { clearPickups, stepPickups } from './pickups.js';
@@ -31,6 +39,14 @@ export interface RosterEntry {
   characterId: string;
   isBot: boolean;
   isGoalie: boolean;
+}
+
+function createRng(seed = 0x9e3779b9): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return state / 0x100000000;
+  };
 }
 
 function startPositions(team: Team, index: number, isGoalie: boolean): { x: number; z: number } {
@@ -86,13 +102,18 @@ export function createWorld(roster: RosterEntry[], mode?: GameModeDef): WorldSta
     puck: {
       pos: { ...RINK.centerFaceoff },
       vel: { x: 0, z: 0 },
+      y: 0,
+      vy: 0,
       carrier: null,
       pickupCooldownUntil: 0,
       lastTouch: null,
       assistTouch: null,
       bankedBy: null,
       bankedAt: 0,
+      mouthEntryTeam: null,
+      mouthEntryValid: false,
     },
+    rng: createRng(),
     events: [],
   };
 }
@@ -110,12 +131,16 @@ export function resetFaceoff(world: WorldState): void {
   }
   world.puck.pos = { ...RINK.centerFaceoff };
   world.puck.vel = { x: 0, z: 0 };
+  world.puck.y = 0;
+  world.puck.vy = 0;
   world.puck.carrier = null;
   world.puck.pickupCooldownUntil = world.time + 500;
   world.puck.lastTouch = null;
   world.puck.assistTouch = null;
   world.puck.bankedBy = null;
   world.puck.bankedAt = 0;
+  world.puck.mouthEntryTeam = null;
+  world.puck.mouthEntryValid = false;
   clearPickups(world); // wipe the ice on a stoppage (WO-16)
 }
 
@@ -145,6 +170,11 @@ function expireStatuses(world: WorldState): void {
     }
     if (s.ultActiveUntil && world.time >= s.ultActiveUntil) {
       s.ultActiveUntil = 0;
+    }
+    if (st.goalieSaveUntil && world.time >= st.goalieSaveUntil) {
+      st.goalieSaveUntil = 0;
+      st.goalieSaveType = 'none';
+      st.goalieSaveSide = 0;
     }
     // combo lapses if no style move landed within the window (WO-04)
     if (s.comboUntil && world.time >= s.comboUntil) {
@@ -220,19 +250,40 @@ export const GAMEBREAKER_GOAL_VALUE = 2;
 export const GAMEBREAKER_STEALS_POINT = false;
 const SCORE_MAX = 255; // score0/score1 are uint8 in the schema
 
-function detectGoal(world: WorldState, prevPos: Vec2): void {
+function heightAtX(prevPos: Vec2, nextPos: Vec2, prevY: number, nextY: number, x: number): number {
+  const dx = nextPos.x - prevPos.x;
+  if (Math.abs(dx) < 1e-6) return nextY;
+  const t = Math.max(0, Math.min(1, (x - prevPos.x) / dx));
+  return prevY + (nextY - prevY) * t;
+}
+
+function detectGoal(world: WorldState, prevPos: Vec2, nextPos: Vec2, prevY: number, nextY: number): void {
   const p = world.puck;
-  if (p.carrier) return;
+  if (p.carrier) {
+    p.mouthEntryTeam = null;
+    p.mouthEntryValid = false;
+    return;
+  }
   for (const team of [0, 1] as Team[]) {
-    const gx = attackingGoalX(team); // team scores by sending puck across this line
-    const sign = team === 0 ? 1 : -1; // team 0 attacks +X, team 1 attacks -X
+    const net = netVolumeForTeam(team, PUCK_RADIUS);
+    if (net.sign * (nextPos.x - net.goalLineX) < -(PUCK_RADIUS + 0.75) && p.mouthEntryTeam === team) {
+      p.mouthEntryTeam = null;
+      p.mouthEntryValid = false;
+    }
+    if (net.sign * (prevPos.x - net.goalLineX) < 0 && net.sign * (nextPos.x - net.goalLineX) >= 0) {
+      p.mouthEntryTeam = team;
+      p.mouthEntryValid = sweptGoalLineMouthEntry(team, prevPos, nextPos, PUCK_RADIUS);
+    }
+    if (p.mouthEntryTeam !== team || !p.mouthEntryValid) continue;
     // A goal is an *inward* crossing of the mouth plane this frame: the puck was in
     // front of the line and is now at/past it, within the mouth width. A loose puck
     // already behind the line (dumped around the net) never re-crosses, and a puck
     // wrapping back out toward center crosses the wrong way — neither scores, so you
     // can no longer "score from behind the net" (WO-18).
-    const crossed = sign * prevPos.x < sign * gx && sign * p.pos.x >= sign * gx;
-    if (crossed && Math.abs(p.pos.z) < RINK.goalWidth / 2) {
+    if (sweptFrontMouthEntry(team, prevPos, nextPos, PUCK_RADIUS)) {
+      const scoringX = net.goalLineX + net.sign * PUCK_RADIUS;
+      const yAtScoringPlane = heightAtX(prevPos, nextPos, prevY, nextY, scoringX);
+      if (yAtScoringPlane + PUCK_RADIUS > RINK.goalHeight) continue;
       const scorer = p.lastTouch && world.skaters[p.lastTouch]?.team === team ? p.lastTouch : null;
       const assist = p.assistTouch && world.skaters[p.assistTouch]?.team === team ? p.assistTouch : null;
       // A Gamebreaker requires the scorer's ult to be active at the moment of the
@@ -397,14 +448,19 @@ export function step(
     }
 
     for (const s of Object.values(world.skaters)) {
+      const prevPos = { ...s.pos };
       stepSkater(world, s, inputs[s.id] ?? neutralInput(), dt);
+      collideSkaterWithNets(s.pos, s.vel, SKATER_RADIUS, RINK.boardRestitution, prevPos);
     }
     collide(world);
     // capture the puck's position before it moves so detectGoal can test the
     // direction it crossed the goal line this frame (WO-18).
     const puckBefore = { x: world.puck.pos.x, z: world.puck.pos.z };
-    stepPuck(world, dt);
-    detectGoal(world, puckBefore);
+    const puckYBefore = world.puck.y;
+    const puckAfterMove = stepPuck(world, dt);
+    if (puckAfterMove.goalEligible) {
+      detectGoal(world, puckBefore, puckAfterMove.pos, puckYBefore, puckAfterMove.y);
+    }
     stepPickups(world, dtMs);
 
     // A turnover kills the combo: anyone checked, frozen, or staggered this frame
@@ -427,6 +483,9 @@ export function step(
       world.events.push({ type: 'phase', phase: 'ended' });
     }
   } else {
+    if (playing && paused && world.goalResetPending && !world.puck.carrier) {
+      stepPuck(world, dt, { gameplayInteractions: false });
+    }
     // Not simulating actions (countdown, goal celebration, intermission): keep each
     // skater's lastActions in step with their held input so a button held across the
     // stoppage isn't read as a fresh press the instant play resumes. Without this,

@@ -4,7 +4,16 @@
 // Kept framework-free so the per-frame input path never touches React.
 
 export type MoveAction = 'moveUp' | 'moveDown' | 'moveLeft' | 'moveRight';
-export type GameAction = 'shoot' | 'pass' | 'hit' | 'steal' | 'ult' | 'deke' | 'poke';
+export type GameAction =
+  | 'shoot'
+  | 'pass'
+  | 'hit'
+  | 'steal'
+  | 'ult'
+  | 'deke'
+  | 'poke'
+  | 'sprint'
+  | 'switchPlayer';
 export type BindableAction = MoveAction | GameAction;
 
 // A keyboard/mouse binding is a list of tokens. A token is a KeyboardEvent.code
@@ -13,9 +22,11 @@ export type BindableAction = MoveAction | GameAction;
 // J + left-click, …).
 export type KeyBindings = Record<BindableAction, string[]>;
 
-// Gamepad: a standard-mapping button index per game action. Movement/aim stay on
+// Gamepad: standard-mapping button indices per game action. Movement/aim stay on
 // the sticks (left = move, right = aim), so only the digital actions remap.
-export type PadBindings = Record<GameAction, number>;
+export type PadChordBinding = { all: number[] };
+export type PadBinding = number | number[] | PadChordBinding | null;
+export type PadBindings = Record<GameAction, PadBinding>;
 
 export interface Bindings {
   keyboard: KeyBindings;
@@ -23,7 +34,17 @@ export interface Bindings {
 }
 
 export const MOVE_ACTIONS: MoveAction[] = ['moveUp', 'moveDown', 'moveLeft', 'moveRight'];
-export const GAME_ACTIONS: GameAction[] = ['shoot', 'pass', 'hit', 'steal', 'poke', 'ult', 'deke'];
+export const GAME_ACTIONS: GameAction[] = [
+  'shoot',
+  'pass',
+  'hit',
+  'steal',
+  'poke',
+  'sprint',
+  'switchPlayer',
+  'ult',
+  'deke',
+];
 
 export const ACTION_LABELS: Record<BindableAction, string> = {
   moveUp: 'Move Up',
@@ -35,11 +56,12 @@ export const ACTION_LABELS: Record<BindableAction, string> = {
   hit: 'Hit',
   steal: 'Stick Lift',
   poke: 'Poke Check',
+  sprint: 'Sprint',
+  switchPlayer: 'Switch Player',
   ult: 'Ultimate',
   deke: 'Deke',
 };
 
-// Defaults mirror the previously hardcoded mapping in inputState.ts / gamepad.ts.
 export const DEFAULT_BINDINGS: Bindings = {
   keyboard: {
     moveUp: ['KeyW', 'ArrowUp'],
@@ -48,20 +70,24 @@ export const DEFAULT_BINDINGS: Bindings = {
     moveRight: ['KeyD', 'ArrowRight'],
     shoot: ['KeyJ', 'Mouse0'],
     pass: ['KeyK', 'Mouse2'],
-    hit: ['ShiftLeft', 'KeyL'],
+    hit: ['KeyL'],
     steal: ['KeyF'], // stick lift
     poke: ['KeyG'], // poke check
+    sprint: ['ShiftLeft'],
+    switchPlayer: ['Tab'],
     ult: ['Space', 'KeyE'],
     deke: ['KeyQ'],
   },
   gamepad: {
-    shoot: 0, // A
-    pass: 2, // X
-    hit: 5, // RB
-    steal: 4, // LB (stick lift)
-    poke: 6, // LT (poke check)
-    deke: 1, // B
-    ult: 7, // RT
+    shoot: 2, // X
+    pass: 0, // A
+    hit: null, // right-stick up when off puck
+    steal: 1, // B (stick lift)
+    poke: 5, // RB (poke/saucer)
+    sprint: 10, // L3
+    switchPlayer: 7, // RT
+    deke: 6, // LT (center skates / backwards)
+    ult: { all: [4, 5] }, // LB + RB
   },
 };
 
@@ -73,8 +99,20 @@ function clone(b: Bindings): Bindings {
     keyboard: Object.fromEntries(
       (Object.keys(b.keyboard) as BindableAction[]).map((a) => [a, [...b.keyboard[a]]]),
     ) as KeyBindings,
-    gamepad: { ...b.gamepad },
+    gamepad: Object.fromEntries(
+      (Object.keys(b.gamepad) as GameAction[]).map((a) => [a, clonePadBinding(b.gamepad[a])]),
+    ) as PadBindings,
   };
+}
+
+function clonePadBinding(binding: PadBinding): PadBinding {
+  if (Array.isArray(binding)) return [...binding];
+  if (binding && typeof binding === 'object') return { all: [...binding.all] };
+  return binding;
+}
+
+function validButtons(value: unknown): number[] {
+  return Array.isArray(value) ? value.filter((button): button is number => Number.isInteger(button)) : [];
 }
 
 // Merge persisted bindings over the defaults so a binding added in a later
@@ -96,7 +134,17 @@ function load(): Bindings {
     if (saved.gamepad) {
       for (const a of Object.keys(merged.gamepad) as GameAction[]) {
         const idx = saved.gamepad[a];
-        if (typeof idx === 'number' && Number.isInteger(idx)) merged.gamepad[a] = idx;
+        if (idx === null) {
+          merged.gamepad[a] = null;
+        } else if (typeof idx === 'number' && Number.isInteger(idx)) {
+          merged.gamepad[a] = idx;
+        } else if (Array.isArray(idx)) {
+          const buttons = validButtons(idx);
+          merged.gamepad[a] = buttons.length ? buttons : null;
+        } else if (idx && typeof idx === 'object' && 'all' in idx) {
+          const buttons = validButtons((idx as { all?: unknown }).all);
+          merged.gamepad[a] = buttons.length ? { all: buttons } : null;
+        }
       }
     }
   } catch {
@@ -164,9 +212,9 @@ class Controls {
     this.commit(next);
   }
 
-  bindPad(action: GameAction, button: number): void {
+  bindPad(action: GameAction, button: PadBinding): void {
     const next = clone(this.bindings);
-    next.gamepad[action] = button;
+    next.gamepad[action] = clonePadBinding(button);
     this.commit(next);
   }
 }
@@ -226,4 +274,11 @@ const PAD_BUTTON_NAMES: Record<number, string> = {
 
 export function padLabel(index: number): string {
   return PAD_BUTTON_NAMES[index] ?? `Btn ${index}`;
+}
+
+export function padBindingLabel(binding: PadBinding): string {
+  if (binding === null) return 'Unmapped';
+  if (typeof binding === 'object' && !Array.isArray(binding)) return binding.all.map(padLabel).join(' + ');
+  const buttons = Array.isArray(binding) ? binding : [binding];
+  return buttons.map(padLabel).join(' / ');
 }

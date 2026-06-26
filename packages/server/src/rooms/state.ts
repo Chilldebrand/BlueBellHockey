@@ -21,6 +21,9 @@ export class SkaterSchema extends Schema {
   @type('float32') staggeredUntil = 0;
   @type('float32') intangibleUntil = 0;
   @type('float32') penaltyUntil = 0; // WO-17 — boxed for a penalty
+  @type('float32') goalieSaveUntil = 0;
+  @type('string') goalieSaveType = 'none';
+  @type('int8') goalieSaveSide = 0;
   // Deke (WO-03): synced so the client can run the same carry-anchor math during
   // a dangle (otherwise local-carrier prediction would fight reconciliation).
   @type('float32') dekeUntil = 0;
@@ -42,6 +45,8 @@ export class PuckSchema extends Schema {
   @type('float32') pz = 0;
   @type('float32') vx = 0;
   @type('float32') vz = 0;
+  @type('float32') py = 0;
+  @type('float32') vy = 0;
   @type('string') carrier = '';
 }
 
@@ -101,6 +106,9 @@ export function syncState(state: MatchState, world: WorldState): void {
     row.staggeredUntil = s.status.staggeredUntil;
     row.intangibleUntil = s.status.intangibleUntil;
     row.penaltyUntil = s.status.penaltyUntil;
+    row.goalieSaveUntil = s.status.goalieSaveUntil;
+    row.goalieSaveType = s.status.goalieSaveType;
+    row.goalieSaveSide = s.status.goalieSaveSide;
     row.dekeUntil = s.status.dekeUntil;
     row.dekeDirX = s.status.dekeDirX;
     row.dekeDirZ = s.status.dekeDirZ;
@@ -121,6 +129,8 @@ export function syncState(state: MatchState, world: WorldState): void {
   state.puck.pz = world.puck.pos.z;
   state.puck.vx = world.puck.vel.x;
   state.puck.vz = world.puck.vel.z;
+  state.puck.py = world.puck.y;
+  state.puck.vy = world.puck.vy;
   state.puck.carrier = world.puck.carrier ?? '';
 
   // Ice pickups (WO-16): sync the live list into the keyed map (add/update/remove).

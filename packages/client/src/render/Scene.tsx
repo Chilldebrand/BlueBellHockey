@@ -1,17 +1,16 @@
 import { useEffect, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Environment, Lightformer } from '@react-three/drei';
+import { Environment, Html, Lightformer } from '@react-three/drei';
 import { EffectComposer, Bloom, Vignette, ToneMapping } from '@react-three/postprocessing';
 import { ToneMappingMode } from 'postprocessing';
 import * as THREE from 'three';
 import { useUi } from '../store.js';
 import { net } from '../net/client.js';
-import { RINK } from '@bbh/shared';
+import { getCharacter, RINK } from '@bbh/shared';
 import { inputManager } from '../input/inputState.js';
 import { sampleAt, INTERP_DELAY_MS } from '../game/interpolation.js';
-import { predictLocal, applyPrediction, predictCarriedPuck } from '../game/prediction.js';
+import { predictLocal, applyPrediction, predictCarriedPuck, type PredictedPose } from '../game/prediction.js';
 import { frameStore } from './frameStore.js';
-import { cameraShake, cameraPunch } from './fx.js';
 import { goalReplay } from './replay.js';
 import { sfx } from '../audio/sfx.js';
 import { Skater } from './Skater.js';
@@ -23,7 +22,15 @@ import { Pickups } from './Pickups.js';
 
 const SEND_INTERVAL = 1000 / 30;
 const GROUND = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-const shakeOffset = new THREE.Vector3();
+const CAMERA_BASE_DISTANCE_X = 46;
+const CAMERA_Y = 32;
+const CAMERA_FOLLOW_X = 0.88;
+const CAMERA_LOOKAHEAD_SECONDS = 0.28;
+const CAMERA_MAX_LOOKAHEAD_X = 5;
+const CAMERA_MAX_LOOK_X = RINK.goalLineX - 3;
+const OFFSCREEN_NDC_X = 0.94;
+const OFFSCREEN_NDC_Y = 0.9;
+const OFFSCREEN_EDGE_PAD = 38;
 
 // Crowd excitement from how close the puck is to a net (WO-11): 0 at center ice,
 // ramping to 1 right on the goal line.
@@ -35,8 +42,10 @@ function puckDanger(px: number): number {
 function Driver() {
   const { camera, pointer, raycaster } = useThree();
   const sendAccum = useRef(0);
-  const predicted = useRef<{ x: number; z: number; facing: number } | null>(null);
+  const predicted = useRef<PredictedPose | null>(null);
   const hit = useRef(new THREE.Vector3());
+  const lastPuckX = useRef(0);
+  const lookXRef = useRef(0);
 
   useFrame((_, dt) => {
     const ui = useUi.getState();
@@ -55,7 +64,7 @@ function Driver() {
       }
     }
 
-    const input = inputManager.gather();
+    const input = inputManager.gather({ hasPuck: !!myId && frameStore.carrier() === myId });
 
     // send input at a fixed rate
     sendAccum.current += dt * 1000;
@@ -92,28 +101,121 @@ function Driver() {
         if (puckPos) {
           frame.puck.x = puckPos.x;
           frame.puck.z = puckPos.z;
+          frame.puck.y = puckPos.y;
         }
       }
       frameStore.set(frame);
     }
 
-    // broadcast camera: side view that drifts with the puck, punches in on big
-    // moments (goals/ults), plus shake impulses.
-    const px = frameStore.puck().x;
-    sfx.setCrowdDanger(puckDanger(px));
-    const camX = THREE.MathUtils.clamp(px * 0.4, -12, 12);
-    const k = cameraPunch.sample(dt) * 0.7; // blend amount toward the punched-in framing
-    const L = THREE.MathUtils.lerp;
-    const tx = L(camX, cameraPunch.fx * 0.65, k);
-    const ty = L(24, 15, k);
-    const tz = L(-36, -23, k);
-    camera.position.lerp(new THREE.Vector3(tx, ty, tz), Math.min(1, dt * 3));
-    cameraShake.sample(dt, shakeOffset);
-    camera.position.add(shakeOffset);
-    camera.lookAt(L(camX, cameraPunch.fx * 0.85, k), 0, L(2, cameraPunch.fz, k));
+    // Broadcast-style follow camera: track play vertically toward either goal,
+    // add a small rush look-ahead, and keep side-to-side locked at center ice.
+    const puck = frameStore.puck();
+    sfx.setCrowdDanger(puckDanger(puck.x));
+    const vx = dt > 0 ? (puck.x - lastPuckX.current) / dt : 0;
+    lastPuckX.current = puck.x;
+    const lookAheadX = THREE.MathUtils.clamp(
+      vx * CAMERA_LOOKAHEAD_SECONDS,
+      -CAMERA_MAX_LOOKAHEAD_X,
+      CAMERA_MAX_LOOKAHEAD_X,
+    );
+    const targetLookX = THREE.MathUtils.clamp(
+      puck.x * CAMERA_FOLLOW_X + lookAheadX,
+      -CAMERA_MAX_LOOK_X,
+      CAMERA_MAX_LOOK_X,
+    );
+    lookXRef.current = THREE.MathUtils.lerp(
+      lookXRef.current,
+      targetLookX,
+      Math.min(1, dt * 2.8),
+    );
+    const lookX = lookXRef.current;
+    camera.position.lerp(
+      new THREE.Vector3(lookX - CAMERA_BASE_DISTANCE_X, CAMERA_Y, 0),
+      Math.min(1, dt * 3.2),
+    );
+    camera.lookAt(lookX, 0, 0);
   });
 
   return null;
+}
+
+function LocalSkaterIndicator() {
+  const { camera, size } = useThree();
+  const marker = useRef<HTMLDivElement>(null);
+  const arrow = useRef<HTMLDivElement>(null);
+  const projected = useRef(new THREE.Vector3());
+
+  useFrame(() => {
+    const el = marker.current;
+    const tri = arrow.current;
+    if (!el || !tri) return;
+
+    const ui = useUi.getState();
+    const myId = ui.mySkaterId;
+    const skater = myId ? frameStore.skater(myId) : undefined;
+    if (!myId || !skater || size.width <= 0 || size.height <= 0) {
+      el.style.display = 'none';
+      return;
+    }
+
+    projected.current.set(skater.x, 1.1, skater.z).project(camera);
+    const ndcX = projected.current.x;
+    const ndcY = projected.current.y;
+    const isVisible =
+      projected.current.z >= -1 &&
+      projected.current.z <= 1 &&
+      Math.abs(ndcX) <= OFFSCREEN_NDC_X &&
+      Math.abs(ndcY) <= OFFSCREEN_NDC_Y;
+
+    if (isVisible) {
+      el.style.display = 'none';
+      return;
+    }
+
+    const px = (ndcX * 0.5 + 0.5) * size.width;
+    const py = (-ndcY * 0.5 + 0.5) * size.height;
+    const x = THREE.MathUtils.clamp(px, OFFSCREEN_EDGE_PAD, size.width - OFFSCREEN_EDGE_PAD);
+    const y = THREE.MathUtils.clamp(py, OFFSCREEN_EDGE_PAD, size.height - OFFSCREEN_EDGE_PAD);
+    const angle = Math.atan2(py - size.height / 2, px - size.width / 2);
+    const roster = ui.roster.find((r) => r.id === myId);
+    const color = roster ? safeCharacterColor(roster.characterId, roster.team) : '#ffd23c';
+
+    el.style.display = 'block';
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+    tri.style.borderLeftColor = color;
+    tri.style.filter = `drop-shadow(0 0 8px ${color}) drop-shadow(0 2px 4px rgba(0,0,0,0.75))`;
+    tri.style.transform = `translate(-50%, -50%) rotate(${angle}rad)`;
+  });
+
+  return (
+    <Html fullscreen zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
+      <div
+        ref={marker}
+        style={{
+          position: 'absolute',
+          display: 'none',
+          width: 32,
+          height: 32,
+          pointerEvents: 'none',
+        }}
+      >
+        <div
+          ref={arrow}
+          style={{
+            position: 'absolute',
+            left: '50%',
+            top: '50%',
+            width: 0,
+            height: 0,
+            borderTop: '12px solid transparent',
+            borderBottom: '12px solid transparent',
+            borderLeft: '22px solid #ffd23c',
+          }}
+        />
+      </div>
+    </Html>
+  );
 }
 
 // Graphics-quality tiers (WO-13). Each scales the expensive levers: device pixel
@@ -155,7 +257,7 @@ export function Scene() {
       key={quality}
       shadows={q.shadows}
       dpr={q.dpr}
-      camera={{ position: [0, 24, -36], fov: 45 }}
+      camera={{ position: [-CAMERA_BASE_DISTANCE_X, CAMERA_Y, 0], fov: 45 }}
       gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
     >
       <color attach="background" args={['#0c121c']} />
@@ -202,6 +304,7 @@ export function Scene() {
       ))}
       <Vfx />
       <Driver />
+      <LocalSkaterIndicator />
 
       {/* Post-processing scales with quality (WO-13). 'low' drops the composer
           entirely (the Canvas's own ACES tone mapping then encodes output); 'lite'
@@ -224,4 +327,12 @@ export function Scene() {
       )}
     </Canvas>
   );
+}
+
+function safeCharacterColor(characterId: string, team: number): string {
+  try {
+    return getCharacter(characterId).jersey;
+  } catch {
+    return team === 0 ? '#3c6bff' : '#ff5a3c';
+  }
 }

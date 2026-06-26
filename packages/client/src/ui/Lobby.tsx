@@ -14,11 +14,12 @@ export function Lobby() {
   const [team, setTeam] = useState<TeamPref>(null);
   const [code, setCode] = useState('');
   const [gameMode, setGameMode] = useState<GameModeId>('regulation');
+  const [lockToCharacter, setLockToCharacter] = useState(false);
 
   const connecting = status === 'connecting';
   const go = (mode: 'quick' | 'create' | 'join') => {
     sfx.init();
-    net.connect({ mode, gameMode, code, team });
+    net.connect({ mode, gameMode, code, team, lockToCharacter });
   };
 
   return (
@@ -48,6 +49,16 @@ export function Lobby() {
       <div style={{ fontSize: 12, opacity: 0.55, marginTop: -6, maxWidth: 380, textAlign: 'center' }}>
         {GAME_MODES[gameMode].description}
       </div>
+
+      <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: '#c7d0ff' }}>
+        <input
+          type="checkbox"
+          checked={lockToCharacter}
+          onChange={(e) => setLockToCharacter(e.target.checked)}
+          style={{ width: 16, height: 16, accentColor: '#4f7cff' }}
+        />
+        Lock to selected skater
+      </label>
 
       {/* Team preference */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

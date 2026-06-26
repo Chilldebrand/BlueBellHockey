@@ -50,6 +50,15 @@ export interface SkaterStatus {
   // Penalty (WO-17): a late/away-from-the-puck check boxes the offender until this
   // time — they sit out off-ice and their team plays short-handed (power play).
   penaltyUntil: number;
+  // Goalie AI: sim-time when a goalie first covered/held the puck. -1 when unset.
+  goaliePossessionStart: number;
+  goalieTargetX: number;
+  goalieTargetZ: number;
+  goalieTargetUntil: number;
+  // Goalie save pose: synced to render a procedural save matched to shot height/side.
+  goalieSaveUntil: number;
+  goalieSaveType: 'none' | 'pad' | 'body' | 'glove';
+  goalieSaveSide: -1 | 0 | 1;
 }
 
 export interface SkaterState {
@@ -73,6 +82,8 @@ export interface SkaterState {
 export interface PuckState {
   pos: Vec2;
   vel: Vec2;
+  y: number;
+  vy: number;
   carrier: string | null;
   pickupCooldownUntil: number; // skater that just released can't instantly re-grab
   lastTouch: string | null; // for assist tracking
@@ -81,6 +92,8 @@ export interface PuckState {
   // consumed on a same-team pickup to award one "off the wall" style event.
   bankedBy: string | null;
   bankedAt: number;
+  mouthEntryTeam: Team | null;
+  mouthEntryValid: boolean;
 }
 
 export interface ActionFlags {
@@ -91,11 +104,15 @@ export interface ActionFlags {
   ult: boolean;
   deke: boolean;
   poke: boolean; // poke check: longer-reach jab that knocks the puck loose
+  sprint: boolean;
+  switchPlayer: boolean;
 }
 
 export interface InputState {
   move: Vec2; // components in [-1,1]
   aim: Vec2; // direction (need not be normalized)
+  shotPlacement?: number; // controller left-stick horizontal shot placement, -1..1
+  lowShot?: boolean; // intentional low release: keeps the puck on the ice
   actions: ActionFlags;
 }
 
@@ -177,6 +194,8 @@ export interface WorldState {
   pickupSeq: number; // monotonic id source for pickups
   /** cumulative per-skater box score (WO-09), keyed by skater id */
   stats: Record<string, PlayerStats>;
+  /** deterministic random source for authoritative sim rolls */
+  rng: () => number;
   /** one-shot events produced during the most recent step(); consumer reads then they reset */
   events: SimEvent[];
 }
@@ -204,6 +223,13 @@ export function emptyStatus(): SkaterStatus {
     pokeCooldownUntil: 0,
     oneTimerUntil: 0,
     penaltyUntil: 0,
+    goaliePossessionStart: -1,
+    goalieTargetX: 0,
+    goalieTargetZ: 0,
+    goalieTargetUntil: 0,
+    goalieSaveUntil: 0,
+    goalieSaveType: 'none',
+    goalieSaveSide: 0,
   };
 }
 
@@ -216,6 +242,8 @@ export function emptyActions(): ActionFlags {
     ult: false,
     deke: false,
     poke: false,
+    sprint: false,
+    switchPlayer: false,
   };
 }
 
