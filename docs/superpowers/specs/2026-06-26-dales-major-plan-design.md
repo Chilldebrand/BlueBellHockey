@@ -189,6 +189,38 @@ Right-stick shooting should support wrist shots and slap shots as separate actio
 - Stronger shots should affect both puck speed and lift chance.
 - Higher-power shots are more likely to rise, hit glass, hit posts or crossbar, or miss high.
 
+### Goalie Rework
+
+Goalies should look and behave like hockey goalies, not regular skaters parked in front of the net.
+
+Goalie visual identity should be distinct from skater archetypes.
+
+- Goalies should have recognizable hockey goalie pads.
+- Goalie gear should include leg pads, blocker, catching glove, chest/shoulder bulk, goalie stick, and mask/helmet.
+- Goalie gear should be separate from skater archetype gear.
+- Uniform color schemes may affect goalie jersey and pants when goalie uniforms include those pieces.
+- Goalie pads, glove, blocker, mask, and goalie stick should remain goalie-specific visual elements.
+
+Goalie movement should feel like hockey goalie movement.
+
+- When the puck is far or not dangerous, the goalie can stay mostly still in a ready stance.
+- Goalies should track puck angle without chasing every small puck jitter.
+- If the puck or puck carrier moves left or right near the net, the goalie should shift laterally to stay square.
+- If a player attacks from the left or right side, the goalie should move toward that side while staying inside the crease.
+- Goalies may challenge slightly forward when the puck is close.
+- Goalies should not chase into open ice.
+- Movement should read as shuffles, crease slides, and set positions rather than normal skater movement.
+
+Goalie saves should use readable hockey-style reactions.
+
+- Low shots trigger pad or butterfly saves where the goalie drops to the knees.
+- Mid-height shots can hit the body or chest and rebound.
+- High glove-side shots trigger glove saves or catches if the shot is slow and clean enough.
+- High blocker-side shots trigger blocker deflections.
+- Soft centered shots can be covered or frozen, then passed or cleared after a short hold.
+- Hard saves should create rebounds.
+- Save pose sync should support the visible save style so pad, glove, blocker, body, and cover outcomes read differently.
+
 ## Work Orders
 
 > For agentic workers: work through these in order. Use TDD for behavior changes. Keep each work order independently reviewable and commit after each work order passes its listed checks.
@@ -513,7 +545,178 @@ Right-stick shooting should support wrist shots and slap shots as separate actio
 - Drawback controls slap-shot power.
 - Stronger shots are faster and more likely to lift into posts, crossbar, glass, or high misses.
 
-### WO-09: Integration, Feel Tuning, and Full Verification
+### WO-09: Goalie Visual Gear
+
+**Goal:** Make goalies immediately recognizable with hockey goalie equipment.
+
+**Likely files:**
+
+- Modify: `packages/client/src/render/gear.ts`
+- Modify: `packages/client/src/render/CharacterModel.tsx`
+- Modify: `packages/client/src/render/Skater.tsx`
+- Test: `packages/client/src/render/goalieGear.test.ts`
+
+**Steps:**
+
+- [ ] Re-read `gear.ts`, `CharacterModel.tsx`, and `Skater.tsx`.
+- [ ] Add a goalie-specific gear attachment path when `isGoalie` is true.
+- [ ] Build procedural leg pads, blocker, catching glove, chest/shoulder bulk, goalie stick, and mask.
+- [ ] Keep normal skater gear for non-goalies.
+- [ ] Keep goalie pads, blocker, glove, mask, and goalie stick separate from jersey/pants uniform schemes.
+- [ ] Add render-data or unit tests proving goalie gear selection is driven by `isGoalie`.
+- [ ] Run `npm.cmd run test --workspace @bbh/client`.
+- [ ] Run `npm.cmd run typecheck`.
+- [ ] Manually verify goalies are visually recognizable in a local match.
+- [ ] Commit with a message like `Add goalie gear visuals`.
+
+**Acceptance:**
+
+- Goalies clearly look like hockey goalies.
+- Skaters keep skater gear.
+- Uniform scheme changes do not erase goalie-specific pads, blocker, glove, mask, or goalie stick.
+
+### WO-10: Goalie Crease Movement
+
+**Goal:** Make goalie AI move like a hockey goalie: calm when safe, lateral and square when danger rises.
+
+**Likely files:**
+
+- Modify: `packages/server/src/ai/goalie.ts`
+- Modify: `packages/server/src/ai/goalie.test.ts`
+
+**Steps:**
+
+- [ ] Re-read current goalie target caching, crease constraints, and auto-pass behavior.
+- [ ] Define goalie movement states in `goalie.ts`: idle ready stance, puck tracking, lateral slide, and close-puck challenge.
+- [ ] Keep existing anti-twitch target caching.
+- [ ] Write failing tests proving a far puck keeps the goalie mostly settled.
+- [ ] Write failing tests proving tiny puck jitter does not change the cached target.
+- [ ] Write failing tests proving a close left-side attack shifts the goalie left.
+- [ ] Write failing tests proving a close right-side attack shifts the goalie right.
+- [ ] Write failing tests proving the goalie stays inside crease limits and does not chase into open ice.
+- [ ] Implement lateral crease movement using puck angle and puck-carrier danger.
+- [ ] Preserve goalie cover and auto-pass behavior after holding the puck.
+- [ ] Run `npm.cmd run test --workspace @bbh/server -- goalie`.
+- [ ] Run `npm.cmd run typecheck`.
+- [ ] Commit with a message like `Rework goalie crease movement`.
+
+**Acceptance:**
+
+- Goalies stand calm when the puck is not dangerous.
+- Goalies shift laterally toward side attacks.
+- Goalies challenge slightly when the puck is close.
+- Goalies stay in the crease and avoid twitching.
+
+### WO-11: Goalie Save Type Rework
+
+**Goal:** Map shot height, side, speed, and danger to readable goalie save outcomes.
+
+**Likely files:**
+
+- Modify: `packages/shared/src/sim/puck.ts`
+- Modify: `packages/shared/src/sim/types.ts`
+- Modify: `packages/shared/src/sim/world.test.ts`
+- Modify: `packages/server/src/rooms/state.ts`
+- Modify: `packages/server/src/rooms/state.test.ts`
+- Modify: `packages/client/src/net/client.ts`
+- Modify: `packages/client/src/game/interpolation.ts`
+- Modify: `packages/client/src/game/interpolation.test.ts`
+
+**Steps:**
+
+- [ ] Re-read current goalie save code in `puck.ts` and save pose sync fields.
+- [ ] Extend save pose typing if needed so outcomes can represent `pad`, `body`, `glove`, `blocker`, and `cover`.
+- [ ] Write failing tests proving low shots produce pad or butterfly saves.
+- [ ] Write failing tests proving high glove-side shots produce glove saves.
+- [ ] Write failing tests proving high blocker-side shots produce blocker deflections.
+- [ ] Write failing tests proving mid-height shots can produce body/chest saves.
+- [ ] Write failing tests proving soft centered shots can be covered.
+- [ ] Write failing tests proving hard saves create rebounds.
+- [ ] Implement save outcome selection from puck height, lateral side, puck speed, and goalie position.
+- [ ] Sync the selected save pose through server state and client snapshots.
+- [ ] Preserve save events, save stat tallying, and rebound versus cover behavior.
+- [ ] Run `npm.cmd run test --workspace @bbh/shared -- goalie`.
+- [ ] Run `npm.cmd run test --workspace @bbh/server -- state`.
+- [ ] Run `npm.cmd run test --workspace @bbh/client -- interpolation`.
+- [ ] Run `npm.cmd run typecheck`.
+- [ ] Commit with a message like `Expand goalie save outcomes`.
+
+**Acceptance:**
+
+- Low shots read as pad/butterfly saves.
+- High glove-side shots read as glove saves.
+- Blocker-side shots deflect away.
+- Soft centered shots can be covered.
+- Hard saves rebound and count as saves.
+
+### WO-12: Goalie Save Animation and Poses
+
+**Goal:** Make goalie save outcomes visually distinct without requiring detailed bespoke animation assets.
+
+**Likely files:**
+
+- Modify: `packages/client/src/render/Skater.tsx`
+- Modify: `packages/client/src/render/CharacterModel.tsx`
+- Modify: `packages/client/src/render/clipMap.ts`
+- Test: `packages/client/src/game/interpolation.test.ts`
+
+**Steps:**
+
+- [ ] Re-read current goalie save tilt logic in `Skater.tsx` and animation selection in `CharacterModel.tsx`.
+- [ ] Add or refine a goalie ready stance for idle/tracking goalie state.
+- [ ] Add procedural butterfly or drop-to-knees pose for pad saves.
+- [ ] Add glove-side lean/reach pose for glove saves.
+- [ ] Add blocker-side lean/deflection pose for blocker saves.
+- [ ] Add body/chest save pose for mid-height body saves.
+- [ ] Add cover pose for soft puck covers.
+- [ ] Return the goalie to ready stance after `goalieSaveUntil` expires.
+- [ ] Keep non-goalie skater animations unaffected.
+- [ ] Run `npm.cmd run test --workspace @bbh/client`.
+- [ ] Run `npm.cmd run typecheck`.
+- [ ] Manually verify pad, glove, blocker, body, and cover saves are visually distinct.
+- [ ] Commit with a message like `Add goalie save poses`.
+
+**Acceptance:**
+
+- Goalie save visuals match save outcome type.
+- Pad, glove, blocker, body, and cover saves read differently.
+- Goalie returns to a ready stance after the save window.
+
+### WO-13: Goalie Tuning and Verification
+
+**Goal:** Tune goalie movement, save reach, cover behavior, and rebound behavior so goalies feel reactive but not overpowered.
+
+**Likely files:**
+
+- Modify: `packages/server/src/ai/goalie.ts`
+- Modify: `packages/shared/src/sim/puck.ts`
+- Modify: `packages/client/src/render/Skater.tsx`
+- Modify: `packages/client/src/render/gear.ts`
+- Modify: `docs/superpowers/specs/2026-06-26-dales-major-plan-design.md`
+
+**Steps:**
+
+- [ ] Re-read goalie movement, save outcome, and save pose work-order commits.
+- [ ] Tune lateral speed, settle radius, target hold, challenge depth, save reach, cover threshold, rebound strength, and save pose duration together.
+- [ ] Verify goalies are not overpowered against cross-crease plays.
+- [ ] Verify goalies are not useless against straight-on shots.
+- [ ] Verify goalies stay calm when the puck is far and react when danger rises.
+- [ ] Verify goalie gear remains readable with all selected uniform schemes.
+- [ ] Run `npm.cmd run test --workspace @bbh/shared`.
+- [ ] Run `npm.cmd run test --workspace @bbh/server`.
+- [ ] Run `npm.cmd run test --workspace @bbh/client`.
+- [ ] Run `npm.cmd run typecheck`.
+- [ ] Manually playtest a local match and inspect several low, high, side-angle, and hard shots.
+- [ ] Commit with a message like `Tune goalie rework`.
+
+**Acceptance:**
+
+- Goalies look like goalies.
+- Goalies move like crease-bound hockey goalies.
+- Save types are readable and appropriate to shot type.
+- Goalies feel fair: strong on reasonable saves, beatable on good plays.
+
+### WO-14: Integration, Feel Tuning, and Full Verification
 
 **Goal:** Tune all completed systems together so the game feels cohesive, then verify the full stack.
 
@@ -527,7 +730,9 @@ Right-stick shooting should support wrist shots and slap shots as separate actio
 - Modify: `packages/shared/src/sim/puck.ts`
 - Modify: `packages/shared/src/sim/skater.ts`
 - Modify: `packages/shared/src/sim/world.ts`
+- Modify: `packages/server/src/ai/goalie.ts`
 - Modify: `packages/client/src/render/Skater.tsx`
+- Modify: `packages/client/src/render/gear.ts`
 - Modify: `packages/client/src/render/Rink.tsx`
 - Modify: `packages/client/src/ui/Lobby.tsx`
 - Modify: `docs/superpowers/specs/2026-06-26-dales-major-plan-design.md`
@@ -549,6 +754,9 @@ Right-stick shooting should support wrist shots and slap shots as separate actio
 - [ ] Manual check: puck cannot pass through goal exterior.
 - [ ] Manual check: hits create knockdowns/pileups without penalties.
 - [ ] Manual check: pass and shot controls match this spec.
+- [ ] Manual check: goalies have pads and distinct goalie gear.
+- [ ] Manual check: goalies move laterally in the crease and stay calm when puck danger is low.
+- [ ] Manual check: goalie pad, glove, blocker, body, and cover saves read differently.
 - [ ] Commit final tuning with a message like `Tune Dale gameplay feel pass`.
 
 **Acceptance:**
@@ -571,6 +779,8 @@ Right-stick shooting should support wrist shots and slap shots as separate actio
 - Do not use team uniform colors as human-control ring colors.
 - Do not show control rings under AI or bot skaters.
 - Do not let uniform color schemes override archetype-specific sticks, gloves, helmets, visors, tape, pads, or accessories.
+- Do not make goalies chase into open ice.
+- Do not make goalie gear depend on skater archetype gear.
 - Do not commit gameplay code from this planning branch.
 
 ## Testing Strategy
@@ -622,6 +832,16 @@ Recommended regression coverage:
 - Wound-up skater glides along the initial windup direction.
 - Stronger shots increase speed and lift chance.
 - Taller glass collision catches lifted or missed shots.
+- Goalies render with leg pads, blocker, catching glove, chest bulk, goalie stick, and mask.
+- Far or low-danger pucks keep goalies mostly settled.
+- Close side attacks shift goalies laterally while staying in the crease.
+- Tiny puck jitter does not cause goalie twitching.
+- Low shots trigger pad or butterfly saves.
+- High glove-side shots trigger glove saves.
+- Blocker-side shots trigger blocker deflections.
+- Soft centered shots can be covered.
+- Hard saves create rebounds.
+- Save pose sync exposes the selected goalie save type to the client.
 
 ## Implementation Notes
 
@@ -638,6 +858,10 @@ Likely units to define or clarify during implementation:
 - Human-only control-ring rendering that follows the controlling session when skater control changes.
 - Lobby uniform scheme selection for Home and Away jerseys and pants.
 - Uniform rendering split between team-selected jersey/pants colors and archetype-owned gear/accessory details.
+- Goalie-specific visual gear: pads, blocker, catching glove, chest bulk, goalie stick, and mask.
+- Goalie AI movement states for idle ready stance, tracking, lateral slide, and close-puck challenge.
+- Goalie save outcome selection for pad, body, glove, blocker, and cover saves.
+- Goalie save pose syncing and procedural save rendering.
 - Arcade hit resolution: impact force, knockdown threshold, sliding distance, and style award tier.
 - Downed-player obstacle collision for trip, slowdown, bump, and redirect outcomes.
 - Removal or disabling of penalty-box and power-play flows while preserving normal hit consequences.
@@ -666,6 +890,8 @@ These values should be tuned during implementation and feel-testing:
 - Low-speed slowdown, bump, and redirect strength against downed players.
 - Control-ring thickness, opacity, pulse, and glow strength.
 - Home and Away uniform color palette and contrast rules.
+- Goalie lateral speed, settle radius, target hold time, and challenge depth.
+- Goalie save reach, cover threshold, rebound strength, and save pose duration.
 - Slap-shot windup timeout.
 - Shot lift probabilities by power.
 - Glass height and rebound energy.
