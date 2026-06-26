@@ -189,6 +189,375 @@ Right-stick shooting should support wrist shots and slap shots as separate actio
 - Stronger shots should affect both puck speed and lift chance.
 - Higher-power shots are more likely to rise, hit glass, hit posts or crossbar, or miss high.
 
+## Work Orders
+
+> For agentic workers: work through these in order. Use TDD for behavior changes. Keep each work order independently reviewable and commit after each work order passes its listed checks.
+
+### WO-01: Hockey Roster and Archetype Presentation
+
+**Goal:** Replace medieval-facing character identity with fictional hockey archetypes while preserving the 10-character roster and 38-point balance rule.
+
+**Likely files:**
+
+- Modify: `packages/shared/src/config/characters.ts`
+- Modify: `packages/shared/src/config/characters.test.ts`
+- Modify: `packages/client/src/ui/CharacterSelect.tsx`
+- Modify: `packages/client/src/render/CharacterModel.tsx`
+- Modify: `packages/client/src/render/gear.ts`
+- Modify: `packages/client/src/render/CharacterPreview.tsx`
+
+**Steps:**
+
+- [ ] Re-read `characters.ts`, `characters.test.ts`, `CharacterSelect.tsx`, `CharacterModel.tsx`, and `gear.ts`.
+- [ ] Write or update character tests so the roster still has exactly 10 characters, every build totals 38 points, every distribution remains unique, and every archetype has at least one clear strength and one clear weakness.
+- [ ] Replace character names/blurbs with fictional hockey archetypes: Sniper, Heavy Hitter, Deke Artist, Playmaker, Lockdown Defender, All-Around Star, Power Forward, Two-Way Pest, Slap Shot Cannon, and Wild Card Defender.
+- [ ] Keep real player names, real team names, logos, and direct likenesses out of code and UI copy.
+- [ ] Keep `hit` as both checking power and body strength/balance resistance.
+- [ ] Add or structure archetype visual metadata so hockey looks can vary by role without changing team uniform colors.
+- [ ] Preserve or update ultimate links deliberately so every character still references a valid unique ultimate.
+- [ ] Run `npm.cmd run test --workspace @bbh/shared`.
+- [ ] Run `npm.cmd run typecheck`.
+- [ ] Commit with a message like `Add hockey archetype roster`.
+
+**Acceptance:**
+
+- Character select reads like hockey archetypes, not medieval classes.
+- Roster balance tests pass.
+- No archetype is strictly better than another.
+- The game still supports exactly 10 selectable characters.
+
+### WO-02: Human Control Rings and Uniform Color Selection
+
+**Goal:** Separate human-controller identity rings from team uniform colors, and let players choose Home/Away jersey and pants schemes before match start.
+
+**Likely files:**
+
+- Modify: `packages/shared/src/net/messages.ts`
+- Modify: `packages/server/src/rooms/MatchRoom.ts`
+- Modify: `packages/server/src/rooms/state.ts`
+- Modify: `packages/server/src/rooms/state.test.ts`
+- Modify: `packages/client/src/store.ts`
+- Modify: `packages/client/src/net/client.ts`
+- Modify: `packages/client/src/ui/Lobby.tsx`
+- Modify: `packages/client/src/render/Skater.tsx`
+- Modify: `packages/client/src/render/gear.ts`
+- Test: `packages/client/src/render/playerIdentity.test.ts`
+
+**Steps:**
+
+- [ ] Re-read the lobby connect flow, Colyseus state schema, client snapshot parsing, and skater rendering.
+- [ ] Define player ring colors by human join order: P1 `#ff3030`, P2 `#2878ff`, P3 `#21d96b`, P4 `#ffd735`, P5 `#ff3bd4`, P6 `#26f0ff`.
+- [ ] Add server-owned human controller index metadata so the ring follows the human session, not the skater slot.
+- [ ] Sync the controller index to clients for human-controlled skaters; bots and goalies should expose no player ring identity.
+- [ ] Update skater rendering so AI/bot skaters render no control ring.
+- [ ] Update skater rendering so the human ring moves when a session switches controlled skaters.
+- [ ] Make the active human ring thicker, brighter, slightly larger, and more readable than the current local-only highlight; use a subtle pulse or glow.
+- [ ] Add Home and Away uniform scheme selection to the home/lobby flow before match start.
+- [ ] Define basic uniform schemes: black, red, blue, green, yellow, and white.
+- [ ] Store selected Home/Away uniform scheme IDs on the room and sync them to clients.
+- [ ] Apply uniform scheme colors only to jerseys and pants.
+- [ ] Keep sticks, gloves, helmets, visors, tape, pads, and accessories controlled by archetype visuals, not uniform schemes.
+- [ ] Prevent indistinguishable Home/Away uniform selections by blocking start or auto-adjusting Away to a contrasting fallback.
+- [ ] Run targeted server/client tests for room state and snapshot mapping.
+- [ ] Run `npm.cmd run test`.
+- [ ] Run `npm.cmd run typecheck`.
+- [ ] Commit with a message like `Add human rings and uniform schemes`.
+
+**Acceptance:**
+
+- P1-P6 rings use the configured join-order colors.
+- Bots have no ring.
+- Rings are not team colors.
+- Uniform colors affect jersey and pants only.
+- Human ring identity survives same-team multiplayer and skater switching.
+
+### WO-03: Net, Goal, and Glass Physics
+
+**Goal:** Make goals and glass behave physically and prevent puck/skater clipping or sticking around the net.
+
+**Likely files:**
+
+- Modify: `packages/shared/src/config/rink.ts`
+- Modify: `packages/shared/src/sim/physics.ts`
+- Modify: `packages/shared/src/sim/puck.ts`
+- Modify: `packages/shared/src/sim/world.ts`
+- Modify: `packages/shared/src/sim/world.test.ts`
+- Modify: `packages/client/src/render/Rink.tsx`
+- Modify: `packages/client/src/audio/sfx.ts`
+
+**Steps:**
+
+- [ ] Re-read current net collision helpers, puck step logic, goal detection, and rink rendering.
+- [ ] Write failing tests for skaters sliding around the goal frame, slowing on contact, and receiving a small escape bump only when wedged.
+- [ ] Implement skater-goal collision as slide-and-slow behavior instead of sticky collision.
+- [ ] Write failing tests for goal mouth scoring versus post, crossbar, side mesh, back mesh, and outside goal hits.
+- [ ] Implement strict scoring only through the front goal mouth.
+- [ ] Implement hard rebound responses for posts and crossbar.
+- [ ] Emit a post/crossbar impact event that `sfx.ts` can subscribe to for a metal ding sound.
+- [ ] Implement softer netting/mesh rebounds that return the puck to playable ice.
+- [ ] Add last-valid-position safety correction for puck clips through non-scoring goal geometry.
+- [ ] Keep valid goals dead in the net for 2 seconds before reset.
+- [ ] Increase glass height visually in `Rink.tsx`.
+- [ ] Add physical puck collision against taller glass for lifted/missed shots.
+- [ ] Wire the metal ding sound in `sfx.ts`.
+- [ ] Run `npm.cmd run test --workspace @bbh/shared`.
+- [ ] Run `npm.cmd run typecheck`.
+- [ ] Commit with a message like `Improve net and glass physics`.
+
+**Acceptance:**
+
+- Puck never passes through non-scoring goal parts.
+- Posts/crossbar rebound harder than netting and play a ding.
+- Netting rebounds softly and leaves the puck playable.
+- Skaters slide off goals instead of sticking.
+- Taller glass catches lifted/missed shots.
+
+### WO-04: Skating, Sprint, and Slap-Windup Glide
+
+**Goal:** Tune skating so base speed is slower, sprint is meaningful, and slap-shot windup locks the skater into a glide direction.
+
+**Likely files:**
+
+- Modify: `packages/shared/src/sim/skater.ts`
+- Modify: `packages/shared/src/sim/actions.ts`
+- Modify: `packages/shared/src/sim/world.ts`
+- Modify: `packages/shared/src/sim/world.test.ts`
+- Modify: `packages/client/src/game/prediction.ts`
+- Modify: `packages/client/src/game/prediction.test.ts`
+- Modify: `packages/client/src/input/gamepad.ts`
+
+**Steps:**
+
+- [ ] Re-read movement constants, sprint handling, shot charge handling, and client prediction.
+- [ ] Write failing tests proving base speed is moderately slower and sprint is above base but below the previous effective top speed.
+- [ ] Tune base speed and sprint multiplier.
+- [ ] Add sprint turning and puck-control precision penalty.
+- [ ] Update prediction tests so local movement matches shared movement.
+- [ ] Write failing tests for slap-shot windup glide: windup captures initial movement direction, steering is ignored while wound up, and neutral right stick cancels windup.
+- [ ] Implement windup glide direction state in shared sim.
+- [ ] Add windup timeout safety.
+- [ ] Ensure getting checked, stripped, disabled, or losing the puck cancels windup.
+- [ ] Run `npm.cmd run test --workspace @bbh/shared`.
+- [ ] Run `npm.cmd run test --workspace @bbh/client`.
+- [ ] Run `npm.cmd run typecheck`.
+- [ ] Commit with a message like `Tune sprint and slapshot glide`.
+
+**Acceptance:**
+
+- L3 sprint feels noticeably faster than base skating.
+- Sprint remains slightly below the prior max-speed feel.
+- Sprint has a control tradeoff.
+- Slap windup glides forward in the starting direction and can be canceled safely.
+
+### WO-05: Stick Reach, Poke Check, and Defensive Possession
+
+**Goal:** Make loose-puck pickup forgiving, keep passive reach from stealing possessed pucks, and make poke checking a readable defensive action.
+
+**Likely files:**
+
+- Modify: `packages/shared/src/sim/puck.ts`
+- Modify: `packages/shared/src/sim/actions.ts`
+- Modify: `packages/shared/src/sim/types.ts`
+- Modify: `packages/shared/src/sim/world.test.ts`
+- Modify: `packages/server/src/rooms/state.ts`
+- Modify: `packages/client/src/net/client.ts`
+- Modify: `packages/client/src/render/CharacterModel.tsx`
+- Modify: `packages/client/src/render/clipMap.ts`
+
+**Steps:**
+
+- [ ] Re-read loose puck pickup, carried puck logic, poke handling, and animation event wiring.
+- [ ] Write failing tests for loose-puck stick reach within typical range without direct overlap.
+- [ ] Implement forgiving auto-pickup only for loose pucks.
+- [ ] Write failing tests proving passive reach cannot steal from a puck carrier.
+- [ ] Keep possessed-puck takeaways limited to active defensive actions.
+- [ ] Write failing tests for poke check range, cooldown, whiff commitment, and knock-loose behavior.
+- [ ] Implement long-reach poke check as knock-loose, not auto-possession.
+- [ ] Add a small movement/turning penalty during poke and recovery.
+- [ ] Add or improve poke animation event state so the long reach is visible.
+- [ ] Run `npm.cmd run test --workspace @bbh/shared`.
+- [ ] Run `npm.cmd run typecheck`.
+- [ ] Commit with a message like `Improve stick reach and poke checks`.
+
+**Acceptance:**
+
+- Skaters collect nearby loose pucks without skating directly over them.
+- Passive reach never steals a possessed puck.
+- RB poke check is visible, has range/cooldown/recovery, and knocks the puck loose on success.
+
+### WO-06: Arcade Hits, No Penalties, Knockdowns, and Pileups
+
+**Goal:** Remove penalty-box hockey rules and replace them with arcade hit physics, sliding knockdowns, and downed-player pileups.
+
+**Likely files:**
+
+- Modify: `packages/shared/src/config/charge.ts`
+- Modify: `packages/shared/src/sim/actions.ts`
+- Modify: `packages/shared/src/sim/skater.ts`
+- Modify: `packages/shared/src/sim/types.ts`
+- Modify: `packages/shared/src/sim/world.ts`
+- Modify: `packages/shared/src/sim/world.test.ts`
+- Modify: `packages/server/src/rooms/state.ts`
+- Modify: `packages/client/src/net/client.ts`
+- Modify: `packages/client/src/store.ts`
+- Modify: `packages/client/src/ui/HUD.tsx`
+- Modify: `packages/client/src/ui/Callouts.tsx`
+- Modify: `packages/client/src/audio/sfx.ts`
+- Modify: `packages/client/src/render/CharacterModel.tsx`
+
+**Steps:**
+
+- [ ] Re-read penalty, power play, hit, stagger, style charge, and collision code.
+- [ ] Write failing tests proving away-from-puck hits do not emit `penalty`, do not set `penaltyUntil`, and do not move the hitter off ice.
+- [ ] Remove or disable penalty-box gameplay and power-play derivation from hits.
+- [ ] Remove penalty callouts and penalty sounds.
+- [ ] Keep hit, stagger, puck-loose, combo-break, and style consequences.
+- [ ] Split hit style rewards into puck-relevant hit value and very-low off-puck hit value.
+- [ ] Write failing tests for impact force using hitter `hit`, speed, approach angle, and contact alignment.
+- [ ] Write failing tests proving target `hit` resists knockdown and sliding.
+- [ ] Implement hard-hit knockdown and slide distance scaling.
+- [ ] Add downed/sliding state that lasts briefly before recovery.
+- [ ] Write failing tests for high-speed collision with downed players tripping the moving skater.
+- [ ] Write failing tests for low-speed collision with downed players slowing, bumping, or redirecting instead of tripping.
+- [ ] Make downed-player obstacle collisions affect teammates and opponents.
+- [ ] Update animation/render state so knockdowns read as players on the ice instead of only a small stagger.
+- [ ] Run `npm.cmd run test --workspace @bbh/shared`.
+- [ ] Run `npm.cmd run test --workspace @bbh/client`.
+- [ ] Run `npm.cmd run typecheck`.
+- [ ] Commit with a message like `Add arcade knockdown contact`.
+
+**Acceptance:**
+
+- No penalties or power plays exist from hits.
+- All hits are legal.
+- Puck-relevant hits are worth much more style than off-puck hits.
+- Hard hits knock players down and slide them.
+- Downed players can trip or slow later skaters based on speed.
+
+### WO-07: Passing Direction, Lane Assist, and Pass Charge
+
+**Goal:** Make passing use left-stick direction, target teammates only when the lane is reasonable, and support smooth 0.5-second pass power charging.
+
+**Likely files:**
+
+- Modify: `packages/shared/src/sim/actions.ts`
+- Modify: `packages/shared/src/sim/types.ts`
+- Modify: `packages/shared/src/sim/world.ts`
+- Modify: `packages/shared/src/sim/world.test.ts`
+- Modify: `packages/client/src/input/inputState.ts`
+- Modify: `packages/client/src/input/gamepad.ts`
+- Modify: `packages/client/src/net/client.ts`
+- Modify: `packages/client/src/game/prediction.ts`
+
+**Steps:**
+
+- [ ] Re-read current pass target selection and input edge handling.
+- [ ] Write failing tests for pass direction following left-stick aim.
+- [ ] Write failing tests for teammate assist only when a teammate is in the aimed cone and the lane is reasonable.
+- [ ] Write failing tests for open-ice pass when no reasonable teammate target exists.
+- [ ] Add pass-charge start and release state.
+- [ ] Write failing tests for smooth pass power ramp from soft to strong over 0.5 seconds.
+- [ ] Implement pass charge cap at 0.5 seconds.
+- [ ] Preserve existing assist/last-touch/one-timer behavior where compatible.
+- [ ] Update client input handling so tap pass and held pass are distinguishable.
+- [ ] Run `npm.cmd run test --workspace @bbh/shared`.
+- [ ] Run `npm.cmd run test --workspace @bbh/client`.
+- [ ] Run `npm.cmd run typecheck`.
+- [ ] Commit with a message like `Add aimed charged passing`.
+
+**Acceptance:**
+
+- Left stick controls pass direction.
+- Good teammate lanes receive assist.
+- Bad or absent lanes pass into open ice.
+- Tap pass is soft and 0.5-second hold reaches max pass power.
+
+### WO-08: Right-Stick Wrist Shots and Slap Shots
+
+**Goal:** Split shooting into quick flick-up wrist shots and pull-back-then-flick-up slap shots with drawback-based power and lift chance.
+
+**Likely files:**
+
+- Modify: `packages/shared/src/sim/actions.ts`
+- Modify: `packages/shared/src/sim/types.ts`
+- Modify: `packages/shared/src/sim/world.ts`
+- Modify: `packages/shared/src/sim/world.test.ts`
+- Modify: `packages/client/src/input/gamepad.ts`
+- Modify: `packages/client/src/input/inputState.ts`
+- Modify: `packages/client/src/render/CharacterModel.tsx`
+- Modify: `packages/client/src/render/clipMap.ts`
+- Modify: `packages/client/src/render/Skater.tsx`
+
+**Steps:**
+
+- [ ] Re-read current right-stick and shot-charge behavior.
+- [ ] Write failing tests for flick-up right stick firing a wrist shot.
+- [ ] Write failing tests for pull-back starting slap windup without firing.
+- [ ] Write failing tests for flick-up after pull-back firing a slap shot.
+- [ ] Write failing tests for drawback distance mapping to shot power.
+- [ ] Write failing tests proving stronger shots increase speed and lift chance.
+- [ ] Implement wrist-shot and slap-shot input state machine.
+- [ ] Wire wrist-shot animation as a quick release.
+- [ ] Wire slap-shot windup and release animation.
+- [ ] Ensure neutral right stick cancels windup and timeout safety clears stale windup.
+- [ ] Run `npm.cmd run test --workspace @bbh/shared`.
+- [ ] Run `npm.cmd run test --workspace @bbh/client`.
+- [ ] Run `npm.cmd run typecheck`.
+- [ ] Commit with a message like `Split wrist and slap shots`.
+
+**Acceptance:**
+
+- Flick up shoots a quick wrist shot.
+- Pull back only winds up.
+- Flick up after windup fires a slap shot.
+- Drawback controls slap-shot power.
+- Stronger shots are faster and more likely to lift into posts, crossbar, glass, or high misses.
+
+### WO-09: Integration, Feel Tuning, and Full Verification
+
+**Goal:** Tune all completed systems together so the game feels cohesive, then verify the full stack.
+
+**Likely files:**
+
+- Modify: `packages/shared/src/config/characters.ts`
+- Modify: `packages/shared/src/config/charge.ts`
+- Modify: `packages/shared/src/config/rink.ts`
+- Modify: `packages/shared/src/sim/actions.ts`
+- Modify: `packages/shared/src/sim/physics.ts`
+- Modify: `packages/shared/src/sim/puck.ts`
+- Modify: `packages/shared/src/sim/skater.ts`
+- Modify: `packages/shared/src/sim/world.ts`
+- Modify: `packages/client/src/render/Skater.tsx`
+- Modify: `packages/client/src/render/Rink.tsx`
+- Modify: `packages/client/src/ui/Lobby.tsx`
+- Modify: `docs/superpowers/specs/2026-06-26-dales-major-plan-design.md`
+
+**Steps:**
+
+- [ ] Re-read all completed work-order commits and the full spec.
+- [ ] Tune skating speed, sprint tradeoff, pickup radius, poke range, hit force, slide friction, pass cone, pass power, shot lift, glass height, and ring readability together.
+- [ ] Remove obsolete penalty/power-play references from UI, comments, README sections, and docs touched by this feature set.
+- [ ] Confirm generated or procedural hockey gear remains readable on all archetypes.
+- [ ] Run `npm.cmd run test`.
+- [ ] Run `npm.cmd run typecheck`.
+- [ ] Start the local dev stack with `npm.cmd run dev`.
+- [ ] Manually verify a local match at `http://localhost:5173/`.
+- [ ] Manually verify the server monitor at `http://localhost:2567/colyseus`.
+- [ ] Manual check: six human ring colors are distinguishable on ice.
+- [ ] Manual check: bots have no ring.
+- [ ] Manual check: uniforms affect jersey/pants only.
+- [ ] Manual check: puck cannot pass through goal exterior.
+- [ ] Manual check: hits create knockdowns/pileups without penalties.
+- [ ] Manual check: pass and shot controls match this spec.
+- [ ] Commit final tuning with a message like `Tune Dale gameplay feel pass`.
+
+**Acceptance:**
+
+- Full tests and typecheck pass.
+- The gameplay pass can be explained through the work orders above.
+- The game still runs locally.
+- The plan file remains accurate after implementation.
+
 ## Non-Goals
 
 - Do not rewrite the entire physics engine.
