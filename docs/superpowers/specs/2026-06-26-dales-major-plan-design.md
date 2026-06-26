@@ -44,6 +44,37 @@ The target fictional roster is:
 - Slap Shot Cannon: big windup, huge shot, and high glass/post danger.
 - Wild Card Defender: awkward, chaotic, high-effort blocks and loose-puck disruption.
 
+### Human Control Rings and Uniform Color Selection
+
+Human-control rings and team uniform colors are separate visual systems.
+
+Control rings should identify human controllers only.
+
+- Rings are only for human-controlled skaters.
+- AI and bot skaters should have no control ring.
+- Ring color is assigned by human join order, not team, jersey, archetype, or skater slot.
+- Player 1 uses red: `#ff3030`.
+- Player 2 uses blue: `#2878ff`.
+- Player 3 uses green: `#21d96b`.
+- Player 4 uses yellow: `#ffd735`.
+- Player 5 uses magenta: `#ff3bd4`.
+- Player 6 uses cyan: `#26f0ff`.
+- If a human switches controlled skaters, that human's ring moves to the newly controlled skater.
+- Multiple humans on the same team should keep distinct ring colors.
+- The active controlled-skater ring should be thicker, brighter, slightly larger, and easier to notice than the current highlight.
+- Use subtle glow, bloom, or pulse if needed so the ring remains readable during crowded plays.
+
+Uniform color selection should happen before starting a game.
+
+- Add Home and Away uniform color scheme selection to the home or lobby flow before match start.
+- Uniform schemes affect only jerseys and pants.
+- Uniform schemes do not determine control-ring colors.
+- Uniform schemes should not override archetype-specific gear details.
+- Archetype-specific visuals can control sticks, gloves, helmets, visors, tape, pads, and accessories.
+- A Heavy Hitter archetype may have no helmet if that look is chosen later.
+- Suggested basic uniform schemes are black, red, blue, green, yellow, and white.
+- The game should prevent both teams from starting with indistinguishable uniform colors, either by blocking start or by auto-adjusting Away to a contrasting fallback.
+
 ### Net and Rink Physics
 
 Skaters should no longer get stuck on the goal frame.
@@ -168,6 +199,9 @@ Right-stick shooting should support wrist shots and slap shots as separate actio
 - Do not use real hockey player names, team logos, or direct player likenesses for the fictional roster.
 - Do not add a separate strength stat unless the five-stat model is intentionally redesigned later.
 - Do not add penalties, power plays, or forced penalty-box states.
+- Do not use team uniform colors as human-control ring colors.
+- Do not show control rings under AI or bot skaters.
+- Do not let uniform color schemes override archetype-specific sticks, gloves, helmets, visors, tape, pads, or accessories.
 - Do not commit gameplay code from this planning branch.
 
 ## Testing Strategy
@@ -200,6 +234,14 @@ Recommended regression coverage:
 - High-speed collision with a downed player trips the moving skater.
 - Low-speed collision with a downed player slows or redirects without tripping.
 - Downed-player pileup collisions affect teammates and opponents.
+- Human Player 1 through Player 6 control rings render with the configured join-order colors.
+- AI and bot skaters render with no control ring.
+- A human control ring moves when that human switches controlled skaters.
+- Multiple humans on the same team keep distinct control rings.
+- Team uniform schemes affect jerseys and pants only.
+- Uniform scheme changes do not change human-control ring colors.
+- Archetype-specific sticks, gloves, helmets, visors, tape, pads, and accessories remain controlled by archetype visuals.
+- Home and Away cannot start with indistinguishable uniform colors.
 - Pass direction follows left-stick aim.
 - Pass targeting chooses a teammate only when the aimed cone and lane are reasonable.
 - Pass into open ice works when no reasonable teammate target exists.
@@ -223,6 +265,10 @@ Likely units to define or clarify during implementation:
 - Loose-puck stick reach and possession eligibility.
 - Poke-check state, animation window, hit window, cooldown, and recovery penalty.
 - Fictional hockey archetype roster definitions, outfit direction, and balanced stat distributions.
+- Human controller identity mapping for Player 1 through Player 6 ring colors.
+- Human-only control-ring rendering that follows the controlling session when skater control changes.
+- Lobby uniform scheme selection for Home and Away jerseys and pants.
+- Uniform rendering split between team-selected jersey/pants colors and archetype-owned gear/accessory details.
 - Arcade hit resolution: impact force, knockdown threshold, sliding distance, and style award tier.
 - Downed-player obstacle collision for trip, slowdown, bump, and redirect outcomes.
 - Removal or disabling of penalty-box and power-play flows while preserving normal hit consequences.
@@ -249,6 +295,8 @@ These values should be tuned during implementation and feel-testing:
 - Sliding friction and maximum slide distance for downed players.
 - Speed threshold for tripping over a downed or sliding player.
 - Low-speed slowdown, bump, and redirect strength against downed players.
+- Control-ring thickness, opacity, pulse, and glow strength.
+- Home and Away uniform color palette and contrast rules.
 - Slap-shot windup timeout.
 - Shot lift probabilities by power.
 - Glass height and rebound energy.
