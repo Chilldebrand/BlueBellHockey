@@ -23,12 +23,14 @@ export function CharacterModel({
   team,
   visuals,
   uniform,
+  isGoalie = false,
 }: {
   id: string;
   glb: string;
   team: number;
   visuals?: CharacterVisuals;
   uniform?: UniformScheme;
+  isGoalie?: boolean;
 }) {
   const { scene, animations } = useGLTF('/' + glb);
 
@@ -50,9 +52,9 @@ export function CharacterModel({
       };
       mesh.material = Array.isArray(src) ? src.map(tint) : tint(src);
     });
-    attachGear(clone, team, visuals);
+    attachGear(clone, team, visuals, isGoalie);
     return clone;
-  }, [scene, team, visuals, uniform]);
+  }, [scene, team, visuals, uniform, isGoalie]);
 
   const clipNames = useMemo(() => animations.map((a) => a.name), [animations]);
   const mixer = useMemo(() => new THREE.AnimationMixer(model), [model]);

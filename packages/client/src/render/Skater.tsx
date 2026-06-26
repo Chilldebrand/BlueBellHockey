@@ -12,6 +12,7 @@ export function Skater({
   id,
   team,
   characterId,
+  isGoalie,
   isLocal,
   controllerIndex,
   uniformId,
@@ -19,6 +20,7 @@ export function Skater({
   id: string;
   team: number;
   characterId: string;
+  isGoalie: boolean;
   isLocal: boolean;
   controllerIndex: number;
   uniformId: UniformSchemeId;
@@ -137,7 +139,7 @@ export function Skater({
       <group ref={tilt}>
         <Suspense fallback={<ProceduralBody jersey={jersey} trim={trim} />}>
           <ModelBoundary fallback={<ProceduralBody jersey={jersey} trim={trim} />}>
-            <CharacterModel id={id} glb={glb} team={team} visuals={char?.visuals} uniform={uniform} />
+            <CharacterModel id={id} glb={glb} team={team} visuals={char?.visuals} uniform={uniform} isGoalie={isGoalie} />
           </ModelBoundary>
         </Suspense>
       </group>

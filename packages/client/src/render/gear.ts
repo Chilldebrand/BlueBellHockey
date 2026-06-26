@@ -169,8 +169,89 @@ export function attachAccessory(root: THREE.Object3D, visuals: CharacterVisuals 
   (bone ?? root).add(buildAccessory(visuals));
 }
 
+function buildGoalieStick(): THREE.Group {
+  const stick = buildStick(DEFAULT_VISUALS);
+  stick.name = 'goalie-stick';
+  stick.scale.set(1.18, 1.08, 1.28);
+  return stick;
+}
+
+function buildGoalieLegPad(side: 'l' | 'r'): THREE.Group {
+  const g = new THREE.Group();
+  g.name = `goalie-leg-pad-${side}`;
+  const padMat = new THREE.MeshStandardMaterial({ color: '#f4f0dc', roughness: 0.7 });
+  const stripeMat = new THREE.MeshStandardMaterial({ color: side === 'l' ? TEAM_GEAR[0] : TEAM_GEAR[1], roughness: 0.65 });
+  const pad = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.34, 0.1), padMat);
+  pad.position.set(0, 0.1, 0.08);
+  pad.castShadow = true;
+  g.add(pad);
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.32, 0.105), stripeMat);
+  stripe.position.set(0.04, 0.1, 0.135);
+  stripe.castShadow = true;
+  g.add(stripe);
+  return g;
+}
+
+function buildGoalieBlocker(): THREE.Group {
+  const g = new THREE.Group();
+  g.name = 'goalie-blocker';
+  const mat = new THREE.MeshStandardMaterial({ color: '#f4f0dc', roughness: 0.65 });
+  const board = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.2, 0.12), mat);
+  board.castShadow = true;
+  g.add(board);
+  return g;
+}
+
+function buildGoalieCatcher(): THREE.Group {
+  const g = new THREE.Group();
+  g.name = 'goalie-catcher';
+  const mat = new THREE.MeshStandardMaterial({ color: '#f4f0dc', roughness: 0.68 });
+  const palm = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 8), mat);
+  palm.scale.set(1.15, 0.8, 0.55);
+  palm.castShadow = true;
+  g.add(palm);
+  return g;
+}
+
+function buildGoalieChest(): THREE.Group {
+  const g = new THREE.Group();
+  g.name = 'goalie-chest';
+  const mat = new THREE.MeshStandardMaterial({ color: '#20242c', roughness: 0.7 });
+  const bulk = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.34, 0.16), mat);
+  bulk.position.set(0, 0.08, 0.1);
+  bulk.castShadow = true;
+  g.add(bulk);
+  return g;
+}
+
+function buildGoalieMask(): THREE.Group {
+  const mask = buildHelmet(DEFAULT_VISUALS);
+  mask.name = 'goalie-mask';
+  mask.scale.set(1.08, 1.08, 1.16);
+  return mask;
+}
+
+export function attachGoalieGear(root: THREE.Object3D): void {
+  (findBone(root, STICK_BONE) ?? root).add(buildGoalieStick());
+  findBone(root, ['lowerleg.l'])?.add(buildGoalieLegPad('l'));
+  findBone(root, ['lowerleg.r'])?.add(buildGoalieLegPad('r'));
+  findBone(root, ['hand.r'])?.add(buildGoalieBlocker());
+  findBone(root, ['hand.l'])?.add(buildGoalieCatcher());
+  (findBone(root, ['spine', 'chest']) ?? root).add(buildGoalieChest());
+  findBone(root, ['head'])?.add(buildGoalieMask());
+}
+
 /** Attach the full kit. */
-export function attachGear(root: THREE.Object3D, team: number, visuals: CharacterVisuals = DEFAULT_VISUALS): void {
+export function attachGear(
+  root: THREE.Object3D,
+  team: number,
+  visuals: CharacterVisuals = DEFAULT_VISUALS,
+  isGoalie = false,
+): void {
+  if (isGoalie) {
+    attachGoalieGear(root);
+    return;
+  }
   attachStick(root, visuals);
   attachGloves(root, team, visuals);
   attachSocks(root, team);

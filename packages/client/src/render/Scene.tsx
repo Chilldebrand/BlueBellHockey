@@ -307,6 +307,7 @@ export function Scene() {
           id={r.id}
           team={r.team}
           characterId={r.characterId}
+          isGoalie={r.isGoalie}
           isLocal={r.id === myId}
           controllerIndex={r.controllerIndex}
           uniformId={r.team === 0 ? homeUniform : awayUniform}

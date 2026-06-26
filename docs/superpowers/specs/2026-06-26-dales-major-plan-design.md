@@ -559,14 +559,14 @@ Goalie saves should use readable hockey-style reactions.
 
 **Steps:**
 
-- [ ] Re-read `gear.ts`, `CharacterModel.tsx`, and `Skater.tsx`.
-- [ ] Add a goalie-specific gear attachment path when `isGoalie` is true.
-- [ ] Build procedural leg pads, blocker, catching glove, chest/shoulder bulk, goalie stick, and mask.
-- [ ] Keep normal skater gear for non-goalies.
-- [ ] Keep goalie pads, blocker, glove, mask, and goalie stick separate from jersey/pants uniform schemes.
-- [ ] Add render-data or unit tests proving goalie gear selection is driven by `isGoalie`.
-- [ ] Run `npm.cmd run test --workspace @bbh/client`.
-- [ ] Run `npm.cmd run typecheck`.
+- [x] Re-read `gear.ts`, `CharacterModel.tsx`, and `Skater.tsx`.
+- [x] Add a goalie-specific gear attachment path when `isGoalie` is true.
+- [x] Build procedural leg pads, blocker, catching glove, chest/shoulder bulk, goalie stick, and mask.
+- [x] Keep normal skater gear for non-goalies.
+- [x] Keep goalie pads, blocker, glove, mask, and goalie stick separate from jersey/pants uniform schemes.
+- [x] Add render-data or unit tests proving goalie gear selection is driven by `isGoalie`.
+- [x] Run `npm.cmd run test --workspace @bbh/client`.
+- [x] Run `npm.cmd run typecheck`.
 - [ ] Manually verify goalies are visually recognizable in a local match.
 - [ ] Commit with a message like `Add goalie gear visuals`.
 
