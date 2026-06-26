@@ -20,8 +20,6 @@ const POKE_LOOSE_SPEED = 9; // how hard the puck pops free
 // Penalty (WO-17): a check on a skater who isn't the carrier and is away from the
 // puck is interference / a late hit — the offender is boxed and their team plays a
 // man down for a brief power play.
-const PENALTY_MS = 6000;
-const PENALTY_PUCK_DIST = 4.5; // target must be this far from the puck to be a foul
 // Deke / trick (WO-03)
 const DEKE_RANGE = SKATER_RADIUS * 2 + 1.0; // 2.1 — reach to break a defender's ankles
 const DEKE_COOLDOWN_MS = 650; // prevents mashing the trick every frame
@@ -230,8 +228,6 @@ export function doHit(world: WorldState, s: SkaterState, input: InputState): voi
   // puck is interference. Freight Train (checkingUntil) is exempt — flattening
   // everyone is the whole point of that ultimate.
   const targetHadPuck = world.puck.carrier === target.id;
-  const puckFar = v.dist(world.puck.pos, target.pos) > PENALTY_PUCK_DIST;
-  const isFoul = !targetHadPuck && puckFar && s.status.checkingUntil <= world.time;
 
   target.status.staggeredUntil = world.time + 700 + hit * 60;
   const knock = v.scale(v.norm(v.sub(target.pos, s.pos)), 6 + hit * 0.9);
@@ -244,11 +240,10 @@ export function doHit(world: WorldState, s: SkaterState, input: InputState): voi
   breakCombo(target); // the checked skater loses their chain
   emit(world, { type: 'hit', by: s.id, target: target.id });
 
-  if (isFoul) {
+  if (false) {
     // box the offender → their team is short-handed (power play for the other side)
-    s.status.penaltyUntil = world.time + PENALTY_MS;
+    s.status.penaltyUntil = 0;
     breakCombo(s);
-    emit(world, { type: 'penalty', on: s.id, team: s.team });
   } else {
     awardStyle(s, 'hit', world.time); // a clean check is still style
   }

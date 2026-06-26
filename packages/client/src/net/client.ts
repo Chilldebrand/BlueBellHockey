@@ -69,7 +69,6 @@ type GameEvent =
   | 'one_timer'
   | 'save'
   | 'pickup'
-  | 'penalty'
   | 'deke'
   | 'poke'
   | 'ankle_break'
@@ -97,7 +96,6 @@ class NetClient {
   private rosterSig = '';
   private statsSig = '';
   private pickupsSig = '';
-  private powerPlaySig = '';
 
   async connect(opts: ConnectOpts = {}): Promise<void> {
     const connMode = opts.mode ?? 'quick';
@@ -151,7 +149,6 @@ class NetClient {
       room.onMessage('one_timer', (e: any) => this.events.emit('one_timer', e));
       room.onMessage('save', (e: any) => this.events.emit('save', e));
       room.onMessage('pickup', (e: any) => this.events.emit('pickup', e));
-      room.onMessage('penalty', (e: any) => this.events.emit('penalty', e));
       room.onMessage('deke', (e: any) => this.events.emit('deke', e));
       room.onMessage('poke', (e: any) => this.events.emit('poke', e));
       room.onMessage('ankle_break', (e: any) => this.events.emit('ankle_break', e));
@@ -265,25 +262,6 @@ class NetClient {
     if (pickupsSig !== this.pickupsSig) {
       this.pickupsSig = pickupsSig;
       ui.set({ pickups });
-    }
-
-    // power play (WO-17): derive the man advantage from synced penalties
-    const serverT = state.time;
-    let pen0 = 0;
-    let pen1 = 0;
-    let ppUntil = 0;
-    state.skaters.forEach((s: any) => {
-      if (s.penaltyUntil > serverT) {
-        if (s.team === 0) pen0 += 1;
-        else pen1 += 1;
-        ppUntil = Math.max(ppUntil, s.penaltyUntil);
-      }
-    });
-    const powerPlay = pen0 === pen1 ? null : { team: pen0 > pen1 ? 1 : 0, until: ppUntil };
-    const ppSig = powerPlay ? `${powerPlay.team}:${powerPlay.until}` : '';
-    if (ppSig !== this.powerPlaySig) {
-      this.powerPlaySig = ppSig;
-      ui.set({ powerPlay });
     }
 
     ui.set({

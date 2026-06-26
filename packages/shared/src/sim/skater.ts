@@ -12,8 +12,7 @@ export function effectiveAttr(s: SkaterState, key: AttributeKey): number {
 export function isDisabled(s: SkaterState, time: number): boolean {
   return (
     s.status.frozenUntil > time ||
-    s.status.staggeredUntil > time ||
-    s.status.penaltyUntil > time // boxed for a penalty (WO-17)
+    s.status.staggeredUntil > time
   );
 }
 
@@ -55,17 +54,6 @@ export function stepSkater(
   input: InputState,
   dt: number,
 ): void {
-  // Penalty box (WO-17): held off-ice and inert until the penalty clears.
-  if (s.status.penaltyUntil > world.time) {
-    const box = penaltyBoxPos(s.team);
-    s.pos.x = box.x;
-    s.pos.z = box.z;
-    s.vel.x = 0;
-    s.vel.z = 0;
-    s.facing = s.team === 0 ? Math.PI / 2 : -Math.PI / 2; // face the ice
-    return;
-  }
-
   const carrying = world.puck.carrier === s.id;
   const disabled = isDisabled(s, world.time);
 

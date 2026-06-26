@@ -16,7 +16,6 @@ export function HUD() {
       <FlashOverlay />
       <ReplayOverlay />
       <Scoreboard />
-      <PowerPlayBanner />
       <UltMeter />
       <Callouts />
       <GoalBanner />

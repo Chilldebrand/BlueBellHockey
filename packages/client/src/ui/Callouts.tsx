@@ -8,9 +8,8 @@ interface Callout {
   key: number;
 }
 
-// Reactive EA-BIG-style callouts for the WO-02/03/04 events. A single transient
-// slot (so they never stack/leak) flashed near the top, biased away from center
-// so it doesn't cover the puck. Gamebreaker/goal keep the big center banner.
+// Reactive EA-BIG-style callouts for style events. A single transient slot keeps
+// messages from stacking over active play.
 export function Callouts() {
   const [msg, setMsg] = useState<Callout | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -30,25 +29,20 @@ export function Callouts() {
       net.events.on('one_timer', () => show('ONE-TIMER!', '#ff6fae')),
       net.events.on('save', () => show('SAVE!', '#7fe0ff')),
       net.events.on('pickup', (e: { by: string; kind: string }) => {
-        if (e.by !== useUi.getState().mySkaterId) return; // only call out my own grabs
-        if (e.kind === 'charge') show('⚡ CHARGED!', '#ffd23c');
-        else show('💨 SPEED BOOST!', '#27ff7a');
-      }),
-      net.events.on('penalty', (e: { team: number }) => {
-        // the boxed team is `e.team`; the other side gets the power play
-        show(e.team === 0 ? 'PENALTY — AWAY POWER PLAY!' : 'PENALTY — HOME POWER PLAY!', '#ff8c19');
+        if (e.by !== useUi.getState().mySkaterId) return;
+        if (e.kind === 'charge') show('CHARGED!', '#ffd23c');
+        else show('SPEED BOOST!', '#27ff7a');
       }),
       net.events.on('shot', (e: { charge?: number }) => {
-        if ((e.charge ?? 0) > 0.85) show('SLAPPER!', '#7fc4ff'); // only a full wind-up
+        if ((e.charge ?? 0) > 0.85) show('SLAPPER!', '#7fc4ff');
       }),
     ];
-    // milestones off my own chain (every 2 links from x3)
     let lastMilestone = 0;
     const unsub = useUi.subscribe((st) => {
       const c = st.myCombo;
       if (c >= 3 && c >= lastMilestone + 2) {
         lastMilestone = c;
-        show(`${c}× COMBO 🔥`, '#ff8c19');
+        show(`${c}x COMBO`, '#ff8c19');
       }
       if (c === 0) lastMilestone = 1;
     });
@@ -86,8 +80,6 @@ export function Callouts() {
   );
 }
 
-// Persistent "GAMEBREAKER READY" indicator: shows while the meter is full and
-// clears the moment it's spent (ult active or charge dropped).
 function GamebreakerReady() {
   const ready = useUi((s) => s.myUltCharge >= 1);
   const active = useUi((s) => s.myUltActiveUntil > s.serverTime);
@@ -111,7 +103,7 @@ function GamebreakerReady() {
         animation: 'bbhGbReady 0.9s ease-in-out infinite',
       }}
     >
-      ⚡ GAMEBREAKER READY
+      GAMEBREAKER READY
       <style>{`@keyframes bbhGbReady{0%,100%{opacity:1}50%{opacity:0.45}}`}</style>
     </div>
   );
