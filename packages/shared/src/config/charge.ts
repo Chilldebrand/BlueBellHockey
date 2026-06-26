@@ -30,6 +30,7 @@ export const CHARGE = {
     poke: 0.08, // WO-08 — knock the puck loose (recovery not guaranteed)
     block: 0.12, // sells defense
     hit: 0.1, // big checks are style
+    off_puck_hit: 0.015, // nuisance contact: acknowledged, but far below puck-relevant hits
     shot: 0.03, // discourage meter-farming via shots
     pass: 0.02, // plain passes shouldn't farm
     deke: 0.06, // WO-03 — beat a defender

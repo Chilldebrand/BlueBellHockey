@@ -8,6 +8,8 @@ import { effectiveAttr, isDisabled } from './skater.js';
 import type { InputState, SimEvent, SkaterState, WorldState } from './types.js';
 
 const HIT_RANGE = SKATER_RADIUS * 2 + 0.9;
+const KNOCKDOWN_MS = 950;
+const KNOCKDOWN_MARGIN = 9;
 const STEAL_RANGE = SKATER_RADIUS * 2 + 0.7; // stick lift: close
 // Slap shot (WO-08): hold time (ms) for a fully-charged slapper. A tap (charge 0)
 // fires the original wrist shot; a full hold trades accuracy for big power.
@@ -231,8 +233,17 @@ export function doHit(world: WorldState, s: SkaterState, input: InputState): voi
   // everyone is the whole point of that ultimate.
   const targetHadPuck = world.puck.carrier === target.id;
 
-  target.status.staggeredUntil = world.time + 700 + hit * 60;
-  const knock = v.scale(v.norm(v.sub(target.pos, s.pos)), 6 + hit * 0.9);
+  const toTarget = v.norm(v.sub(target.pos, s.pos));
+  const approachSpeed = Math.max(0, v.dot(s.vel, toTarget));
+  const contactAlignment = Math.max(0, v.dot(v.fromAngle(s.facing), toTarget));
+  const targetResistance = effectiveAttr(target, 'hit') * 1.2;
+  const impactForce = hit * 0.9 + approachSpeed * 0.8 + contactAlignment * 4;
+  const knockedDown = impactForce - targetResistance >= KNOCKDOWN_MARGIN;
+
+  target.status.staggeredUntil = world.time + 650 + hit * 45;
+  if (knockedDown) target.status.downedUntil = world.time + KNOCKDOWN_MS;
+  const knockSpeed = Math.max(4, 4.5 + impactForce * 0.35 - targetResistance * 0.2 + (knockedDown ? 3 : 0));
+  const knock = v.scale(toTarget, knockSpeed);
   target.vel = v.add(target.vel, knock);
   if (targetHadPuck) {
     world.puck.carrier = null;
@@ -242,13 +253,7 @@ export function doHit(world: WorldState, s: SkaterState, input: InputState): voi
   breakCombo(target); // the checked skater loses their chain
   emit(world, { type: 'hit', by: s.id, target: target.id });
 
-  if (false) {
-    // box the offender → their team is short-handed (power play for the other side)
-    s.status.penaltyUntil = 0;
-    breakCombo(s);
-  } else {
-    awardStyle(s, 'hit', world.time); // a clean check is still style
-  }
+  awardStyle(s, targetHadPuck ? 'hit' : 'off_puck_hit', world.time);
 }
 
 /**

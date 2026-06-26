@@ -20,6 +20,7 @@ export interface SkaterSnap {
   comboUntil: number;
   frozenUntil: number;
   staggeredUntil: number;
+  downedUntil: number;
   intangibleUntil: number;
   dekeUntil: number;
   dekeDirX: number;
@@ -186,6 +187,7 @@ class NetClient {
         comboUntil: s.comboUntil,
         frozenUntil: s.frozenUntil,
         staggeredUntil: s.staggeredUntil,
+        downedUntil: s.downedUntil,
         intangibleUntil: s.intangibleUntil,
         dekeUntil: s.dekeUntil,
         dekeDirX: s.dekeDirX,

@@ -25,6 +25,7 @@ function snap(t: number, serverTime: number, py: number, goalieSaveUntil: number
         comboUntil: 0,
         frozenUntil: 0,
         staggeredUntil: 0,
+        downedUntil: 0,
         intangibleUntil: 0,
         dekeUntil: 0,
         dekeDirX: 0,
@@ -44,11 +45,14 @@ function snap(t: number, serverTime: number, py: number, goalieSaveUntil: number
 
 describe('interpolation', () => {
   it('interpolates puck height and exposes active goalie save poses', () => {
-    const frame = sampleAt([snap(0, 1000, 0, 0), snap(100, 1100, 2, 1300)], 50);
+    const active = snap(100, 1100, 2, 1300);
+    (active.skaters.g as any).downedUntil = 1300;
+    const frame = sampleAt([snap(0, 1000, 0, 0), active], 50);
 
     expect(frame?.puck.y).toBeCloseTo(1);
     expect(frame?.skaters[0].goalieSaveType).toBe('glove');
     expect(frame?.skaters[0].goalieSaveSide).toBe(1);
     expect(frame?.skaters[0].goalieSaving).toBe(true);
+    expect((frame?.skaters[0] as any).downed).toBe(true);
   });
 });

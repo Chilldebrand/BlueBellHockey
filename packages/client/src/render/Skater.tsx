@@ -52,6 +52,7 @@ export function Skater({
     // Skating dynamics: lean forward with speed, bank into turns. Applied to the
     // model wrapper only so the ground rings stay flat on the ice.
     if (tilt.current) {
+      tilt.current.position.y = s.downed ? -0.42 : 0;
       let turn = s.facing - prevFacing.current;
       if (turn > Math.PI) turn -= Math.PI * 2;
       else if (turn < -Math.PI) turn += Math.PI * 2;
@@ -59,7 +60,10 @@ export function Skater({
       const turnRate = dt > 0 ? turn / dt : 0;
       let targetPitch = THREE.MathUtils.clamp(s.speed * 0.018, 0, 0.22);
       let targetRoll = THREE.MathUtils.clamp(turnRate * 0.05, -0.3, 0.3);
-      if (s.goalieSaving) {
+      if (s.downed) {
+        targetPitch = 1.18;
+        targetRoll = 0.65;
+      } else if (s.goalieSaving) {
         const side = s.goalieSaveSide || 1;
         if (s.goalieSaveType === 'pad') {
           targetPitch = 0.34;

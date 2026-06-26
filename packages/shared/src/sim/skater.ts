@@ -12,7 +12,8 @@ export function effectiveAttr(s: SkaterState, key: AttributeKey): number {
 export function isDisabled(s: SkaterState, time: number): boolean {
   return (
     s.status.frozenUntil > time ||
-    s.status.staggeredUntil > time
+    s.status.staggeredUntil > time ||
+    s.status.downedUntil > time
   );
 }
 

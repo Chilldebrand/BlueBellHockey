@@ -22,6 +22,7 @@ function skater(id: string, px: number, pz: number): SkaterSnap {
     comboUntil: 0,
     frozenUntil: 0,
     staggeredUntil: 0,
+    downedUntil: 0,
     intangibleUntil: 0,
     dekeUntil: 0,
     dekeDirX: 0,

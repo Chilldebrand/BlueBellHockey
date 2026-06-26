@@ -37,7 +37,10 @@ export function predictLocal(
   if (!s) return prev?.id === localId ? prev : null;
 
   const carrying = latest.puck.carrier === localId;
-  const disabled = s.frozenUntil > latest.serverTime || s.staggeredUntil > latest.serverTime;
+  const disabled =
+    s.frozenUntil > latest.serverTime ||
+    s.staggeredUntil > latest.serverTime ||
+    s.downedUntil > latest.serverTime;
   const windupGlide =
     s.shootChargeStart > 0 && carrying && !disabled
       ? { x: s.shootGlideDirX, z: s.shootGlideDirZ }

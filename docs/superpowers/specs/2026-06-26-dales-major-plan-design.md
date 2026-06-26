@@ -440,23 +440,23 @@ Goalie saves should use readable hockey-style reactions.
 
 **Steps:**
 
-- [ ] Re-read penalty, power play, hit, stagger, style charge, and collision code.
-- [ ] Write failing tests proving away-from-puck hits do not emit `penalty`, do not set `penaltyUntil`, and do not move the hitter off ice.
-- [ ] Remove or disable penalty-box gameplay and power-play derivation from hits.
-- [ ] Remove penalty callouts and penalty sounds.
-- [ ] Keep hit, stagger, puck-loose, combo-break, and style consequences.
-- [ ] Split hit style rewards into puck-relevant hit value and very-low off-puck hit value.
-- [ ] Write failing tests for impact force using hitter `hit`, speed, approach angle, and contact alignment.
-- [ ] Write failing tests proving target `hit` resists knockdown and sliding.
-- [ ] Implement hard-hit knockdown and slide distance scaling.
-- [ ] Add downed/sliding state that lasts briefly before recovery.
-- [ ] Write failing tests for high-speed collision with downed players tripping the moving skater.
-- [ ] Write failing tests for low-speed collision with downed players slowing, bumping, or redirecting instead of tripping.
-- [ ] Make downed-player obstacle collisions affect teammates and opponents.
-- [ ] Update animation/render state so knockdowns read as players on the ice instead of only a small stagger.
-- [ ] Run `npm.cmd run test --workspace @bbh/shared`.
-- [ ] Run `npm.cmd run test --workspace @bbh/client`.
-- [ ] Run `npm.cmd run typecheck`.
+- [x] Re-read penalty, power play, hit, stagger, style charge, and collision code.
+- [x] Write failing tests proving away-from-puck hits do not emit `penalty`, do not set `penaltyUntil`, and do not move the hitter off ice.
+- [x] Remove or disable penalty-box gameplay and power-play derivation from hits.
+- [x] Remove penalty callouts and penalty sounds.
+- [x] Keep hit, stagger, puck-loose, combo-break, and style consequences.
+- [x] Split hit style rewards into puck-relevant hit value and very-low off-puck hit value.
+- [x] Write failing tests for impact force using hitter `hit`, speed, approach angle, and contact alignment.
+- [x] Write failing tests proving target `hit` resists knockdown and sliding.
+- [x] Implement hard-hit knockdown and slide distance scaling.
+- [x] Add downed/sliding state that lasts briefly before recovery.
+- [x] Write failing tests for high-speed collision with downed players tripping the moving skater.
+- [x] Write failing tests for low-speed collision with downed players slowing, bumping, or redirecting instead of tripping.
+- [x] Make downed-player obstacle collisions affect teammates and opponents.
+- [x] Update animation/render state so knockdowns read as players on the ice instead of only a small stagger.
+- [x] Run `npm.cmd run test --workspace @bbh/shared`.
+- [x] Run `npm.cmd run test --workspace @bbh/client`.
+- [x] Run `npm.cmd run typecheck`.
 - [ ] Commit with a message like `Add arcade knockdown contact`.
 
 **Acceptance:**

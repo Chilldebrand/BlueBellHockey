@@ -32,6 +32,7 @@ describe('syncState', () => {
     w.skaters.g.status.goalieSaveUntil = 1234;
     w.skaters.g.status.goalieSaveType = 'glove';
     w.skaters.g.status.goalieSaveSide = -1;
+    w.skaters.g.status.downedUntil = 1500;
 
     syncState(state, w);
 
@@ -41,6 +42,7 @@ describe('syncState', () => {
     expect(goalie?.goalieSaveUntil).toBe(1234);
     expect(goalie?.goalieSaveType).toBe('glove');
     expect(goalie?.goalieSaveSide).toBe(-1);
+    expect((goalie as any)?.downedUntil).toBe(1500);
   });
 
   it('syncs slap-shot windup glide direction', () => {

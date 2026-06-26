@@ -195,6 +195,7 @@ function collide(world: WorldState): void {
       if (a.status.intangibleUntil > world.time || b.status.intangibleUntil > world.time) continue;
       const hit = resolveCircles(a.pos, b.pos, SKATER_RADIUS, SKATER_RADIUS);
       if (!hit) continue;
+      handleDownedObstacle(world, a, b);
       // Damp the closing velocity so bodies don't grind/jitter or tunnel through
       // each other — resolveCircles only separates positions (WO-19). Done before
       // checkContact so a freight-train knock added there isn't cancelled.
@@ -207,6 +208,32 @@ function collide(world: WorldState): void {
       checkContact(world, b, a);
     }
   }
+}
+
+const DOWNED_TRIP_SPEED = 5.2;
+const DOWNED_TRIP_MS = 700;
+
+function handleDownedObstacle(world: WorldState, a: SkaterState, b: SkaterState): void {
+  const aDown = a.status.downedUntil > world.time;
+  const bDown = b.status.downedUntil > world.time;
+  if (aDown === bDown) return;
+
+  const moving = aDown ? b : a;
+  const obstacle = aDown ? a : b;
+  const normal = v.norm(v.sub(obstacle.pos, moving.pos));
+  const closing = v.dot(moving.vel, normal) - v.dot(obstacle.vel, normal);
+  if (closing <= 0) return;
+
+  if (closing >= DOWNED_TRIP_SPEED) {
+    moving.status.downedUntil = Math.max(moving.status.downedUntil, world.time + DOWNED_TRIP_MS);
+    moving.status.staggeredUntil = Math.max(moving.status.staggeredUntil, world.time + DOWNED_TRIP_MS);
+    moving.vel.x = moving.vel.x * 0.35 - normal.x * 1.5;
+    moving.vel.z = moving.vel.z * 0.35 - normal.z * 1.5;
+    return;
+  }
+
+  moving.vel.x -= normal.x * closing * 0.65;
+  moving.vel.z -= normal.z * closing * 0.65;
 }
 
 // Cancel the part of two skaters' velocities that drives them together, along the

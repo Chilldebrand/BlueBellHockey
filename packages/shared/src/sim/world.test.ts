@@ -375,8 +375,8 @@ describe('world simulation', () => {
     b.vel = { x: 0, z: 0 };
     doHit(w, a, neutralInput());
     expect(b.status.staggeredUntil).toBeGreaterThan(w.time);
-    // tank hit=10 → arcade knock magnitude 6 + 10*0.9 = 15 along +X
-    expect(b.vel.x).toBeCloseTo(15, 1);
+    expect(b.vel.x).toBeGreaterThan(7);
+    expect(b.status.downedUntil).toBe(0);
   });
 
   it('a normal goal scores exactly 1 and leaves the opponent unchanged (WO-02)', () => {
@@ -1427,6 +1427,94 @@ describe('penalties / power play (WO-17)', () => {
     expect(a.status.penaltyUntil).toBe(0);
     expect(w.events.some((e) => e.type === 'penalty')).toBe(false);
     expect(w.puck.carrier).toBeNull(); // the clean hit still stripped the puck
+  });
+
+  it('puck-relevant hits grant much more style than off-puck hits', () => {
+    const relevant = createWorld(pair());
+    relevant.phase = 'period';
+    relevant.skaters.a.pos = { x: 0, z: 0 };
+    relevant.skaters.a.facing = 0;
+    relevant.skaters.b.pos = { x: 1.4, z: 0 };
+    relevant.puck.carrier = 'b';
+
+    const offPuck = createWorld(pair());
+    offPuck.phase = 'period';
+    offPuck.skaters.a.pos = { x: 0, z: 0 };
+    offPuck.skaters.a.facing = 0;
+    offPuck.skaters.b.pos = { x: 1.4, z: 0 };
+    offPuck.puck.carrier = null;
+    offPuck.puck.pos = { x: 20, z: 0 };
+
+    doHit(relevant, relevant.skaters.a, neutralInput());
+    doHit(offPuck, offPuck.skaters.a, neutralInput());
+
+    expect(offPuck.skaters.a.ultCharge).toBeGreaterThan(0);
+    expect(relevant.skaters.a.ultCharge).toBeGreaterThan(offPuck.skaters.a.ultCharge * 4);
+  });
+
+  it('high-force clean hits knock down weaker targets while stronger targets resist', () => {
+    const low = createWorld([
+      { id: 'a', team: 0, characterId: 'pickpocket', isBot: false, isGoalie: false },
+      { id: 'b', team: 1, characterId: 'blaze', isBot: false, isGoalie: false },
+    ]);
+    low.phase = 'period';
+    low.skaters.a.pos = { x: 0, z: 0 };
+    low.skaters.a.vel = { x: 9, z: 0 };
+    low.skaters.a.facing = 0;
+    low.skaters.b.pos = { x: 1.2, z: 0 };
+    low.puck.carrier = 'b';
+
+    const sturdy = createWorld([
+      { id: 'a', team: 0, characterId: 'pickpocket', isBot: false, isGoalie: false },
+      { id: 'b', team: 1, characterId: 'tank', isBot: false, isGoalie: false },
+    ]);
+    sturdy.phase = 'period';
+    sturdy.skaters.a.pos = { x: 0, z: 0 };
+    sturdy.skaters.a.vel = { x: 9, z: 0 };
+    sturdy.skaters.a.facing = 0;
+    sturdy.skaters.b.pos = { x: 1.2, z: 0 };
+    sturdy.puck.carrier = 'b';
+
+    doHit(low, low.skaters.a, neutralInput());
+    doHit(sturdy, sturdy.skaters.a, neutralInput());
+
+    expect((low.skaters.b.status as any).downedUntil).toBeGreaterThan(low.time);
+    expect((sturdy.skaters.b.status as any).downedUntil ?? 0).toBe(0);
+    expect(v.len(low.skaters.b.vel)).toBeGreaterThan(v.len(sturdy.skaters.b.vel) * 1.25);
+  });
+
+  it('high-speed contact with a downed player trips the moving skater', () => {
+    const w = createWorld([
+      { id: 'a', team: 0, characterId: 'blaze', isBot: false, isGoalie: false },
+      { id: 'b', team: 0, characterId: 'tank', isBot: false, isGoalie: false },
+    ]);
+    w.phase = 'period';
+    w.skaters.a.pos = { x: -0.95, z: 0 };
+    w.skaters.a.vel = { x: 8, z: 0 };
+    w.skaters.b.pos = { x: 0, z: 0 };
+    w.skaters.b.status.downedUntil = w.time + 1000;
+
+    step(w, { a: neutralInput(), b: neutralInput() }, DT);
+
+    expect(w.skaters.a.status.downedUntil).toBeGreaterThan(w.time);
+    expect(v.len(w.skaters.a.vel)).toBeLessThan(8);
+  });
+
+  it('low-speed contact with a downed player slows without tripping', () => {
+    const w = createWorld([
+      { id: 'a', team: 0, characterId: 'blaze', isBot: false, isGoalie: false },
+      { id: 'b', team: 0, characterId: 'tank', isBot: false, isGoalie: false },
+    ]);
+    w.phase = 'period';
+    w.skaters.a.pos = { x: -0.95, z: 0 };
+    w.skaters.a.vel = { x: 2.2, z: 0 };
+    w.skaters.b.pos = { x: 0, z: 0 };
+    w.skaters.b.status.downedUntil = w.time + 1000;
+
+    step(w, { a: neutralInput(), b: neutralInput() }, DT);
+
+    expect(w.skaters.a.status.downedUntil).toBe(0);
+    expect(v.len(w.skaters.a.vel)).toBeLessThan(2.2);
   });
 
   it('a boxed skater is held off-ice and inert while the penalty runs', () => {

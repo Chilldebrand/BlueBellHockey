@@ -28,6 +28,7 @@ export interface SkaterStatus {
   intangibleUntil: number; // skips skater-skater collision (Phase)
   frozenUntil: number; // cannot move or act (Deep Freeze)
   staggeredUntil: number; // knocked down by a hit
+  downedUntil: number; // hard arcade knockdown: sliding on the ice before recovery
   checkingUntil: number; // body contact flattens opponents (Freight Train)
   magnetUntil: number; // pulls loose puck / strips carriers nearby (Magnet)
   passPerfectUntil: number; // passes auto-complete to best teammate (Vision)
@@ -214,6 +215,7 @@ export function emptyStatus(): SkaterStatus {
     intangibleUntil: 0,
     frozenUntil: 0,
     staggeredUntil: 0,
+    downedUntil: 0,
     checkingUntil: 0,
     magnetUntil: 0,
     passPerfectUntil: 0,

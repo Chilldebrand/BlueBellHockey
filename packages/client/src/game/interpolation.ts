@@ -14,6 +14,7 @@ export interface SkaterRender {
   ultActive: boolean;
   frozen: boolean;
   staggered: boolean;
+  downed: boolean;
   intangible: boolean;
   windup: number; // slap-shot charge 0..1 (0 = not winding up)
   goalieSaving: boolean;
@@ -60,6 +61,7 @@ function buildFrame(a: Snapshot, b: Snapshot, t: number): FrameRender {
       ultActive: sb.ultActiveUntil > now,
       frozen: sb.frozenUntil > now,
       staggered: sb.staggeredUntil > now,
+      downed: sb.downedUntil > now,
       intangible: sb.intangibleUntil > now,
       windup: windupOf(sb.shootChargeStart, now),
       goalieSaving: sb.goalieSaveUntil > now,
@@ -134,6 +136,7 @@ function frameFrom(s: Snapshot): FrameRender {
       ultActive: sk.ultActiveUntil > now,
       frozen: sk.frozenUntil > now,
       staggered: sk.staggeredUntil > now,
+      downed: sk.downedUntil > now,
       intangible: sk.intangibleUntil > now,
       windup: windupOf(sk.shootChargeStart, now),
       goalieSaving: sk.goalieSaveUntil > now,
