@@ -42,6 +42,8 @@ export interface SkaterStatus {
   // longer it's held before release, the more the shot ramps wrist -> slap. 0 when
   // not charging. Synced so clients can telegraph the wind-up.
   shootChargeStart: number;
+  shootGlideDirX: number;
+  shootGlideDirZ: number;
   // Poke check (WO-08): brief cooldown after a jab so it can't be mashed.
   pokeCooldownUntil: number;
   // One-timer (WO-09): set when a skater takes possession straight off a teammate's
@@ -221,6 +223,8 @@ export function emptyStatus(): SkaterStatus {
     dekeDirZ: 0,
     dekeCooldownUntil: 0,
     shootChargeStart: 0,
+    shootGlideDirX: 0,
+    shootGlideDirZ: 0,
     pokeCooldownUntil: 0,
     oneTimerUntil: 0,
     penaltyUntil: 0,

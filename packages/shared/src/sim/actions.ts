@@ -141,6 +141,8 @@ export function doShoot(world: WorldState, s: SkaterState, input: InputState): v
   puck.lastTouch = s.id;
   puck.assistTouch = null;
   s.status.shootChargeStart = 0;
+  s.status.shootGlideDirX = 0;
+  s.status.shootGlideDirZ = 0;
   s.status.oneTimerUntil = 0; // consumed (whether or not it was a one-timer)
 
   emit(world, { type: 'shot', shooter: s.id, charge });

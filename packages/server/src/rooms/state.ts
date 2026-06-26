@@ -32,6 +32,8 @@ export class SkaterSchema extends Schema {
   @type('float32') dekeDirZ = 0;
   // Slap shot (WO-08): wind-up start time so clients can telegraph the charge.
   @type('float32') shootChargeStart = 0;
+  @type('float32') shootGlideDirX = 0;
+  @type('float32') shootGlideDirZ = 0;
   // Box score (WO-09): cumulative per-skater stats, surfaced on the postgame screen.
   @type('uint16') goals = 0;
   @type('uint16') assists = 0;
@@ -117,6 +119,8 @@ export function syncState(state: MatchState, world: WorldState): void {
     row.dekeDirX = s.status.dekeDirX;
     row.dekeDirZ = s.status.dekeDirZ;
     row.shootChargeStart = s.status.shootChargeStart;
+    row.shootGlideDirX = s.status.shootGlideDirX;
+    row.shootGlideDirZ = s.status.shootGlideDirZ;
 
     const st = world.stats[s.id];
     if (st) {

@@ -30,6 +30,8 @@ function snap(t: number, serverTime: number, py: number, goalieSaveUntil: number
         dekeDirX: 0,
         dekeDirZ: 0,
         shootChargeStart: 0,
+        shootGlideDirX: 0,
+        shootGlideDirZ: 0,
         goalieSaveUntil,
         goalieSaveType: 'glove',
         goalieSaveSide: 1,

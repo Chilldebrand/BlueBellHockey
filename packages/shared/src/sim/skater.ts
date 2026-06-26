@@ -27,10 +27,10 @@ export const BASE_SPEED = 7;
 export const SPEED_PER_POINT = 0.9;
 const ACCEL = 30;
 const FRICTION = 7;
-const SPRINT_MULT = 1.18;
+export const SPRINT_MULT = 1.18;
 
 // Commitment window (ms) after which winding up a slap shot starts to root you.
-const SLAP_COMMIT_MS = 140;
+export const SLAP_COMMIT_MS = 140;
 
 export function maxSpeedOf(s: SkaterState, carrying: boolean, time = -1, sprinting = false): number {
   const sp = effectiveAttr(s, 'speed');
@@ -57,10 +57,15 @@ export function stepSkater(
   const carrying = world.puck.carrier === s.id;
   const disabled = isDisabled(s, world.time);
 
-  const moveLen = v.len(input.move);
+  const windupGlide =
+    s.status.shootChargeStart > 0 && carrying && !disabled
+      ? { x: s.status.shootGlideDirX, z: s.status.shootGlideDirZ }
+      : null;
+  const move = windupGlide && v.len(windupGlide) > 0.05 ? windupGlide : input.move;
+  const moveLen = v.len(move);
   if (!disabled && moveLen > 0.05) {
-    const dir = v.norm(input.move);
-    const target = v.scale(dir, maxSpeedOf(s, carrying, world.time, input.actions.sprint));
+    const dir = v.norm(move);
+    const target = v.scale(dir, maxSpeedOf(s, carrying, world.time, !windupGlide && input.actions.sprint));
     s.vel.x += (target.x - s.vel.x) * Math.min(1, ACCEL * dt);
     s.vel.z += (target.z - s.vel.z) * Math.min(1, ACCEL * dt);
   } else {

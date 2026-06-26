@@ -1,6 +1,8 @@
 import {
   BASE_SPEED,
+  SLAP_COMMIT_MS,
   SPEED_PER_POINT,
+  SPRINT_MULT,
   carryAnchor,
   getCharacter,
   v,
@@ -32,10 +34,18 @@ export function predictLocal(
   const s = latest.skaters[localId];
   if (!s) return prev?.id === localId ? prev : null;
 
-  const maxSpeed =
-    (BASE_SPEED + getCharacter(s.characterId).attrs.speed * SPEED_PER_POINT) *
-    (input.actions.sprint ? 1.18 : 1);
-  const moveLen = v.len(input.move);
+  const carrying = latest.puck.carrier === localId;
+  const disabled = s.frozenUntil > latest.serverTime || s.staggeredUntil > latest.serverTime;
+  const windupGlide =
+    s.shootChargeStart > 0 && carrying && !disabled
+      ? { x: s.shootGlideDirX, z: s.shootGlideDirZ }
+      : null;
+  const move = windupGlide && v.len(windupGlide) > 0.05 ? windupGlide : input.move;
+  const moveLen = v.len(move);
+  let maxSpeed = BASE_SPEED + getCharacter(s.characterId).attrs.speed * SPEED_PER_POINT;
+  if (!windupGlide && input.actions.sprint) maxSpeed *= SPRINT_MULT;
+  if (carrying) maxSpeed *= 0.92;
+  if (s.shootChargeStart > 0 && latest.serverTime - s.shootChargeStart > SLAP_COMMIT_MS) maxSpeed *= 0.6;
 
   // start from previous predicted pos (or server pos), reconcile toward server
   const base = prev?.id === localId ? prev : { id: localId, x: s.px, z: s.pz, facing: s.facing };
@@ -44,7 +54,7 @@ export function predictLocal(
   let facing = base.facing;
 
   if (moveLen > 0.05) {
-    const dir = v.norm(input.move);
+    const dir = v.norm(move);
     x += dir.x * maxSpeed * dt;
     z += dir.z * maxSpeed * dt;
     facing = Math.atan2(dir.z, dir.x);

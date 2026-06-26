@@ -948,6 +948,33 @@ describe('combo multiplier integration (WO-04)', () => {
     expect(a.status.shootChargeStart).toBe(0);
   });
 
+  it('slap-shot windup glides along the initial movement direction instead of steering normally', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const a = w.skaters.a;
+    a.pos = { x: 0, z: 0 };
+    w.puck.carrier = 'a';
+
+    const windupStart: InputState = {
+      ...neutralInput(),
+      move: { x: 1, z: 0 },
+      actions: { ...emptyActions(), shoot: true },
+    };
+    step(w, { a: windupStart }, DT);
+    const startX = a.pos.x;
+    const startZ = a.pos.z;
+
+    const steerSideways: InputState = {
+      ...neutralInput(),
+      move: { x: 0, z: 1 },
+      actions: { ...emptyActions(), shoot: true },
+    };
+    for (let i = 0; i < 12; i++) step(w, { a: steerSideways }, DT);
+
+    expect(a.pos.x - startX).toBeGreaterThan(0.45);
+    expect(Math.abs(a.pos.z - startZ)).toBeLessThan(0.18);
+  });
+
   it('a poke check knocks the puck loose; a stick lift takes possession (WO-08)', () => {
     const w = createWorld([
       { id: 'a', team: 0, characterId: 'pickpocket', isBot: false, isGoalie: false }, // high steal

@@ -241,6 +241,24 @@ function checkContact(world: WorldState, attacker: SkaterState, target: SkaterSt
   world.events.push({ type: 'hit', by: attacker.id, target: target.id });
 }
 
+function startShootWindup(world: WorldState, s: SkaterState, input: InputState): void {
+  s.status.shootChargeStart = world.time;
+  const glide =
+    v.len(s.vel) > 0.2
+      ? v.norm(s.vel)
+      : v.len(input.move) > 0.05
+        ? v.norm(input.move)
+        : v.fromAngle(s.facing);
+  s.status.shootGlideDirX = glide.x;
+  s.status.shootGlideDirZ = glide.z;
+}
+
+function clearShootWindup(s: SkaterState): void {
+  s.status.shootChargeStart = 0;
+  s.status.shootGlideDirX = 0;
+  s.status.shootGlideDirZ = 0;
+}
+
 // Gamebreaker (WO-02): a goal scored while the scorer's ultimate is live is worth
 // more. It used to also steal a point from the opponent (NBA Street Vol. 2 rules),
 // but that knocked the trailing team back every time the leader popped one and made
@@ -429,7 +447,7 @@ export function step(
         // Slap shot (WO-08): pressing shoot starts the wind-up; the shot fires on
         // release below, with power/accuracy set by how long it was held.
         if (a.shoot && !last.shoot && world.puck.carrier === s.id) {
-          s.status.shootChargeStart = world.time;
+          startShootWindup(world, s, input);
         }
       }
       // Fire on release — handled outside the disabled guard so a check that
@@ -438,11 +456,11 @@ export function step(
         if (s.status.shootChargeStart > 0 && world.puck.carrier === s.id && !isDisabled(s, world.time)) {
           doShoot(world, s, input);
         }
-        s.status.shootChargeStart = 0;
+        clearShootWindup(s);
       }
       // Drop a stale charge if the puck was lost or the skater got disabled while holding.
       if (s.status.shootChargeStart > 0 && (world.puck.carrier !== s.id || isDisabled(s, world.time))) {
-        s.status.shootChargeStart = 0;
+        clearShootWindup(s);
       }
       s.lastActions = { ...a };
     }

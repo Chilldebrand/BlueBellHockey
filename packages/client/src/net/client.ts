@@ -25,6 +25,8 @@ export interface SkaterSnap {
   dekeDirX: number;
   dekeDirZ: number;
   shootChargeStart: number;
+  shootGlideDirX: number;
+  shootGlideDirZ: number;
   goalieSaveUntil: number;
   goalieSaveType: 'none' | 'pad' | 'body' | 'glove';
   goalieSaveSide: -1 | 0 | 1;
@@ -189,6 +191,8 @@ class NetClient {
         dekeDirX: s.dekeDirX,
         dekeDirZ: s.dekeDirZ,
         shootChargeStart: s.shootChargeStart,
+        shootGlideDirX: s.shootGlideDirX,
+        shootGlideDirZ: s.shootGlideDirZ,
         goalieSaveUntil: s.goalieSaveUntil,
         goalieSaveType: s.goalieSaveType,
         goalieSaveSide: s.goalieSaveSide,

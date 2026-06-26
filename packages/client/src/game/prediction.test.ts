@@ -27,6 +27,8 @@ function skater(id: string, px: number, pz: number): SkaterSnap {
     dekeDirX: 0,
     dekeDirZ: 0,
     shootChargeStart: 0,
+    shootGlideDirX: 0,
+    shootGlideDirZ: 0,
     goalieSaveUntil: 0,
     goalieSaveType: 'none',
     goalieSaveSide: 0,
@@ -54,5 +56,26 @@ describe('prediction', () => {
 
     expect(predicted?.x).toBeCloseTo(50);
     expect(predicted?.z).toBeCloseTo(-12);
+  });
+
+  it('keeps local slap-shot windup prediction gliding in the synced start direction', () => {
+    const snapshot = snap();
+    snapshot.serverTime = 1500;
+    snapshot.puck.carrier = 's1';
+    snapshot.skaters.s1.px = 0;
+    snapshot.skaters.s1.pz = 0;
+    snapshot.skaters.s1.shootChargeStart = 1300;
+    snapshot.skaters.s1.shootGlideDirX = 1;
+    snapshot.skaters.s1.shootGlideDirZ = 0;
+
+    const input = neutralInput();
+    input.move = { x: 0, z: 1 };
+    input.actions.shoot = true;
+    input.actions.sprint = true;
+
+    const predicted = predictLocal([snapshot], 's1', input, 0.1, null);
+
+    expect(predicted?.x).toBeGreaterThan(0.4);
+    expect(Math.abs(predicted?.z ?? 0)).toBeLessThan(0.01);
   });
 });

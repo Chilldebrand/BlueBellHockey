@@ -43,6 +43,23 @@ describe('syncState', () => {
     expect(goalie?.goalieSaveSide).toBe(-1);
   });
 
+  it('syncs slap-shot windup glide direction', () => {
+    const state = new MatchState();
+    const w = createWorld([
+      { id: 's0', team: 0, characterId: 'blaze', isBot: false, isGoalie: false },
+    ]);
+    w.skaters.s0.status.shootChargeStart = 1200;
+    w.skaters.s0.status.shootGlideDirX = 0.8;
+    w.skaters.s0.status.shootGlideDirZ = -0.6;
+
+    syncState(state, w);
+
+    const row = state.skaters.get('s0');
+    expect(row?.shootChargeStart).toBe(1200);
+    expect(row?.shootGlideDirX).toBeCloseTo(0.8);
+    expect(row?.shootGlideDirZ).toBeCloseTo(-0.6);
+  });
+
   it('syncs human controller indices only to human skaters', () => {
     const state = new MatchState();
     const w = createWorld([
