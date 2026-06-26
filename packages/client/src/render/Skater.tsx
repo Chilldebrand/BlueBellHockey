@@ -1,24 +1,27 @@
 import { Suspense, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { getCharacter } from '@bbh/shared';
+import { CONTROLLER_RING_COLORS, UNIFORM_SCHEMES, getCharacter, type UniformSchemeId } from '@bbh/shared';
 import { frameStore } from './frameStore.js';
 import { CharacterModel } from './CharacterModel.js';
 import { ModelBoundary } from './ModelBoundary.js';
 
 const TEAM_TRIM = ['#1b3a8f', '#8f1b27'];
-const TEAM_RING = ['#3c6bff', '#ff5a3c'];
 
 export function Skater({
   id,
   team,
   characterId,
   isLocal,
+  controllerIndex,
+  uniformId,
 }: {
   id: string;
   team: number;
   characterId: string;
   isLocal: boolean;
+  controllerIndex: number;
+  uniformId: UniformSchemeId;
 }) {
   const group = useRef<THREE.Group>(null);
   const tilt = useRef<THREE.Group>(null);
@@ -33,8 +36,10 @@ export function Skater({
   const roll = useRef(0);
 
   const char = safeChar(characterId);
-  const jersey = char?.jersey ?? '#cccccc';
-  const trim = TEAM_TRIM[team] ?? '#333';
+  const uniform = UNIFORM_SCHEMES[uniformId] ?? UNIFORM_SCHEMES[team === 0 ? 'blue' : 'red'];
+  const jersey = uniform.jersey;
+  const trim = uniform.pants ?? TEAM_TRIM[team] ?? '#333';
+  const ringColor = CONTROLLER_RING_COLORS[controllerIndex] ?? '#ffffff';
   const glb = char?.glb ?? 'models/chars/knight.glb';
 
   useFrame((_, dt) => {
@@ -74,7 +79,14 @@ export function Skater({
       tilt.current.rotation.z = roll.current; // bank around the forward axis
     }
 
-    if (ring.current) ring.current.visible = isLocal;
+    if (ring.current) {
+      ring.current.visible = controllerIndex >= 0;
+      const mat = ring.current.material as THREE.MeshBasicMaterial;
+      mat.color.set(ringColor);
+      mat.opacity = isLocal ? 0.95 : 0.72;
+      const pulse = isLocal ? 1 + Math.sin(performance.now() * 0.008) * 0.06 : 1;
+      ring.current.scale.setScalar(pulse);
+    }
     if (carrierRing.current) carrierRing.current.visible = frameStore.carrier() === id;
     // Slap-shot wind-up telegraph: a ring that grows and brightens as the charge fills.
     if (windupRing.current) {
@@ -100,14 +112,9 @@ export function Skater({
 
   return (
     <group ref={group}>
-      {/* always-on team ring for readability */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.015, 0]}>
-        <ringGeometry args={[0.62, 0.78, 24]} />
-        <meshBasicMaterial color={TEAM_RING[team] ?? '#888'} transparent opacity={0.55} />
-      </mesh>
       <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.025, 0]} visible={false}>
-        <ringGeometry args={[0.8, 0.98, 24]} />
-        <meshBasicMaterial color="#ffd23c" transparent opacity={0.9} />
+        <ringGeometry args={[0.76, 1.03, 32]} />
+        <meshBasicMaterial color={ringColor} transparent opacity={0.9} blending={THREE.AdditiveBlending} depthWrite={false} />
       </mesh>
       <mesh ref={carrierRing} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.035, 0]} visible={false}>
         <ringGeometry args={[1.0, 1.16, 24]} />
@@ -126,7 +133,7 @@ export function Skater({
       <group ref={tilt}>
         <Suspense fallback={<ProceduralBody jersey={jersey} trim={trim} />}>
           <ModelBoundary fallback={<ProceduralBody jersey={jersey} trim={trim} />}>
-            <CharacterModel id={id} glb={glb} team={team} visuals={char?.visuals} />
+            <CharacterModel id={id} glb={glb} team={team} visuals={char?.visuals} uniform={uniform} />
           </ModelBoundary>
         </Suspense>
       </group>

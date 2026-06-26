@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { GAME_MODES, type GameModeId } from '@bbh/shared';
+import { GAME_MODES, UNIFORM_SCHEMES, normalizeUniformPair, type GameModeId, type UniformSchemeId } from '@bbh/shared';
 import { net } from '../net/client.js';
 import { sfx } from '../audio/sfx.js';
 import { useUi } from '../store.js';
 
 type TeamPref = 0 | 1 | null;
 const MODE_IDS = Object.keys(GAME_MODES) as GameModeId[];
+const UNIFORM_IDS = Object.keys(UNIFORM_SCHEMES) as UniformSchemeId[];
 
 export function Lobby() {
   const status = useUi((s) => s.status);
@@ -14,12 +15,17 @@ export function Lobby() {
   const [team, setTeam] = useState<TeamPref>(null);
   const [code, setCode] = useState('');
   const [gameMode, setGameMode] = useState<GameModeId>('regulation');
+  const [homeUniform, setHomeUniform] = useState<UniformSchemeId>('blue');
+  const [awayUniform, setAwayUniform] = useState<UniformSchemeId>('red');
   const [lockToCharacter, setLockToCharacter] = useState(false);
 
   const connecting = status === 'connecting';
   const go = (mode: 'quick' | 'create' | 'join') => {
     sfx.init();
-    net.connect({ mode, gameMode, code, team, lockToCharacter });
+    const uniforms = normalizeUniformPair(homeUniform, awayUniform);
+    setHomeUniform(uniforms.home);
+    setAwayUniform(uniforms.away);
+    net.connect({ mode, gameMode, code, team, lockToCharacter, homeUniform: uniforms.home, awayUniform: uniforms.away });
   };
 
   return (
@@ -49,6 +55,25 @@ export function Lobby() {
       <div style={{ fontSize: 12, opacity: 0.55, marginTop: -6, maxWidth: 380, textAlign: 'center' }}>
         {GAME_MODES[gameMode].description}
       </div>
+
+      <UniformPicker
+        label="Home"
+        value={homeUniform}
+        onChange={(id) => {
+          const uniforms = normalizeUniformPair(id, awayUniform);
+          setHomeUniform(uniforms.home);
+          setAwayUniform(uniforms.away);
+        }}
+      />
+      <UniformPicker
+        label="Away"
+        value={awayUniform}
+        onChange={(id) => {
+          const uniforms = normalizeUniformPair(homeUniform, id);
+          setHomeUniform(uniforms.home);
+          setAwayUniform(uniforms.away);
+        }}
+      />
 
       <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: '#c7d0ff' }}>
         <input
@@ -107,6 +132,41 @@ export function Lobby() {
       <button onClick={() => set({ controlsOpen: true })} style={settingsBtn}>
         ⚙ Settings
       </button>
+    </div>
+  );
+}
+
+function UniformPicker({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: UniformSchemeId;
+  onChange: (id: UniformSchemeId) => void;
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+      <span style={{ fontSize: 13, opacity: 0.7, width: 38 }}>{label}</span>
+      {UNIFORM_IDS.map((id) => {
+        const scheme = UNIFORM_SCHEMES[id];
+        return (
+          <button
+            key={id}
+            aria-label={`${label} ${scheme.name}`}
+            onClick={() => onChange(id)}
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 8,
+              border: `2px solid ${value === id ? '#ffffff' : '#2a3566'}`,
+              background: `linear-gradient(135deg, ${scheme.jersey} 0 58%, ${scheme.pants} 58% 100%)`,
+              boxShadow: value === id ? '0 0 0 2px rgba(79,124,255,0.55)' : 'none',
+              cursor: 'pointer',
+            }}
+          />
+        );
+      })}
     </div>
   );
 }

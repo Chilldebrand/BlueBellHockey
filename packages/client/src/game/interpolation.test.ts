@@ -13,6 +13,7 @@ function snap(t: number, serverTime: number, py: number, goalieSaveUntil: number
         characterId: 'tank',
         isBot: true,
         isGoalie: true,
+        controllerIndex: -1,
         px: 0,
         pz: 0,
         vx: 0,

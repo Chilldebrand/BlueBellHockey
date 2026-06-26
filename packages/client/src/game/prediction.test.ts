@@ -10,6 +10,7 @@ function skater(id: string, px: number, pz: number): SkaterSnap {
     characterId: 'blaze',
     isBot: false,
     isGoalie: false,
+    controllerIndex: -1,
     px,
     pz,
     vx: 0,

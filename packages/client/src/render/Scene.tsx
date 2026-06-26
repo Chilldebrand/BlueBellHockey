@@ -232,6 +232,8 @@ const QUALITY: Record<string, { dpr: [number, number]; shadows: boolean; shadowM
 export function Scene() {
   const roster = useUi((s) => s.roster);
   const myId = useUi((s) => s.mySkaterId);
+  const homeUniform = useUi((s) => s.homeUniform);
+  const awayUniform = useUi((s) => s.awayUniform);
   const quality = useUi((s) => s.quality);
   const q = QUALITY[quality] ?? QUALITY.high;
 
@@ -300,7 +302,15 @@ export function Scene() {
       <Pickups />
       <Puck />
       {roster.map((r) => (
-        <Skater key={r.id} id={r.id} team={r.team} characterId={r.characterId} isLocal={r.id === myId} />
+        <Skater
+          key={r.id}
+          id={r.id}
+          team={r.team}
+          characterId={r.characterId}
+          isLocal={r.id === myId}
+          controllerIndex={r.controllerIndex}
+          uniformId={r.team === 0 ? homeUniform : awayUniform}
+        />
       ))}
       <Vfx />
       <Driver />

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { UniformSchemeId } from '@bbh/shared';
 
 export type ConnStatus = 'idle' | 'connecting' | 'connected' | 'error';
 
@@ -29,6 +30,7 @@ export interface RosterIdentity {
   team: number;
   characterId: string;
   isGoalie: boolean;
+  controllerIndex: number;
 }
 
 export interface PlayerStatLine {
@@ -57,6 +59,8 @@ export interface UiState {
   myTeam: 0 | 1 | null;
   roomCode: string; // WO-14 — active private room code ('' = public Quick Play)
   gameMode: string; // WO-15 — active game-mode id
+  homeUniform: UniformSchemeId;
+  awayUniform: UniformSchemeId;
   selectedCharacter: string;
   // live match meta (updated each server patch)
   phase: string;
@@ -95,6 +99,8 @@ export const useUi = create<UiState>((set) => ({
   myTeam: null,
   roomCode: '',
   gameMode: 'regulation',
+  homeUniform: 'blue',
+  awayUniform: 'red',
   selectedCharacter: 'blaze',
   phase: 'lobby',
   period: 1,

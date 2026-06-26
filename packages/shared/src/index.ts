@@ -7,6 +7,7 @@ export * from './sim/actions.js';
 export * from './sim/world.js';
 export * from './config/rink.js';
 export * from './config/characters.js';
+export * from './config/identity.js';
 export * from './config/charge.js';
 export * from './config/ultimates.js';
 export * from './config/modes.js';

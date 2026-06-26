@@ -7,6 +7,7 @@ export class SkaterSchema extends Schema {
   @type('string') characterId = '';
   @type('boolean') isBot = false;
   @type('boolean') isGoalie = false;
+  @type('int8') controllerIndex = -1;
   @type('float32') px = 0;
   @type('float32') pz = 0;
   @type('float32') vx = 0;
@@ -66,6 +67,8 @@ export class MatchState extends Schema {
   @type('float32') pauseUntil = 0;
   @type('uint8') score0 = 0;
   @type('uint8') score1 = 0;
+  @type('string') homeUniform = 'blue';
+  @type('string') awayUniform = 'red';
   @type({ map: SkaterSchema }) skaters = new MapSchema<SkaterSchema>();
   @type(PuckSchema) puck = new PuckSchema();
   @type({ map: PickupSchema }) pickups = new MapSchema<PickupSchema>();
@@ -93,6 +96,7 @@ export function syncState(state: MatchState, world: WorldState): void {
     row.characterId = s.characterId;
     row.isBot = s.isBot;
     row.isGoalie = s.isGoalie;
+    if (s.isBot || s.isGoalie) row.controllerIndex = -1;
     row.px = s.pos.x;
     row.pz = s.pos.z;
     row.vx = s.vel.x;
@@ -147,4 +151,14 @@ export function syncState(state: MatchState, world: WorldState): void {
     row.px = p.pos.x;
     row.pz = p.pos.z;
   }
+}
+
+export function syncControllerIdentities(
+  state: MatchState,
+  controlledSkaters: ReadonlyMap<string, number>,
+): void {
+  state.skaters.forEach((row, id) => {
+    const controllerIndex = controlledSkaters.get(id);
+    row.controllerIndex = controllerIndex !== undefined && !row.isBot && !row.isGoalie ? controllerIndex : -1;
+  });
 }

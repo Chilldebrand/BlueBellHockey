@@ -4,6 +4,7 @@ import type { InputState } from '../sim/types.js';
 export const MSG = {
   INPUT: 'input',
   SELECT_CHARACTER: 'select',
+  SET_UNIFORMS: 'setUniforms',
   READY: 'ready',
   REMATCH: 'rematch', // WO-09 — from the postgame screen, replay same teams
   BACK_TO_LOBBY: 'backToLobby', // WO-09 — return to character select
@@ -16,6 +17,11 @@ export interface InputMessage {
 
 export interface SelectCharacterMessage {
   characterId: string;
+}
+
+export interface SetUniformsMessage {
+  home: string;
+  away: string;
 }
 
 export interface ReadyMessage {

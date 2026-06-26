@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createWorld, type RosterEntry } from '@bbh/shared';
-import { MatchState, syncState } from './state.js';
+import { MatchState, syncControllerIdentities, syncState } from './state.js';
 
 describe('syncState', () => {
   it('refreshes mutable skater identity fields on existing rows', () => {
@@ -41,5 +41,28 @@ describe('syncState', () => {
     expect(goalie?.goalieSaveUntil).toBe(1234);
     expect(goalie?.goalieSaveType).toBe('glove');
     expect(goalie?.goalieSaveSide).toBe(-1);
+  });
+
+  it('syncs human controller indices only to human skaters', () => {
+    const state = new MatchState();
+    const w = createWorld([
+      { id: 'human', team: 0, characterId: 'blaze', isBot: false, isGoalie: false },
+      { id: 'bot', team: 0, characterId: 'tank', isBot: true, isGoalie: false },
+      { id: 'goalie', team: 1, characterId: 'tank', isBot: true, isGoalie: true },
+    ]);
+
+    syncState(state, w);
+    syncControllerIdentities(
+      state,
+      new Map([
+        ['human', 0],
+        ['bot', 1],
+        ['goalie', 2],
+      ]),
+    );
+
+    expect(state.skaters.get('human')?.controllerIndex).toBe(0);
+    expect(state.skaters.get('bot')?.controllerIndex).toBe(-1);
+    expect(state.skaters.get('goalie')?.controllerIndex).toBe(-1);
   });
 });
