@@ -663,17 +663,17 @@ Goalie saves should use readable hockey-style reactions.
 
 **Steps:**
 
-- [ ] Re-read current goalie save tilt logic in `Skater.tsx` and animation selection in `CharacterModel.tsx`.
-- [ ] Add or refine a goalie ready stance for idle/tracking goalie state.
-- [ ] Add procedural butterfly or drop-to-knees pose for pad saves.
-- [ ] Add glove-side lean/reach pose for glove saves.
-- [ ] Add blocker-side lean/deflection pose for blocker saves.
-- [ ] Add body/chest save pose for mid-height body saves.
-- [ ] Add cover pose for soft puck covers.
-- [ ] Return the goalie to ready stance after `goalieSaveUntil` expires.
-- [ ] Keep non-goalie skater animations unaffected.
-- [ ] Run `npm.cmd run test --workspace @bbh/client`.
-- [ ] Run `npm.cmd run typecheck`.
+- [x] Re-read current goalie save tilt logic in `Skater.tsx` and animation selection in `CharacterModel.tsx`.
+- [x] Add or refine a goalie ready stance for idle/tracking goalie state.
+- [x] Add procedural butterfly or drop-to-knees pose for pad saves.
+- [x] Add glove-side lean/reach pose for glove saves.
+- [x] Add blocker-side lean/deflection pose for blocker saves.
+- [x] Add body/chest save pose for mid-height body saves.
+- [x] Add cover pose for soft puck covers.
+- [x] Return the goalie to ready stance after `goalieSaveUntil` expires.
+- [x] Keep non-goalie skater animations unaffected.
+- [x] Run `npm.cmd run test --workspace @bbh/client`.
+- [x] Run `npm.cmd run typecheck`.
 - [ ] Manually verify pad, glove, blocker, body, and cover saves are visually distinct.
 - [ ] Commit with a message like `Add goalie save poses`.
 

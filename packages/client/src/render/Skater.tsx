@@ -62,6 +62,10 @@ export function Skater({
       const turnRate = dt > 0 ? turn / dt : 0;
       let targetPitch = THREE.MathUtils.clamp(s.speed * 0.018, 0, 0.22);
       let targetRoll = THREE.MathUtils.clamp(turnRate * 0.05, -0.3, 0.3);
+      if (isGoalie && !s.downed) {
+        targetPitch = Math.max(targetPitch, 0.08);
+        targetRoll *= 0.65;
+      }
       if (s.downed) {
         targetPitch = 1.18;
         targetRoll = 0.65;
