@@ -240,16 +240,16 @@ Goalie saves should use readable hockey-style reactions.
 
 **Steps:**
 
-- [ ] Re-read `characters.ts`, `characters.test.ts`, `CharacterSelect.tsx`, `CharacterModel.tsx`, and `gear.ts`.
-- [ ] Write or update character tests so the roster still has exactly 10 characters, every build totals 38 points, every distribution remains unique, and every archetype has at least one clear strength and one clear weakness.
-- [ ] Replace character names/blurbs with fictional hockey archetypes: Sniper, Heavy Hitter, Deke Artist, Playmaker, Lockdown Defender, All-Around Star, Power Forward, Two-Way Pest, Slap Shot Cannon, and Wild Card Defender.
-- [ ] Keep real player names, real team names, logos, and direct likenesses out of code and UI copy.
-- [ ] Keep `hit` as both checking power and body strength/balance resistance.
-- [ ] Add or structure archetype visual metadata so hockey looks can vary by role without changing team uniform colors.
-- [ ] Preserve or update ultimate links deliberately so every character still references a valid unique ultimate.
-- [ ] Run `npm.cmd run test --workspace @bbh/shared`.
-- [ ] Run `npm.cmd run typecheck`.
-- [ ] Commit with a message like `Add hockey archetype roster`.
+- [x] Re-read `characters.ts`, `characters.test.ts`, `CharacterSelect.tsx`, `CharacterModel.tsx`, and `gear.ts`.
+- [x] Write or update character tests so the roster still has exactly 10 characters, every build totals 38 points, every distribution remains unique, and every archetype has at least one clear strength and one clear weakness.
+- [x] Replace character names/blurbs with fictional hockey archetypes: Sniper, Heavy Hitter, Deke Artist, Playmaker, Lockdown Defender, All-Around Star, Power Forward, Two-Way Pest, Slap Shot Cannon, and Wild Card Defender.
+- [x] Keep real player names, real team names, logos, and direct likenesses out of code and UI copy.
+- [x] Keep `hit` as both checking power and body strength/balance resistance.
+- [x] Add or structure archetype visual metadata so hockey looks can vary by role without changing team uniform colors.
+- [x] Preserve or update ultimate links deliberately so every character still references a valid unique ultimate.
+- [x] Run `npm.cmd run test --workspace @bbh/shared`.
+- [x] Run `npm.cmd run typecheck`.
+- [x] Commit with a message like `Add hockey archetype roster`.
 
 **Acceptance:**
 
@@ -277,23 +277,23 @@ Goalie saves should use readable hockey-style reactions.
 
 **Steps:**
 
-- [ ] Re-read the lobby connect flow, Colyseus state schema, client snapshot parsing, and skater rendering.
-- [ ] Define player ring colors by human join order: P1 `#ff3030`, P2 `#2878ff`, P3 `#21d96b`, P4 `#ffd735`, P5 `#ff3bd4`, P6 `#26f0ff`.
-- [ ] Add server-owned human controller index metadata so the ring follows the human session, not the skater slot.
-- [ ] Sync the controller index to clients for human-controlled skaters; bots and goalies should expose no player ring identity.
-- [ ] Update skater rendering so AI/bot skaters render no control ring.
-- [ ] Update skater rendering so the human ring moves when a session switches controlled skaters.
-- [ ] Make the active human ring thicker, brighter, slightly larger, and more readable than the current local-only highlight; use a subtle pulse or glow.
-- [ ] Add Home and Away uniform scheme selection to the home/lobby flow before match start.
-- [ ] Define basic uniform schemes: black, red, blue, green, yellow, and white.
-- [ ] Store selected Home/Away uniform scheme IDs on the room and sync them to clients.
-- [ ] Apply uniform scheme colors only to jerseys and pants.
-- [ ] Keep sticks, gloves, helmets, visors, tape, pads, and accessories controlled by archetype visuals, not uniform schemes.
-- [ ] Prevent indistinguishable Home/Away uniform selections by blocking start or auto-adjusting Away to a contrasting fallback.
-- [ ] Run targeted server/client tests for room state and snapshot mapping.
-- [ ] Run `npm.cmd run test`.
-- [ ] Run `npm.cmd run typecheck`.
-- [ ] Commit with a message like `Add human rings and uniform schemes`.
+- [x] Re-read the lobby connect flow, Colyseus state schema, client snapshot parsing, and skater rendering.
+- [x] Define player ring colors by human join order: P1 `#ff3030`, P2 `#2878ff`, P3 `#21d96b`, P4 `#ffd735`, P5 `#ff3bd4`, P6 `#26f0ff`.
+- [x] Add server-owned human controller index metadata so the ring follows the human session, not the skater slot.
+- [x] Sync the controller index to clients for human-controlled skaters; bots and goalies should expose no player ring identity.
+- [x] Update skater rendering so AI/bot skaters render no control ring.
+- [x] Update skater rendering so the human ring moves when a session switches controlled skaters.
+- [x] Make the active human ring thicker, brighter, slightly larger, and more readable than the current local-only highlight; use a subtle pulse or glow.
+- [x] Add Home and Away uniform scheme selection to the home/lobby flow before match start.
+- [x] Define basic uniform schemes: black, red, blue, green, yellow, and white.
+- [x] Store selected Home/Away uniform scheme IDs on the room and sync them to clients.
+- [x] Apply uniform scheme colors only to jerseys and pants.
+- [x] Keep sticks, gloves, helmets, visors, tape, pads, and accessories controlled by archetype visuals, not uniform schemes.
+- [x] Prevent indistinguishable Home/Away uniform selections by blocking start or auto-adjusting Away to a contrasting fallback.
+- [x] Run targeted server/client tests for room state and snapshot mapping.
+- [x] Run `npm.cmd run test`.
+- [x] Run `npm.cmd run typecheck`.
+- [x] Commit with a message like `Add human rings and uniform schemes`.
 
 **Acceptance:**
 
@@ -319,22 +319,22 @@ Goalie saves should use readable hockey-style reactions.
 
 **Steps:**
 
-- [ ] Re-read current net collision helpers, puck step logic, goal detection, and rink rendering.
-- [ ] Write failing tests for skaters sliding around the goal frame, slowing on contact, and receiving a small escape bump only when wedged.
-- [ ] Implement skater-goal collision as slide-and-slow behavior instead of sticky collision.
-- [ ] Write failing tests for goal mouth scoring versus post, crossbar, side mesh, back mesh, and outside goal hits.
-- [ ] Implement strict scoring only through the front goal mouth.
-- [ ] Implement hard rebound responses for posts and crossbar.
-- [ ] Emit a post/crossbar impact event that `sfx.ts` can subscribe to for a metal ding sound.
-- [ ] Implement softer netting/mesh rebounds that return the puck to playable ice.
-- [ ] Add last-valid-position safety correction for puck clips through non-scoring goal geometry.
-- [ ] Keep valid goals dead in the net for 2 seconds before reset.
-- [ ] Increase glass height visually in `Rink.tsx`.
-- [ ] Add physical puck collision against taller glass for lifted/missed shots.
-- [ ] Wire the metal ding sound in `sfx.ts`.
-- [ ] Run `npm.cmd run test --workspace @bbh/shared`.
-- [ ] Run `npm.cmd run typecheck`.
-- [ ] Commit with a message like `Improve net and glass physics`.
+- [x] Re-read current net collision helpers, puck step logic, goal detection, and rink rendering.
+- [x] Write failing tests for skaters sliding around the goal frame, slowing on contact, and receiving a small escape bump only when wedged.
+- [x] Implement skater-goal collision as slide-and-slow behavior instead of sticky collision.
+- [x] Write failing tests for goal mouth scoring versus post, crossbar, side mesh, back mesh, and outside goal hits.
+- [x] Implement strict scoring only through the front goal mouth.
+- [x] Implement hard rebound responses for posts and crossbar.
+- [x] Emit a post/crossbar impact event that `sfx.ts` can subscribe to for a metal ding sound.
+- [x] Implement softer netting/mesh rebounds that return the puck to playable ice.
+- [x] Add last-valid-position safety correction for puck clips through non-scoring goal geometry.
+- [x] Keep valid goals dead in the net for 2 seconds before reset.
+- [x] Increase glass height visually in `Rink.tsx`.
+- [x] Add physical puck collision against taller glass for lifted/missed shots.
+- [x] Wire the metal ding sound in `sfx.ts`.
+- [x] Run `npm.cmd run test --workspace @bbh/shared`.
+- [x] Run `npm.cmd run typecheck`.
+- [x] Commit with a message like `Improve net and glass physics`.
 
 **Acceptance:**
 
@@ -373,7 +373,7 @@ Goalie saves should use readable hockey-style reactions.
 - [x] Run `npm.cmd run test --workspace @bbh/shared`.
 - [x] Run `npm.cmd run test --workspace @bbh/client`.
 - [x] Run `npm.cmd run typecheck`.
-- [ ] Commit with a message like `Tune sprint and slapshot glide`.
+- [x] Commit with a message like `Tune sprint and slapshot glide`.
 
 **Acceptance:**
 
@@ -410,7 +410,7 @@ Goalie saves should use readable hockey-style reactions.
 - [x] Add or improve poke animation event state so the long reach is visible.
 - [x] Run `npm.cmd run test --workspace @bbh/shared`.
 - [x] Run `npm.cmd run typecheck`.
-- [ ] Commit with a message like `Improve stick reach and poke checks`.
+- [x] Commit with a message like `Improve stick reach and poke checks`.
 
 **Acceptance:**
 
@@ -457,7 +457,7 @@ Goalie saves should use readable hockey-style reactions.
 - [x] Run `npm.cmd run test --workspace @bbh/shared`.
 - [x] Run `npm.cmd run test --workspace @bbh/client`.
 - [x] Run `npm.cmd run typecheck`.
-- [ ] Commit with a message like `Add arcade knockdown contact`.
+- [x] Commit with a message like `Add arcade knockdown contact`.
 
 **Acceptance:**
 
@@ -496,7 +496,7 @@ Goalie saves should use readable hockey-style reactions.
 - [x] Run `npm.cmd run test --workspace @bbh/shared`.
 - [x] Run `npm.cmd run test --workspace @bbh/client`.
 - [x] Run `npm.cmd run typecheck`.
-- [ ] Commit with a message like `Add aimed charged passing`.
+- [x] Commit with a message like `Add aimed charged passing`.
 
 **Acceptance:**
 
@@ -536,7 +536,7 @@ Goalie saves should use readable hockey-style reactions.
 - [x] Run `npm.cmd run test --workspace @bbh/shared`.
 - [x] Run `npm.cmd run test --workspace @bbh/client`.
 - [x] Run `npm.cmd run typecheck`.
-- [ ] Commit with a message like `Split wrist and slap shots`.
+- [x] Commit with a message like `Split wrist and slap shots`.
 
 **Acceptance:**
 
@@ -568,7 +568,9 @@ Goalie saves should use readable hockey-style reactions.
 - [x] Run `npm.cmd run test --workspace @bbh/client`.
 - [x] Run `npm.cmd run typecheck`.
 - [ ] Manually verify goalies are visually recognizable in a local match.
-- [ ] Commit with a message like `Add goalie gear visuals`.
+- [x] Commit with a message like `Add goalie gear visuals`.
+
+Sandbox note: manual local-match visual verification was not completed in this sandbox; automated render-data coverage and typecheck passed.
 
 **Acceptance:**
 
@@ -599,7 +601,7 @@ Goalie saves should use readable hockey-style reactions.
 - [x] Preserve goalie cover and auto-pass behavior after holding the puck.
 - [x] Run `npm.cmd run test --workspace @bbh/server -- goalie`.
 - [x] Run `npm.cmd run typecheck`.
-- [ ] Commit with a message like `Rework goalie crease movement`.
+- [x] Commit with a message like `Rework goalie crease movement`.
 
 **Acceptance:**
 
@@ -640,7 +642,7 @@ Goalie saves should use readable hockey-style reactions.
 - [x] Run `npm.cmd run test --workspace @bbh/server -- state`.
 - [x] Run `npm.cmd run test --workspace @bbh/client -- interpolation`.
 - [x] Run `npm.cmd run typecheck`.
-- [ ] Commit with a message like `Expand goalie save outcomes`.
+- [x] Commit with a message like `Expand goalie save outcomes`.
 
 **Acceptance:**
 
@@ -675,7 +677,9 @@ Goalie saves should use readable hockey-style reactions.
 - [x] Run `npm.cmd run test --workspace @bbh/client`.
 - [x] Run `npm.cmd run typecheck`.
 - [ ] Manually verify pad, glove, blocker, body, and cover saves are visually distinct.
-- [ ] Commit with a message like `Add goalie save poses`.
+- [x] Commit with a message like `Add goalie save poses`.
+
+Sandbox note: manual local-match save-pose visual verification was not completed in this sandbox; automated sync/render-state coverage and typecheck passed.
 
 **Acceptance:**
 
@@ -697,18 +701,20 @@ Goalie saves should use readable hockey-style reactions.
 
 **Steps:**
 
-- [ ] Re-read goalie movement, save outcome, and save pose work-order commits.
-- [ ] Tune lateral speed, settle radius, target hold, challenge depth, save reach, cover threshold, rebound strength, and save pose duration together.
-- [ ] Verify goalies are not overpowered against cross-crease plays.
-- [ ] Verify goalies are not useless against straight-on shots.
-- [ ] Verify goalies stay calm when the puck is far and react when danger rises.
+- [x] Re-read goalie movement, save outcome, and save pose work-order commits.
+- [x] Tune lateral speed, settle radius, target hold, challenge depth, save reach, cover threshold, rebound strength, and save pose duration together.
+- [x] Verify goalies are not overpowered against cross-crease plays.
+- [x] Verify goalies are not useless against straight-on shots.
+- [x] Verify goalies stay calm when the puck is far and react when danger rises.
 - [ ] Verify goalie gear remains readable with all selected uniform schemes.
-- [ ] Run `npm.cmd run test --workspace @bbh/shared`.
-- [ ] Run `npm.cmd run test --workspace @bbh/server`.
-- [ ] Run `npm.cmd run test --workspace @bbh/client`.
-- [ ] Run `npm.cmd run typecheck`.
+- [x] Run `npm.cmd run test --workspace @bbh/shared`.
+- [x] Run `npm.cmd run test --workspace @bbh/server`.
+- [x] Run `npm.cmd run test --workspace @bbh/client`.
+- [x] Run `npm.cmd run typecheck`.
 - [ ] Manually playtest a local match and inspect several low, high, side-angle, and hard shots.
 - [ ] Commit with a message like `Tune goalie rework`.
+
+Sandbox note: fairness checks above are covered by automated goalie/save tests. Uniform readability across every scheme and live shot playtesting were not completed in this sandbox.
 
 **Acceptance:**
 
@@ -740,12 +746,12 @@ Goalie saves should use readable hockey-style reactions.
 
 **Steps:**
 
-- [ ] Re-read all completed work-order commits and the full spec.
-- [ ] Tune skating speed, sprint tradeoff, pickup radius, poke range, hit force, slide friction, pass cone, pass power, shot lift, glass height, and ring readability together.
-- [ ] Remove obsolete penalty/power-play references from UI, comments, README sections, and docs touched by this feature set.
+- [x] Re-read all completed work-order commits and the full spec.
+- [x] Tune skating speed, sprint tradeoff, pickup radius, poke range, hit force, slide friction, pass cone, pass power, shot lift, glass height, and ring readability together.
+- [x] Remove obsolete penalty/power-play references from UI, comments, README sections, and docs touched by this feature set.
 - [ ] Confirm generated or procedural hockey gear remains readable on all archetypes.
-- [ ] Run `npm.cmd run test`.
-- [ ] Run `npm.cmd run typecheck`.
+- [x] Run `npm.cmd run test`.
+- [x] Run `npm.cmd run typecheck`.
 - [ ] Start the local dev stack with `npm.cmd run dev`.
 - [ ] Manually verify a local match at `http://localhost:5173/`.
 - [ ] Manually verify the server monitor at `http://localhost:2567/colyseus`.
@@ -759,6 +765,8 @@ Goalie saves should use readable hockey-style reactions.
 - [ ] Manual check: goalies move laterally in the crease and stay calm when puck danger is low.
 - [ ] Manual check: goalie pad, glove, blocker, body, and cover saves read differently.
 - [ ] Commit final tuning with a message like `Tune Dale gameplay feel pass`.
+
+Sandbox note: local dev stack/browser playtest and manual visual checks were not completed in this sandbox. Automated tests and typecheck are used as the completed verification signal below.
 
 **Acceptance:**
 
