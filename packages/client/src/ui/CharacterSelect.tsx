@@ -103,7 +103,7 @@ export function CharacterSelect() {
             background: '#0a0e20',
           }}
         >
-          <CharacterPreview glb={shown.glb} team={0} jersey={shown.jersey} />
+          <CharacterPreview glb={shown.glb} team={0} jersey={shown.jersey} visuals={shown.visuals} />
         </div>
 
         <div style={{ flex: '1 1 320px', minWidth: 280, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6 }}>
@@ -117,6 +117,10 @@ export function CharacterSelect() {
             )}
           </div>
           <div style={{ opacity: 0.8, fontSize: 14, marginBottom: 4 }}>{shown.blurb}</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 12, marginBottom: 4 }}>
+            <span style={{ color: '#9ef0b8' }}>Strengths: {shown.archetype.strengths.join(', ')}</span>
+            <span style={{ color: '#ffb3a8' }}>Weaknesses: {shown.archetype.weaknesses.join(', ')}</span>
+          </div>
           <div style={{ maxWidth: 420 }}>
             {ATTRS.map((a) => (
               <Bar key={a} label={a} value={shown.attrs[a]} color={shown.jersey} big />

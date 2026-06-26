@@ -2,6 +2,7 @@ import { Suspense, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Environment, Lightformer } from '@react-three/drei';
 import * as THREE from 'three';
+import type { CharacterVisuals } from '@bbh/shared';
 import { CharacterModel } from './CharacterModel.js';
 import { ModelBoundary } from './ModelBoundary.js';
 
@@ -42,10 +43,12 @@ export function CharacterPreview({
   glb,
   team,
   jersey,
+  visuals,
 }: {
   glb: string;
   team: number;
   jersey: string;
+  visuals?: CharacterVisuals;
 }) {
   return (
     <Canvas
@@ -65,7 +68,7 @@ export function CharacterPreview({
         <Turntable>
           <ModelBoundary fallback={<Fallback jersey={jersey} />}>
             {/* key by glb so switching characters cleanly swaps the rig */}
-            <CharacterModel key={glb} id="__preview" glb={glb} team={team} />
+            <CharacterModel key={glb} id="__preview" glb={glb} team={team} visuals={visuals} />
           </ModelBoundary>
         </Turntable>
       </Suspense>

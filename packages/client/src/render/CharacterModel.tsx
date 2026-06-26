@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import { SkeletonUtils } from 'three-stdlib';
 import * as THREE from 'three';
-import { CHARACTERS } from '@bbh/shared';
+import { CHARACTERS, type CharacterVisuals } from '@bbh/shared';
 import { CLIPS, locoForSpeed, resolve, type LocoClip } from './clipMap.js';
 import { frameStore } from './frameStore.js';
 import { attachGear } from './gear.js';
@@ -17,7 +17,17 @@ const TEAM_EMISSIVE = ['#3c6bff', '#ff5a3c'];
 // preload every distinct model up front
 for (const glb of new Set(CHARACTERS.map((c) => c.glb))) useGLTF.preload('/' + glb);
 
-export function CharacterModel({ id, glb, team }: { id: string; glb: string; team: number }) {
+export function CharacterModel({
+  id,
+  glb,
+  team,
+  visuals,
+}: {
+  id: string;
+  glb: string;
+  team: number;
+  visuals?: CharacterVisuals;
+}) {
   const { scene, animations } = useGLTF('/' + glb);
 
   // per-instance skinned clone + tinted materials
@@ -38,9 +48,9 @@ export function CharacterModel({ id, glb, team }: { id: string; glb: string; tea
       };
       mesh.material = Array.isArray(src) ? src.map(tint) : tint(src);
     });
-    attachGear(clone, team);
+    attachGear(clone, team, visuals);
     return clone;
-  }, [scene, team]);
+  }, [scene, team, visuals]);
 
   const clipNames = useMemo(() => animations.map((a) => a.name), [animations]);
   const mixer = useMemo(() => new THREE.AnimationMixer(model), [model]);

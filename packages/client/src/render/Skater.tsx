@@ -126,7 +126,7 @@ export function Skater({
       <group ref={tilt}>
         <Suspense fallback={<ProceduralBody jersey={jersey} trim={trim} />}>
           <ModelBoundary fallback={<ProceduralBody jersey={jersey} trim={trim} />}>
-            <CharacterModel id={id} glb={glb} team={team} />
+            <CharacterModel id={id} glb={glb} team={team} visuals={char?.visuals} />
           </ModelBoundary>
         </Suspense>
       </group>
