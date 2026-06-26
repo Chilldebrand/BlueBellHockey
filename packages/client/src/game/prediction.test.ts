@@ -78,4 +78,25 @@ describe('prediction', () => {
     expect(predicted?.x).toBeGreaterThan(0.4);
     expect(Math.abs(predicted?.z ?? 0)).toBeLessThan(0.01);
   });
+
+  it('predicts sprint faster than base while preserving the carrying tradeoff', () => {
+    const baseInput = neutralInput();
+    baseInput.move = { x: 1, z: 0 };
+
+    const sprintInput = neutralInput();
+    sprintInput.move = { x: 1, z: 0 };
+    sprintInput.actions.sprint = true;
+
+    const free = snap();
+    free.puck.carrier = '';
+    const freeBase = predictLocal([free], 's1', baseInput, 0.1, null);
+    const freeSprint = predictLocal([free], 's1', sprintInput, 0.1, null);
+
+    const carrying = snap();
+    carrying.puck.carrier = 's1';
+    const carrySprint = predictLocal([carrying], 's1', sprintInput, 0.1, null);
+
+    expect((freeSprint?.x ?? 0) - 50).toBeGreaterThan(((freeBase?.x ?? 0) - 50) * 1.1);
+    expect((carrySprint?.x ?? 0) - 50).toBeLessThan(((freeSprint?.x ?? 0) - 50) * 0.88);
+  });
 });

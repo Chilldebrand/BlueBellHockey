@@ -13,6 +13,7 @@ import { emptyActions, neutralInput, type InputState, type WorldState } from './
 import { attackingGoalX, PUCK_RADIUS, RINK, SKATER_RADIUS } from '../config/rink.js';
 import { GAME_MODES } from '../config/modes.js';
 import { v } from './physics.js';
+import { maxSpeedOf } from './skater.js';
 
 /** Launch a loose puck across team 0's attacking line, credited to `scorer`. */
 function launchTeam0Goal(w: WorldState, scorer: string): void {
@@ -194,10 +195,14 @@ describe('world simulation', () => {
     const normal = createWorld(roster());
     normal.phase = 'period';
     normal.skaters.a.pos = { x: 0, z: 0 };
+    normal.puck.pos = { x: 20, z: 0 };
+    normal.puck.pickupCooldownUntil = Infinity;
 
     const sprint = createWorld(roster());
     sprint.phase = 'period';
     sprint.skaters.a.pos = { x: 0, z: 0 };
+    sprint.puck.pos = { x: 20, z: 0 };
+    sprint.puck.pickupCooldownUntil = Infinity;
 
     const normalInput: InputState = { ...neutralInput(), move: { x: 1, z: 0 } };
     const sprintInput: InputState = {
@@ -212,6 +217,54 @@ describe('world simulation', () => {
     }
 
     expect(v.len(sprint.skaters.a.vel)).toBeGreaterThan(v.len(normal.skaters.a.vel) * 1.12);
+  });
+
+  it('sprint speed is above base skating but below the previous top-speed feel', () => {
+    const w = createWorld([
+      { id: 'fast', team: 0, characterId: 'sniper', isBot: false, isGoalie: false },
+    ]);
+    const fast = w.skaters.fast;
+
+    const base = maxSpeedOf(fast, false, w.time, false);
+    const sprint = maxSpeedOf(fast, false, w.time, true);
+
+    expect(base).toBeLessThan(15.5);
+    expect(sprint).toBeGreaterThan(base * 1.1);
+    expect(sprint).toBeLessThan(18);
+  });
+
+  it('sprinting trades off sharp turning control', () => {
+    const normal = createWorld(roster());
+    normal.phase = 'period';
+    normal.skaters.a.vel = { x: 10, z: 0 };
+
+    const sprint = createWorld(roster());
+    sprint.phase = 'period';
+    sprint.skaters.a.vel = { x: 10, z: 0 };
+
+    const turnInput: InputState = { ...neutralInput(), move: { x: 0, z: 1 } };
+    const sprintTurnInput: InputState = {
+      ...neutralInput(),
+      move: { x: 0, z: 1 },
+      actions: { ...emptyActions(), sprint: true },
+    };
+
+    step(normal, { a: turnInput }, DT);
+    step(sprint, { a: sprintTurnInput }, DT);
+
+    expect(sprint.skaters.a.vel.z).toBeLessThan(normal.skaters.a.vel.z * 0.8);
+  });
+
+  it('sprinting with the puck has a stronger control tradeoff than normal carrying', () => {
+    const w = createWorld(roster());
+    const a = w.skaters.a;
+
+    const carry = maxSpeedOf(a, true, w.time, false);
+    const sprintCarry = maxSpeedOf(a, true, w.time, true);
+    const sprintFree = maxSpeedOf(a, false, w.time, true);
+
+    expect(sprintCarry).toBeGreaterThan(carry);
+    expect(sprintCarry).toBeLessThan(sprintFree * 0.88);
   });
 
   it('a partial puck crossing the goal line does not score', () => {
@@ -973,6 +1026,28 @@ describe('combo multiplier integration (WO-04)', () => {
 
     expect(a.pos.x - startX).toBeGreaterThan(0.45);
     expect(Math.abs(a.pos.z - startZ)).toBeLessThan(0.18);
+  });
+
+  it('clears a stale slap-shot windup without firing', () => {
+    const w = createWorld(roster());
+    w.phase = 'period';
+    const a = w.skaters.a;
+    w.puck.carrier = 'a';
+
+    const holdingShoot: InputState = {
+      ...neutralInput(),
+      move: { x: 1, z: 0 },
+      actions: { ...emptyActions(), shoot: true },
+    };
+
+    step(w, { a: holdingShoot }, DT);
+    expect(a.status.shootChargeStart).toBeGreaterThan(0);
+
+    for (let i = 0; i < 140; i++) step(w, { a: holdingShoot }, DT);
+
+    expect(a.status.shootChargeStart).toBe(0);
+    expect(w.puck.carrier).toBe('a');
+    expect(w.events.some((e) => e.type === 'shot')).toBe(false);
   });
 
   it('a poke check knocks the puck loose; a stick lift takes possession (WO-08)', () => {

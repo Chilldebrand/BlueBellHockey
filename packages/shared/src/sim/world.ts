@@ -41,6 +41,8 @@ export interface RosterEntry {
   isGoalie: boolean;
 }
 
+export const SLAP_WINDUP_TIMEOUT_MS = 1800;
+
 function createRng(seed = 0x9e3779b9): () => number {
   let state = seed >>> 0;
   return () => {
@@ -449,6 +451,9 @@ export function step(
         if (a.shoot && !last.shoot && world.puck.carrier === s.id) {
           startShootWindup(world, s, input);
         }
+      }
+      if (s.status.shootChargeStart > 0 && world.time - s.status.shootChargeStart > SLAP_WINDUP_TIMEOUT_MS) {
+        clearShootWindup(s);
       }
       // Fire on release — handled outside the disabled guard so a check that
       // strips or staggers mid-wind-up cancels the shot cleanly.

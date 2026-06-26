@@ -23,11 +23,14 @@ export function penaltyBoxPos(team: number): { x: number; z: number } {
 }
 
 // Arcade feel pass (WO-00): faster top speed, snappier accel, longer glide.
-export const BASE_SPEED = 7;
-export const SPEED_PER_POINT = 0.9;
+export const BASE_SPEED = 6.2;
+export const SPEED_PER_POINT = 0.88;
 const ACCEL = 30;
 const FRICTION = 7;
-export const SPRINT_MULT = 1.18;
+export const SPRINT_MULT = 1.14;
+const SPRINT_TURN_ACCEL_MULT = 0.45;
+export const CARRY_SPEED_MULT = 0.92;
+export const SPRINT_CARRY_SPEED_MULT = 0.84;
 
 // Commitment window (ms) after which winding up a slap shot starts to root you.
 export const SLAP_COMMIT_MS = 140;
@@ -36,7 +39,7 @@ export function maxSpeedOf(s: SkaterState, carrying: boolean, time = -1, sprinti
   const sp = effectiveAttr(s, 'speed');
   let m = (BASE_SPEED + sp * SPEED_PER_POINT) * s.status.speedMult;
   if (sprinting) m *= SPRINT_MULT;
-  if (carrying) m *= 0.92;
+  if (carrying) m *= sprinting ? SPRINT_CARRY_SPEED_MULT : CARRY_SPEED_MULT;
   // Deke (WO-03): trade a little speed for separation while the dangle is live.
   if (time >= 0 && s.status.dekeUntil > time) m *= 0.9;
   // Slap shot (WO-08): once a wind-up passes the commit window you're slowed, so a
@@ -65,9 +68,12 @@ export function stepSkater(
   const moveLen = v.len(move);
   if (!disabled && moveLen > 0.05) {
     const dir = v.norm(move);
-    const target = v.scale(dir, maxSpeedOf(s, carrying, world.time, !windupGlide && input.actions.sprint));
-    s.vel.x += (target.x - s.vel.x) * Math.min(1, ACCEL * dt);
-    s.vel.z += (target.z - s.vel.z) * Math.min(1, ACCEL * dt);
+    const sprinting = !windupGlide && input.actions.sprint;
+    const target = v.scale(dir, maxSpeedOf(s, carrying, world.time, sprinting));
+    const turningHard = sprinting && v.len(s.vel) > 0.5 && v.dot(v.norm(s.vel), dir) < 0.85;
+    const accel = ACCEL * (turningHard ? SPRINT_TURN_ACCEL_MULT : 1);
+    s.vel.x += (target.x - s.vel.x) * Math.min(1, accel * dt);
+    s.vel.z += (target.z - s.vel.z) * Math.min(1, accel * dt);
   } else {
     const decel = disabled ? FRICTION * 2.5 : FRICTION;
     const f = Math.max(0, 1 - decel * dt);

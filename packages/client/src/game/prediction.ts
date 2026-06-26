@@ -1,7 +1,9 @@
 import {
   BASE_SPEED,
+  CARRY_SPEED_MULT,
   SLAP_COMMIT_MS,
   SPEED_PER_POINT,
+  SPRINT_CARRY_SPEED_MULT,
   SPRINT_MULT,
   carryAnchor,
   getCharacter,
@@ -44,7 +46,7 @@ export function predictLocal(
   const moveLen = v.len(move);
   let maxSpeed = BASE_SPEED + getCharacter(s.characterId).attrs.speed * SPEED_PER_POINT;
   if (!windupGlide && input.actions.sprint) maxSpeed *= SPRINT_MULT;
-  if (carrying) maxSpeed *= 0.92;
+  if (carrying) maxSpeed *= !windupGlide && input.actions.sprint ? SPRINT_CARRY_SPEED_MULT : CARRY_SPEED_MULT;
   if (s.shootChargeStart > 0 && latest.serverTime - s.shootChargeStart > SLAP_COMMIT_MS) maxSpeed *= 0.6;
 
   // start from previous predicted pos (or server pos), reconcile toward server

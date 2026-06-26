@@ -360,18 +360,19 @@ Goalie saves should use readable hockey-style reactions.
 
 **Steps:**
 
-- [ ] Re-read movement constants, sprint handling, shot charge handling, and client prediction.
-- [ ] Write failing tests proving base speed is moderately slower and sprint is above base but below the previous effective top speed.
-- [ ] Tune base speed and sprint multiplier.
-- [ ] Add sprint turning and puck-control precision penalty.
-- [ ] Update prediction tests so local movement matches shared movement.
-- [ ] Write failing tests for slap-shot windup glide: windup captures initial movement direction, steering is ignored while wound up, and neutral right stick cancels windup.
-- [ ] Implement windup glide direction state in shared sim.
-- [ ] Add windup timeout safety.
-- [ ] Ensure getting checked, stripped, disabled, or losing the puck cancels windup.
-- [ ] Run `npm.cmd run test --workspace @bbh/shared`.
-- [ ] Run `npm.cmd run test --workspace @bbh/client`.
-- [ ] Run `npm.cmd run typecheck`.
+- [x] Re-read movement constants, sprint handling, shot charge handling, and client prediction.
+- [x] Write failing tests proving base speed is moderately slower and sprint is above base but below the previous effective top speed.
+- [x] Tune base speed and sprint multiplier.
+- [x] Add sprint turning and puck-control precision penalty.
+- [x] Update prediction tests so local movement matches shared movement.
+- [x] Write failing tests for slap-shot windup glide: windup captures initial movement direction and steering is ignored while wound up.
+- [ ] Write failing tests for neutral right-stick windup cancel once WO-08 introduces the shot-input state machine.
+- [x] Implement windup glide direction state in shared sim.
+- [x] Add windup timeout safety.
+- [x] Ensure getting checked, stripped, disabled, or losing the puck cancels windup.
+- [x] Run `npm.cmd run test --workspace @bbh/shared`.
+- [x] Run `npm.cmd run test --workspace @bbh/client`.
+- [x] Run `npm.cmd run typecheck`.
 - [ ] Commit with a message like `Tune sprint and slapshot glide`.
 
 **Acceptance:**
