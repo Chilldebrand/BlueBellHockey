@@ -484,18 +484,18 @@ Goalie saves should use readable hockey-style reactions.
 
 **Steps:**
 
-- [ ] Re-read current pass target selection and input edge handling.
-- [ ] Write failing tests for pass direction following left-stick aim.
-- [ ] Write failing tests for teammate assist only when a teammate is in the aimed cone and the lane is reasonable.
-- [ ] Write failing tests for open-ice pass when no reasonable teammate target exists.
-- [ ] Add pass-charge start and release state.
-- [ ] Write failing tests for smooth pass power ramp from soft to strong over 0.5 seconds.
-- [ ] Implement pass charge cap at 0.5 seconds.
-- [ ] Preserve existing assist/last-touch/one-timer behavior where compatible.
-- [ ] Update client input handling so tap pass and held pass are distinguishable.
-- [ ] Run `npm.cmd run test --workspace @bbh/shared`.
-- [ ] Run `npm.cmd run test --workspace @bbh/client`.
-- [ ] Run `npm.cmd run typecheck`.
+- [x] Re-read current pass target selection and input edge handling.
+- [x] Write failing tests for pass direction following left-stick aim.
+- [x] Write failing tests for teammate assist only when a teammate is in the aimed cone and the lane is reasonable.
+- [x] Write failing tests for open-ice pass when no reasonable teammate target exists.
+- [x] Add pass-charge start and release state.
+- [x] Write failing tests for smooth pass power ramp from soft to strong over 0.5 seconds.
+- [x] Implement pass charge cap at 0.5 seconds.
+- [x] Preserve existing assist/last-touch/one-timer behavior where compatible.
+- [x] Update client input handling so tap pass and held pass are distinguishable.
+- [x] Run `npm.cmd run test --workspace @bbh/shared`.
+- [x] Run `npm.cmd run test --workspace @bbh/client`.
+- [x] Run `npm.cmd run typecheck`.
 - [ ] Commit with a message like `Add aimed charged passing`.
 
 **Acceptance:**

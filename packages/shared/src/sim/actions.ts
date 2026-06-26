@@ -30,6 +30,8 @@ const ANKLE_BREAK_MS = 900; // stagger applied to a beaten defender
 // crisp redirect — extra power and a tighter line on net.
 const ONE_TIMER_POWER = 1.25;
 const ONE_TIMER_ASSIST_BONUS = 0.2;
+export const PASS_FULL_MS = 500;
+const PASS_ASSIST_CONE = 0.35;
 const WRIST_LIFT = 3.2;
 const SLAP_LIFT = 6.0;
 const ONE_TIMER_LIFT_BONUS = 0.8;
@@ -156,22 +158,21 @@ export function doShoot(world: WorldState, s: SkaterState, input: InputState): v
   if (v.dot(dir, toNet) > 0.6) awardCharge(s, 'shot');
 }
 
-export function doPass(world: WorldState, s: SkaterState, input: InputState): void {
+export function doPass(world: WorldState, s: SkaterState, input: InputState, charge = 0): void {
   const puck = world.puck;
   if (puck.carrier !== s.id) return;
 
+  const perfect = s.status.passPerfectUntil > world.time;
+  const aim = v.len(input.move) > 0.2 ? v.norm(input.move) : aimDir(s, input);
   const mates = Object.values(world.skaters).filter(
     (o) => o.team === s.team && o.id !== s.id && !isDisabled(o, world.time),
   );
-  if (mates.length === 0) return;
-
-  const perfect = s.status.passPerfectUntil > world.time;
-  const aim = aimDir(s, input);
   let best: SkaterState | null = null;
   let bestScore = -Infinity;
   for (const m of mates) {
     const to = v.norm(v.sub(m.pos, s.pos));
     const align = v.dot(to, aim);
+    if (!perfect && align < PASS_ASSIST_CONE) continue;
     // perfect vision favors the teammate nearest the net; otherwise favor aim alignment
     const score = perfect
       ? -v.dist(m.pos, netCenter(s.team))
@@ -181,13 +182,12 @@ export function doPass(world: WorldState, s: SkaterState, input: InputState): vo
       best = m;
     }
   }
-  if (!best) return;
-
   const pass = effectiveAttr(s, 'pass');
-  const lead = v.scale(best.vel, 0.2 + (pass / 10) * 0.2);
-  const target = v.add(best.pos, lead);
-  const dir = v.norm(v.sub(target, puck.pos));
-  const power = perfect ? 26 : 14 + pass * 1.2;
+  const lead = best ? v.scale(best.vel, 0.2 + (pass / 10) * 0.2) : { x: 0, z: 0 };
+  const target = best ? v.add(best.pos, lead) : v.add(puck.pos, v.scale(aim, 8));
+  const dir = best ? v.norm(v.sub(target, puck.pos)) : aim;
+  const charge01 = Math.max(0, Math.min(1, charge));
+  const power = (perfect ? 26 : 14 + pass * 1.2) * (1 + charge01 * 0.55);
 
   puck.vel = v.scale(dir, power);
   puck.carrier = null;
@@ -195,11 +195,11 @@ export function doPass(world: WorldState, s: SkaterState, input: InputState): vo
   puck.lastTouch = s.id;
   puck.assistTouch = null;
 
-  emit(world, { type: 'pass', from: s.id, to: best.id });
+  emit(world, { type: 'pass', from: s.id, to: best?.id ?? '' });
   awardCharge(s, 'pass');
   // No-look (WO-04): feeding a teammate behind where you're facing is style.
-  const toTarget = v.norm(v.sub(best.pos, s.pos));
-  if (v.dot(toTarget, v.fromAngle(s.facing)) < -0.1) {
+  const toTarget = best ? v.norm(v.sub(best.pos, s.pos)) : null;
+  if (best && toTarget && v.dot(toTarget, v.fromAngle(s.facing)) < -0.1) {
     emit(world, { type: 'nolook_pass', from: s.id, to: best.id });
     awardStyle(s, 'nolook_pass', world.time);
   }

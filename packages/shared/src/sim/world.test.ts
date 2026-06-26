@@ -899,6 +899,86 @@ describe('combo multiplier integration (WO-04)', () => {
     expect(a.combo).toBe(3); // a voluntary pass is not a turnover
   });
 
+  it('can pass into open ice using the left-stick direction without a teammate target', () => {
+    const w = createWorld([
+      { id: 'a', team: 0, characterId: 'maestro', isBot: false, isGoalie: false },
+      { id: 'b', team: 1, characterId: 'tank', isBot: false, isGoalie: false },
+    ]);
+    w.phase = 'period';
+    const a = w.skaters.a;
+    a.pos = { x: 0, z: 0 };
+    w.skaters.b.pos = { x: -20, z: 10 };
+    w.puck.carrier = 'a';
+    w.puck.pos = { ...a.pos };
+
+    doPass(w, a, { ...neutralInput(), move: { x: 0, z: 1 } });
+
+    expect(w.puck.carrier).toBeNull();
+    expect(w.puck.vel.z).toBeGreaterThan(10);
+    expect(Math.abs(w.puck.vel.x)).toBeLessThan(0.01);
+    expect(w.events.some((e) => e.type === 'pass')).toBe(true);
+  });
+
+  it('passes into open ice instead of forcing a teammate outside the aimed cone', () => {
+    const w = createWorld(trio());
+    w.phase = 'period';
+    const a = w.skaters.a;
+    a.pos = { x: 0, z: 0 };
+    w.skaters.c.pos = { x: -4, z: 0 }; // teammate behind the intended pass lane
+    w.skaters.b.pos = { x: -20, z: 10 };
+    w.puck.carrier = 'a';
+    w.puck.pos = { ...a.pos };
+
+    doPass(w, a, { ...neutralInput(), move: { x: 1, z: 0 } });
+
+    expect(w.puck.carrier).toBeNull();
+    expect(w.puck.vel.x).toBeGreaterThan(10);
+    expect(Math.abs(w.puck.vel.z)).toBeLessThan(0.01);
+    expect(w.events.some((e) => e.type === 'pass' && (e as any).to === 'c')).toBe(false);
+  });
+
+  it('held pass input fires on release with power capped after half a second', () => {
+    const build = () => {
+      const w = createWorld([
+        { id: 'a', team: 0, characterId: 'maestro', isBot: false, isGoalie: false },
+        { id: 'b', team: 1, characterId: 'tank', isBot: false, isGoalie: false },
+      ]);
+      w.phase = 'period';
+      w.skaters.a.pos = { x: 0, z: 0 };
+      w.skaters.b.pos = { x: -20, z: 10 };
+      w.puck.carrier = 'a';
+      w.puck.pos = { x: 0, z: 0 };
+      return w;
+    };
+    const holdInput: InputState = {
+      ...neutralInput(),
+      move: { x: 1, z: 0 },
+      actions: { ...emptyActions(), pass: true },
+    };
+    const releaseInput: InputState = { ...neutralInput(), move: { x: 1, z: 0 } };
+
+    const tap = build();
+    step(tap, { a: holdInput }, DT);
+    expect(tap.puck.carrier).toBe('a');
+    step(tap, { a: releaseInput }, DT);
+    const tapSpeed = v.len(tap.puck.vel);
+
+    const charged = build();
+    step(charged, { a: holdInput }, DT);
+    for (let i = 0; i < 20; i++) step(charged, { a: holdInput }, DT);
+    expect(charged.puck.carrier).toBe('a');
+    step(charged, { a: releaseInput }, DT);
+    const chargedSpeed = v.len(charged.puck.vel);
+
+    const overheld = build();
+    step(overheld, { a: holdInput }, DT);
+    for (let i = 0; i < 70; i++) step(overheld, { a: holdInput }, DT);
+    step(overheld, { a: releaseInput }, DT);
+
+    expect(chargedSpeed).toBeGreaterThan(tapSpeed * 1.3);
+    expect(v.len(overheld.puck.vel)).toBeCloseTo(chargedSpeed, 1);
+  });
+
   it('a pass to a teammate behind the passer registers nolook_pass; ahead does not', () => {
     const behind = createWorld(trio());
     behind.phase = 'period';

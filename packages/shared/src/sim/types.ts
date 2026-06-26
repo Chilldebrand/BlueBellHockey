@@ -32,6 +32,7 @@ export interface SkaterStatus {
   checkingUntil: number; // body contact flattens opponents (Freight Train)
   magnetUntil: number; // pulls loose puck / strips carriers nearby (Magnet)
   passPerfectUntil: number; // passes auto-complete to best teammate (Vision)
+  passChargeStart: number; // held pass input; fires on release with capped power
   guaranteedGoal: boolean; // next on-net shot scores (Cannon)
   // Deke / trick (WO-03): a transient lateral carry offset + a cooldown. While
   // dekeUntil > time the carried puck anchor bends along (dekeDirX, dekeDirZ).
@@ -219,6 +220,7 @@ export function emptyStatus(): SkaterStatus {
     checkingUntil: 0,
     magnetUntil: 0,
     passPerfectUntil: 0,
+    passChargeStart: 0,
     guaranteedGoal: false,
     dekeUntil: 0,
     dekeDirX: 0,
