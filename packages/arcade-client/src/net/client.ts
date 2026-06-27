@@ -71,6 +71,14 @@ export class ArcadeRoomSession {
     this.room.send("client.requestStart");
   }
 
+  requestRematch(): void {
+    this.room.send("client.rematch");
+  }
+
+  backToLobby(): void {
+    this.room.send("client.backToLobby");
+  }
+
   sendInput(frame: InputFrame): void {
     this.room.send("client.input", {
       type: "client.input",

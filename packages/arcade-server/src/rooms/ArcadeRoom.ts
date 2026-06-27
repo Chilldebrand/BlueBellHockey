@@ -131,6 +131,12 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     this.onMessage("client.requestStart", (client) => {
       this.handleRequestStart(client);
     });
+    this.onMessage("client.rematch", () => {
+      this.handleRematch();
+    });
+    this.onMessage("client.backToLobby", () => {
+      this.handleBackToLobby();
+    });
     this.onMessage("client.input", (client, message: unknown) => {
       this.handleInput(client, message);
     });
@@ -283,6 +289,23 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
 
     this.world.phase = "playing";
     this.syncStateFromWorld();
+  }
+
+  private handleRematch(): void {
+    this.world = createWorld(this.seedGenerator(), this.roomOptions.mode);
+    this.world.phase = "playing";
+    this.syncStateFromWorld();
+    this.broadcastSnapshot();
+  }
+
+  private handleBackToLobby(): void {
+    if (!this.world) {
+      return;
+    }
+
+    this.world.phase = "waiting";
+    this.syncStateFromWorld();
+    this.broadcastSnapshot();
   }
 
   private handleInput(client: Client, message: unknown): void {

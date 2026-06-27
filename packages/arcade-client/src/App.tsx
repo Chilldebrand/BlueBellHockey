@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import {
   MATCH_CONFIG,
   type CharacterId,
@@ -41,7 +41,13 @@ import {
 import { Scene } from "./render/Scene.js";
 import { ModelPreview } from "./render/ModelPreview.js";
 import { HUD } from "./ui/HUD.js";
+import { BootSplash } from "./ui/BootSplash.js";
+import { ControllerPrompt } from "./ui/ControllerPrompt.js";
+import { FaceoffIntro } from "./ui/FaceoffIntro.js";
 import { Lobby } from "./ui/Lobby.js";
+import { MainMenu } from "./ui/MainMenu.js";
+import { Postgame } from "./ui/Postgame.js";
+import { WinSplash } from "./ui/WinSplash.js";
 
 export interface AppConnectionApi {
   readonly connectQuickMatch: typeof connectQuickMatch;
@@ -70,6 +76,7 @@ export function App({
   const keyboardRef = useRef<KeyboardInputTracker | null>(null);
   const inputSequenceRef = useRef(0);
   const latestInputRef = useRef<InputFrame | null>(null);
+  const [screen, setScreen] = useState<"boot" | "menu" | "lobby">("boot");
 
   const attachRoom = useCallback((result: ArcadeConnectionResult) => {
     attachArcadeRoom(activeRoomRef, result, {
@@ -112,10 +119,12 @@ export function App({
   );
 
   const handleQuickMatch = useCallback(() => {
+    setScreen("lobby");
     void runConnection(() => connectionApi.connectQuickMatch());
   }, [connectionApi, runConnection]);
 
   const handleCreatePrivateRoom = useCallback(() => {
+    setScreen("lobby");
     void runConnection(() => connectionApi.createPrivateRoom());
   }, [connectionApi, runConnection]);
 
@@ -138,6 +147,15 @@ export function App({
 
   const handleRequestStart = useCallback(() => {
     activeRoomRef.current?.session.requestStart();
+  }, []);
+
+  const handleRematch = useCallback(() => {
+    activeRoomRef.current?.session.requestRematch();
+  }, []);
+
+  const handleBackToLobby = useCallback(() => {
+    activeRoomRef.current?.session.backToLobby();
+    setScreen("lobby");
   }, []);
 
   const localSlotId =
@@ -190,9 +208,43 @@ export function App({
     return <ModelPreview />;
   }
 
+  if (screen === "boot") {
+    return <BootSplash onContinue={() => setScreen("menu")} />;
+  }
+
+  if (screen === "menu") {
+    return (
+      <MainMenu
+        onQuickMatch={handleQuickMatch}
+        onPrivateRoom={handleCreatePrivateRoom}
+      />
+    );
+  }
+
+  if (state.phase === "ended" && state.currentWorld) {
+    return (
+      <>
+        <Scene
+          currentWorld={state.currentWorld}
+          previousWorld={state.previousWorld}
+          localSlotId={localSlotId}
+          predictedLocalSkater={predictedLocalSkater}
+        />
+        <WinSplash winnerTeamId={state.currentWorld.winnerTeamId} />
+        <Postgame
+          stats={state.currentWorld.stats}
+          winnerTeamId={state.currentWorld.winnerTeamId}
+          onRematch={handleRematch}
+          onBackToLobby={handleBackToLobby}
+        />
+      </>
+    );
+  }
+
   return (
     <>
       <HUD state={state} />
+      <FaceoffIntro phase={state.phase} />
       <Scene
         currentWorld={state.currentWorld}
         previousWorld={state.previousWorld}
@@ -200,15 +252,18 @@ export function App({
         predictedLocalSkater={predictedLocalSkater}
       />
       {state.phase === "playing" ? null : (
-        <Lobby
-          state={state}
-          onQuickMatch={handleQuickMatch}
-          onCreatePrivateRoom={handleCreatePrivateRoom}
-          onJoinPrivateRoom={handleJoinPrivateRoom}
-          onChooseTeam={handleChooseTeam}
-          onChooseCharacter={handleChooseCharacter}
-          onRequestStart={handleRequestStart}
-        />
+        <>
+          <Lobby
+            state={state}
+            onQuickMatch={handleQuickMatch}
+            onCreatePrivateRoom={handleCreatePrivateRoom}
+            onJoinPrivateRoom={handleJoinPrivateRoom}
+            onChooseTeam={handleChooseTeam}
+            onChooseCharacter={handleChooseCharacter}
+            onRequestStart={handleRequestStart}
+          />
+          <ControllerPrompt />
+        </>
       )}
     </>
   );
