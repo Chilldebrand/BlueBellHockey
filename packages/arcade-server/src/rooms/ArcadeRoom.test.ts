@@ -252,6 +252,34 @@ describe("ArcadeRoom", () => {
     });
   });
 
+  it("syncs valid character selections and rejects invalid ones", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    const sender = vi
+      .spyOn(room, "send")
+      .mockImplementation(() => room as never);
+    const clientA = client("session-a");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(clientA as never, { playerName: "Ada" });
+    const handler = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.chooseCharacter"
+    )?.[1];
+
+    expect(handler).toBeTypeOf("function");
+    handler?.(clientA as never, { characterId: "milo-ghost" });
+
+    expect(room.state.teams.home.slots[0]).toMatchObject({
+      sessionId: "session-a",
+      characterId: "milo-ghost"
+    });
+
+    handler?.(clientA as never, { characterId: "real-player-name" });
+
+    expect(sender).toHaveBeenCalledWith(clientA, "server.error", {
+      message: "Invalid character."
+    });
+  });
+
   it("starts the authoritative room phase from a client start request", () => {
     const room = createTestRoom();
     const onMessage = vi.spyOn(room, "onMessage");

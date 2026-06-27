@@ -19,6 +19,7 @@ function lobbyState(overrides: Partial<ArcadeClientState> = {}): ArcadeClientSta
         sessionId: "session-a",
         playerName: "Ada",
         botId: null,
+        characterId: "rook-rocket",
         displayName: "Ada",
         isBot: false,
         isOwnedByLocalPlayer: true
@@ -31,6 +32,7 @@ function lobbyState(overrides: Partial<ArcadeClientState> = {}): ArcadeClientSta
         sessionId: null,
         playerName: null,
         botId: "bot-home-skater-2",
+        characterId: "nova-screen",
         displayName: "Bot",
         isBot: true,
         isOwnedByLocalPlayer: false
@@ -43,6 +45,7 @@ function lobbyState(overrides: Partial<ArcadeClientState> = {}): ArcadeClientSta
         sessionId: null,
         playerName: null,
         botId: "bot-away-skater-1",
+        characterId: "dash-iron",
         displayName: "Bot",
         isBot: true,
         isOwnedByLocalPlayer: false
@@ -60,6 +63,7 @@ describe("Lobby", () => {
         onChooseTeam={vi.fn()}
         onCreatePrivateRoom={vi.fn()}
         onJoinPrivateRoom={vi.fn()}
+        onChooseCharacter={vi.fn()}
         onQuickMatch={vi.fn()}
         onRequestStart={vi.fn()}
       />
@@ -82,6 +86,7 @@ describe("Lobby", () => {
         onChooseTeam={vi.fn()}
         onCreatePrivateRoom={vi.fn()}
         onJoinPrivateRoom={vi.fn()}
+        onChooseCharacter={vi.fn()}
         onQuickMatch={vi.fn()}
         onRequestStart={vi.fn()}
       />
@@ -98,6 +103,7 @@ describe("Lobby", () => {
         onChooseTeam={vi.fn()}
         onCreatePrivateRoom={vi.fn()}
         onJoinPrivateRoom={vi.fn()}
+        onChooseCharacter={vi.fn()}
         onQuickMatch={vi.fn()}
         onRequestStart={vi.fn()}
       />
@@ -108,6 +114,7 @@ describe("Lobby", () => {
         onChooseTeam={vi.fn()}
         onCreatePrivateRoom={vi.fn()}
         onJoinPrivateRoom={vi.fn()}
+        onChooseCharacter={vi.fn()}
         onQuickMatch={vi.fn()}
         onRequestStart={vi.fn()}
       />

@@ -22,6 +22,7 @@ export class ArcadeRoomSlotState extends Schema {
   @type("string") sessionId: string | null = null;
   @type("string") playerName: string | null = null;
   @type("string") botId: string | null = null;
+  @type("string") characterId = "";
   @type("boolean") isBot = false;
 }
 
@@ -60,6 +61,7 @@ function createSlotState(slot: RoomRosterSlot): ArcadeRoomSlotState {
   state.sessionId = slot.sessionId;
   state.playerName = slot.playerName;
   state.botId = slot.botId;
+  state.characterId = slot.characterId;
   state.isBot = slot.kind === "bot";
   return state;
 }

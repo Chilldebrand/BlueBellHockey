@@ -1,4 +1,4 @@
-import type { TeamId } from "@bbh/arcade-core";
+import { TEAM_PALETTES, type CharacterId, type TeamId } from "@bbh/arcade-core";
 import {
   REQUIRED_ATTACHMENTS,
   REQUIRED_GEAR_SLOTS,
@@ -11,14 +11,10 @@ import {
 
 export interface CharacterModelProps {
   readonly teamId: TeamId;
+  readonly characterId?: CharacterId;
   readonly isLocal?: boolean;
   readonly manifest?: CharacterModelManifest;
 }
-
-const TEAM_PRIMARY: Record<TeamId, string> = {
-  home: "#1f8fff",
-  away: "#ff4f5e"
-};
 
 export const FIRST_SKATER_MODEL_MANIFEST: CharacterModelManifest = {
   id: "rook-rocket",
@@ -47,6 +43,7 @@ export const FIRST_SKATER_MODEL_MANIFEST: CharacterModelManifest = {
 
 export function CharacterModel({
   teamId,
+  characterId,
   isLocal = false,
   manifest = FIRST_SKATER_MODEL_MANIFEST
 }: CharacterModelProps): JSX.Element {
@@ -61,13 +58,13 @@ export function CharacterModel({
     );
   }
 
-  const primary = TEAM_PRIMARY[teamId];
+  const palette = TEAM_PALETTES[teamId].uniform;
 
   return (
-    <group name={`character-model:${manifest.id}:contract-ok`}>
+    <group name={`character-model:${characterId ?? manifest.id}:contract-ok`}>
       <mesh position={[0, 24, 0]} castShadow>
         <capsuleGeometry args={[9, 24, 8, 14]} />
-        <meshStandardMaterial color={primary} roughness={0.58} />
+        <meshStandardMaterial color={palette.jersey} roughness={0.58} />
       </mesh>
       <mesh position={[0, 46, 0]} castShadow>
         <sphereGeometry args={[14, 18, 14]} />
@@ -91,11 +88,11 @@ export function CharacterModel({
       </mesh>
       <mesh position={[-6, 7, 0]} castShadow>
         <boxGeometry args={[8, 7, 18]} />
-        <meshStandardMaterial color="#1f2937" />
+        <meshStandardMaterial color={palette.pants} />
       </mesh>
       <mesh position={[8, 7, 0]} castShadow>
         <boxGeometry args={[8, 7, 18]} />
-        <meshStandardMaterial color="#1f2937" />
+        <meshStandardMaterial color={palette.pants} />
       </mesh>
     </group>
   );

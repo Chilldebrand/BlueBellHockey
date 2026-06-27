@@ -1,4 +1,9 @@
-import type { TeamId, WorldPhase, WorldState } from "@bbh/arcade-core";
+import type {
+  CharacterId,
+  TeamId,
+  WorldPhase,
+  WorldState
+} from "@bbh/arcade-core";
 import type { ArcadeRoomConnection } from "./net/client.js";
 
 export type ConnectionStatus = "idle" | "connecting" | "connected" | "error";
@@ -17,6 +22,7 @@ export interface ServerRosterSlot {
   readonly sessionId: string | null;
   readonly playerName: string | null;
   readonly botId: string | null;
+  readonly characterId: CharacterId;
   readonly isBot: boolean;
 }
 

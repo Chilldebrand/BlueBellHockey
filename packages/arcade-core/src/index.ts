@@ -14,6 +14,8 @@ export function getArcadeCoreInfo(): ArcadePackageInfo {
 
 export * from "./config/match.js";
 export * from "./config/rink.js";
+export * from "./config/characters.js";
+export * from "./config/specials.js";
 export * from "./config/teams.js";
 export * from "./net/messages.js";
 export * from "./sim/actions.js";

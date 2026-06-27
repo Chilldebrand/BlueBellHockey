@@ -1,4 +1,4 @@
-import type { InputFrame, TeamId } from "@bbh/arcade-core";
+import type { CharacterId, InputFrame, TeamId } from "@bbh/arcade-core";
 import { Client } from "colyseus.js";
 import type { ServerRoomState } from "../store.js";
 
@@ -61,6 +61,10 @@ export class ArcadeRoomSession {
 
   chooseTeam(teamId: TeamId): void {
     this.room.send("client.chooseTeam", { teamId });
+  }
+
+  chooseCharacter(characterId: CharacterId): void {
+    this.room.send("client.chooseCharacter", { characterId });
   }
 
   requestStart(): void {

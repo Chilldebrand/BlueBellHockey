@@ -1,4 +1,4 @@
-import type { TeamId } from "@bbh/arcade-core";
+import { TEAM_PALETTES, type TeamId } from "@bbh/arcade-core";
 import {
   REQUIRED_ATTACHMENTS,
   REQUIRED_GEAR_SLOTS,
@@ -13,11 +13,6 @@ export interface GoalieModelProps {
   readonly teamId: TeamId;
   readonly manifest?: CharacterModelManifest;
 }
-
-const TEAM_PRIMARY: Record<TeamId, string> = {
-  home: "#1f8fff",
-  away: "#ff4f5e"
-};
 
 export const FIRST_GOALIE_MODEL_MANIFEST: CharacterModelManifest = {
   id: "mira-wall",
@@ -61,13 +56,13 @@ export function GoalieModel({
     );
   }
 
-  const primary = TEAM_PRIMARY[teamId];
+  const palette = TEAM_PALETTES[teamId].uniform;
 
   return (
     <group name={`goalie-model:${manifest.id}:contract-ok`}>
       <mesh position={[0, 28, 0]} castShadow>
         <capsuleGeometry args={[13, 28, 8, 14]} />
-        <meshStandardMaterial color={primary} roughness={0.56} />
+        <meshStandardMaterial color={palette.jersey} roughness={0.56} />
       </mesh>
       <mesh position={[0, 52, 0]} castShadow>
         <sphereGeometry args={[15, 18, 14]} />

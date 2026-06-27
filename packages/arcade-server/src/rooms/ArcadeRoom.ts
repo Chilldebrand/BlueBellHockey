@@ -20,7 +20,9 @@ import {
   createRoster,
   fillRosterWithBots,
   moveHumanToTeam,
+  InvalidCharacterSelectionError,
   releaseHuman,
+  selectCharacterForSession,
   type RoomRosterSlot
 } from "./roster.js";
 
@@ -43,6 +45,10 @@ interface JoinOptions {
 
 interface ChooseTeamMessage {
   readonly teamId?: string;
+}
+
+interface ChooseCharacterMessage {
+  readonly characterId?: string;
 }
 
 type StoredArcadeRoomOptions = {
@@ -117,6 +123,9 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     this.syncRosterState();
     this.onMessage("client.chooseTeam", (client, message: unknown) => {
       this.handleChooseTeam(client, message);
+    });
+    this.onMessage("client.chooseCharacter", (client, message: unknown) => {
+      this.handleChooseCharacter(client, message);
     });
     this.onMessage("client.requestStart", (client) => {
       this.handleRequestStart(client);
@@ -229,6 +238,37 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     this.syncRosterState();
   }
 
+  private handleChooseCharacter(client: Client, message: unknown): void {
+    const characterId = getRequestedCharacterId(message);
+
+    if (!characterId) {
+      this.send(client, "server.error", { message: "Invalid character." });
+      return;
+    }
+
+    try {
+      const slot = selectCharacterForSession(
+        this.roster,
+        client.sessionId,
+        characterId
+      );
+
+      if (!slot) {
+        this.send(client, "server.error", { message: "Join a slot first." });
+        return;
+      }
+
+      this.syncRosterState();
+    } catch (error) {
+      if (error instanceof InvalidCharacterSelectionError) {
+        this.send(client, "server.error", { message: "Invalid character." });
+        return;
+      }
+
+      throw error;
+    }
+  }
+
   private handleRequestStart(client: Client): void {
     if (!this.world || !this.state.isRosterValid) {
       this.send(client, "server.error", { message: "Roster is not ready." });
@@ -309,6 +349,16 @@ function getRequestedTeamId(message: unknown): ChooseTeamMessage["teamId"] {
   }
 
   return (message as ChooseTeamMessage).teamId;
+}
+
+function getRequestedCharacterId(
+  message: unknown
+): ChooseCharacterMessage["characterId"] {
+  if (!message || typeof message !== "object" || !("characterId" in message)) {
+    return undefined;
+  }
+
+  return (message as ChooseCharacterMessage).characterId;
 }
 
 function getClientInputFrame(message: unknown): InputFrame | null {

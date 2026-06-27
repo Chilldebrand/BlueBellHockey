@@ -1,6 +1,8 @@
 import { useId, useState } from "react";
-import type { TeamId } from "@bbh/arcade-core";
+import type { CharacterId, TeamId } from "@bbh/arcade-core";
 import type { ArcadeClientState, ClientRosterSlot } from "../store.js";
+import { CharacterSelect } from "./CharacterSelect.js";
+import { TeamSelect } from "./TeamSelect.js";
 
 export interface LobbyProps {
   readonly state: ArcadeClientState;
@@ -8,6 +10,7 @@ export interface LobbyProps {
   readonly onCreatePrivateRoom: () => void;
   readonly onJoinPrivateRoom: (code: string) => void;
   readonly onChooseTeam: (teamId: TeamId) => void;
+  readonly onChooseCharacter: (characterId: CharacterId) => void;
   readonly onRequestStart: () => void;
 }
 
@@ -17,6 +20,7 @@ export function Lobby({
   onCreatePrivateRoom,
   onJoinPrivateRoom,
   onChooseTeam,
+  onChooseCharacter,
   onRequestStart
 }: LobbyProps): JSX.Element {
   const [joinCode, setJoinCode] = useState("");
@@ -77,22 +81,13 @@ export function Lobby({
             </button>
           ) : null}
         </header>
-        <div className="team-actions">
-          <button
-            type="button"
-            onClick={() => onChooseTeam("home")}
-            disabled={!isConnected}
-          >
-            Join Home
-          </button>
-          <button
-            type="button"
-            onClick={() => onChooseTeam("away")}
-            disabled={!isConnected}
-          >
-            Join Away
-          </button>
-        </div>
+        <TeamSelect disabled={!isConnected} onChooseTeam={onChooseTeam} />
+        <CharacterSelect
+          roster={state.roster}
+          localSessionId={state.playerSessionId}
+          disabled={!isConnected}
+          onChooseCharacter={onChooseCharacter}
+        />
         <div className="teams">
           <TeamRoster teamName="Home" slots={slotsForTeam(state, "home")} />
           <TeamRoster teamName="Away" slots={slotsForTeam(state, "away")} />
@@ -117,6 +112,7 @@ function TeamRoster({
           <li key={slot.slotId}>
             <span>{slot.slotId}</span>
             <strong>{slot.displayName}</strong>
+            <small>{slot.characterId}</small>
             {slot.isOwnedByLocalPlayer ? <em>You</em> : null}
           </li>
         ))}

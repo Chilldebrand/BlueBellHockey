@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useReducer, useRef } from "react";
-import { MATCH_CONFIG, type InputFrame, type TeamId } from "@bbh/arcade-core";
+import {
+  MATCH_CONFIG,
+  type CharacterId,
+  type InputFrame,
+  type TeamId
+} from "@bbh/arcade-core";
 import { gamepadStateFromGamepad } from "./input/gamepad.js";
 import {
   createInputFrame,
@@ -127,6 +132,10 @@ export function App({
     activeRoomRef.current?.session.chooseTeam(teamId);
   }, []);
 
+  const handleChooseCharacter = useCallback((characterId: CharacterId) => {
+    activeRoomRef.current?.session.chooseCharacter(characterId);
+  }, []);
+
   const handleRequestStart = useCallback(() => {
     activeRoomRef.current?.session.requestStart();
   }, []);
@@ -197,6 +206,7 @@ export function App({
           onCreatePrivateRoom={handleCreatePrivateRoom}
           onJoinPrivateRoom={handleJoinPrivateRoom}
           onChooseTeam={handleChooseTeam}
+          onChooseCharacter={handleChooseCharacter}
           onRequestStart={handleRequestStart}
         />
       )}

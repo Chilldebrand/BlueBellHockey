@@ -4,8 +4,10 @@ import {
   assignHumanToOpenSlot,
   createRoster,
   fillRosterWithBots,
+  InvalidCharacterSelectionError,
   releaseHuman,
-  RosterFullError
+  RosterFullError,
+  selectCharacterForSession
 } from "./roster.js";
 
 describe("room roster lifecycle", () => {
@@ -17,6 +19,7 @@ describe("room roster lifecycle", () => {
       SKATER_SLOTS.map((slot) => slot.id)
     );
     expect(roster.every((slot) => slot.kind === "open")).toBe(true);
+    expect(roster.every((slot) => slot.characterId)).toBe(true);
   });
 
   it("assigns humans to the first open skater slots", () => {
@@ -107,5 +110,25 @@ describe("room roster lifecycle", () => {
       kind: "human",
       sessionId: "session-b"
     });
+  });
+
+  it("selects valid characters only for the owning human session", () => {
+    const roster = createRoster();
+    assignHumanToOpenSlot(roster, {
+      sessionId: "session-a",
+      playerName: "Ada"
+    });
+
+    const selected = selectCharacterForSession(
+      roster,
+      "session-a",
+      "milo-ghost"
+    );
+
+    expect(selected?.characterId).toBe("milo-ghost");
+    expect(selectCharacterForSession(roster, "missing", "rook-rocket")).toBeNull();
+    expect(() =>
+      selectCharacterForSession(roster, "session-a", "real-player-name")
+    ).toThrow(InvalidCharacterSelectionError);
   });
 });

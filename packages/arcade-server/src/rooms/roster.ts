@@ -1,4 +1,12 @@
-import { SKATER_SLOTS, type SkaterSlot, type TeamId } from "@bbh/arcade-core";
+import {
+  ARCADE_CHARACTERS,
+  DEFAULT_CHARACTER_ID,
+  isCharacterId,
+  SKATER_SLOTS,
+  type CharacterId,
+  type SkaterSlot,
+  type TeamId
+} from "@bbh/arcade-core";
 
 export type RosterSlotKind = "open" | "human" | "bot";
 
@@ -10,6 +18,7 @@ export interface RoomRosterSlot {
   sessionId: string | null;
   playerName: string | null;
   botId: string | null;
+  characterId: CharacterId;
 }
 
 export interface HumanAssignment {
@@ -24,6 +33,13 @@ export class RosterFullError extends Error {
   }
 }
 
+export class InvalidCharacterSelectionError extends Error {
+  constructor(characterId: string) {
+    super(`invalid character selection: ${characterId}`);
+    this.name = "InvalidCharacterSelectionError";
+  }
+}
+
 function createSlot(slot: SkaterSlot): RoomRosterSlot {
   return {
     slotId: slot.id,
@@ -32,7 +48,8 @@ function createSlot(slot: SkaterSlot): RoomRosterSlot {
     kind: "open",
     sessionId: null,
     playerName: null,
-    botId: null
+    botId: null,
+    characterId: characterIdForSlot(slot)
   };
 }
 
@@ -129,15 +146,48 @@ export function moveHumanToTeam(
   }
 
   const playerName = current.playerName;
+  const characterId = current.characterId;
   current.kind = "bot";
   current.sessionId = null;
   current.playerName = null;
   current.botId = botIdForSlot(current.slotId);
+  current.characterId = characterIdForSlot(current);
 
   target.kind = "human";
   target.sessionId = sessionId;
   target.playerName = playerName;
   target.botId = null;
+  target.characterId = characterId;
 
   return target;
+}
+
+export function selectCharacterForSession(
+  roster: RoomRosterSlot[],
+  sessionId: string,
+  characterId: string
+): RoomRosterSlot | null {
+  if (!isCharacterId(characterId)) {
+    throw new InvalidCharacterSelectionError(characterId);
+  }
+
+  const slot = roster.find(
+    (candidate) =>
+      candidate.kind === "human" && candidate.sessionId === sessionId
+  );
+
+  if (!slot) {
+    return null;
+  }
+
+  slot.characterId = characterId;
+  return slot;
+}
+
+function characterIdForSlot(slot: Pick<SkaterSlot, "teamId" | "index">): CharacterId {
+  const offset = slot.teamId === "away" ? 3 : 0;
+  return (
+    ARCADE_CHARACTERS[(slot.index + offset) % ARCADE_CHARACTERS.length]?.id ??
+    DEFAULT_CHARACTER_ID
+  );
 }
