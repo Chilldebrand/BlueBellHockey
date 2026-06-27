@@ -8,9 +8,11 @@ import {
   type CharacterModelManifest,
   validateModelManifest
 } from "./modelValidation.js";
+import type { GoalieAnimationState } from "./animation/clipMap.js";
 
 export interface GoalieModelProps {
   readonly teamId: TeamId;
+  readonly animationState?: GoalieAnimationState;
   readonly manifest?: CharacterModelManifest;
 }
 
@@ -41,6 +43,7 @@ export const FIRST_GOALIE_MODEL_MANIFEST: CharacterModelManifest = {
 
 export function GoalieModel({
   teamId,
+  animationState = "ready",
   manifest = FIRST_GOALIE_MODEL_MANIFEST
 }: GoalieModelProps): JSX.Element {
   const validation = validateModelManifest(manifest, "goalie");
@@ -57,9 +60,14 @@ export function GoalieModel({
   }
 
   const palette = TEAM_PALETTES[teamId].uniform;
+  const pose = goaliePose(animationState);
 
   return (
-    <group name={`goalie-model:${manifest.id}:contract-ok`}>
+    <group
+      name={`goalie-model:${manifest.id}:${animationState}`}
+      rotation={[pose.pitch, pose.yaw, pose.roll]}
+      scale={[pose.scaleX, pose.scaleY, pose.scaleZ]}
+    >
       <mesh position={[0, 28, 0]} castShadow>
         <capsuleGeometry args={[13, 28, 8, 14]} />
         <meshStandardMaterial color={palette.jersey} roughness={0.56} />
@@ -90,4 +98,42 @@ export function GoalieModel({
       </mesh>
     </group>
   );
+}
+
+function goaliePose(state: GoalieAnimationState): {
+  readonly pitch: number;
+  readonly yaw: number;
+  readonly roll: number;
+  readonly scaleX: number;
+  readonly scaleY: number;
+  readonly scaleZ: number;
+} {
+  switch (state) {
+    case "slide":
+      return pose(0, 0, -0.14, 1.08, 0.92, 1.08);
+    case "padSave":
+      return pose(0.08, 0, 0.22, 1.18, 0.82, 1.12);
+    case "gloveSave":
+      return pose(-0.08, -0.22, -0.18, 1.06, 1.02, 1);
+    case "blockerSave":
+      return pose(-0.08, 0.22, 0.18, 1.06, 1.02, 1);
+    case "bodySave":
+      return pose(-0.2, 0, 0, 1.12, 0.95, 1.05);
+    case "cover":
+      return pose(0.24, 0, 0, 1.05, 0.78, 1.1);
+    case "ready":
+    default:
+      return pose(0, 0, 0, 1, 1, 1);
+  }
+}
+
+function pose(
+  pitch: number,
+  yaw: number,
+  roll: number,
+  scaleX: number,
+  scaleY: number,
+  scaleZ: number
+) {
+  return { pitch, yaw, roll, scaleX, scaleY, scaleZ };
 }

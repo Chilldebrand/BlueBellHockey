@@ -1,6 +1,8 @@
 import { Canvas } from "@react-three/fiber";
 import { type SkaterEntity, type WorldState } from "@bbh/arcade-core";
 import { interpolateSkaters } from "../game/interpolation.js";
+import { selectGoalieAnimation } from "./animation/goalieAnimation.js";
+import { selectSkaterAnimation } from "./animation/skaterAnimation.js";
 import { CameraRig } from "./CameraRig.js";
 import { GoalieModel } from "./GoalieModel.js";
 import { Puck, predictedCarriedPuck } from "./Puck.js";
@@ -51,6 +53,9 @@ export function Scene({
             skater.id === localSlotId && predictedLocalSkater
               ? predictedLocalSkater
               : skater;
+          const sourceSkater =
+            currentWorld.skaters.find((candidate) => candidate.id === skater.id) ??
+            currentWorld.skaters[0];
 
           return (
             <SkaterDebug
@@ -60,6 +65,12 @@ export function Scene({
               position={renderSkater.position}
               isLocal={skater.id === localSlotId}
               hasPossession={currentWorld.puck.carrierSlotId === skater.id}
+              animationState={selectSkaterAnimation({
+                skater: sourceSkater,
+                puck: currentWorld.puck,
+                events: currentWorld.eventQueue,
+                nowMs: currentWorld.time.nowMs
+              })}
             />
           );
         })}
@@ -69,7 +80,14 @@ export function Scene({
             name={goalie.id}
             position={[goalie.position.x, 10, goalie.position.y]}
           >
-            <GoalieModel teamId={goalie.teamId} />
+            <GoalieModel
+              teamId={goalie.teamId}
+              animationState={selectGoalieAnimation({
+                goalie,
+                events: currentWorld.eventQueue,
+                nowMs: currentWorld.time.nowMs
+              })}
+            />
           </group>
         ))}
         <Puck puck={renderedPuck} />

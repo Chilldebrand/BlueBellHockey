@@ -1,5 +1,6 @@
 import type { TeamId, Vec2 } from "@bbh/arcade-core";
 import { CharacterModel } from "./CharacterModel.js";
+import type { SkaterAnimationState } from "./animation/clipMap.js";
 
 export interface SkaterDebugProps {
   readonly id: string;
@@ -7,6 +8,7 @@ export interface SkaterDebugProps {
   readonly position: Vec2;
   readonly isLocal: boolean;
   readonly hasPossession?: boolean;
+  readonly animationState?: SkaterAnimationState;
 }
 
 const TEAM_COLORS: Record<TeamId, string> = {
@@ -19,7 +21,8 @@ export function SkaterDebug({
   teamId,
   position,
   isLocal,
-  hasPossession = false
+  hasPossession = false,
+  animationState = "idle"
 }: SkaterDebugProps): JSX.Element {
   return (
     <group position={[position.x, 10, position.y]} name={id}>
@@ -31,7 +34,11 @@ export function SkaterDebug({
           emissiveIntensity={isLocal ? 0.2 : 0}
         />
       </mesh>
-      <CharacterModel teamId={teamId} isLocal={isLocal} />
+      <CharacterModel
+        teamId={teamId}
+        isLocal={isLocal}
+        animationState={animationState}
+      />
       {isLocal || hasPossession ? (
         <mesh position={[0, 4, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[52, 58, 24]} />

@@ -8,11 +8,13 @@ import {
   type CharacterModelManifest,
   validateModelManifest
 } from "./modelValidation.js";
+import type { SkaterAnimationState } from "./animation/clipMap.js";
 
 export interface CharacterModelProps {
   readonly teamId: TeamId;
   readonly characterId?: CharacterId;
   readonly isLocal?: boolean;
+  readonly animationState?: SkaterAnimationState;
   readonly manifest?: CharacterModelManifest;
 }
 
@@ -45,6 +47,7 @@ export function CharacterModel({
   teamId,
   characterId,
   isLocal = false,
+  animationState = "idle",
   manifest = FIRST_SKATER_MODEL_MANIFEST
 }: CharacterModelProps): JSX.Element {
   const validation = validateModelManifest(manifest, "skater");
@@ -59,9 +62,14 @@ export function CharacterModel({
   }
 
   const palette = TEAM_PALETTES[teamId].uniform;
+  const pose = skaterPose(animationState);
 
   return (
-    <group name={`character-model:${characterId ?? manifest.id}:contract-ok`}>
+    <group
+      name={`character-model:${characterId ?? manifest.id}:${animationState}`}
+      rotation={[pose.pitch, pose.yaw, pose.roll]}
+      scale={[pose.scaleX, pose.scaleY, pose.scaleZ]}
+    >
       <mesh position={[0, 24, 0]} castShadow>
         <capsuleGeometry args={[9, 24, 8, 14]} />
         <meshStandardMaterial color={palette.jersey} roughness={0.58} />
@@ -96,6 +104,54 @@ export function CharacterModel({
       </mesh>
     </group>
   );
+}
+
+function skaterPose(state: SkaterAnimationState): {
+  readonly pitch: number;
+  readonly yaw: number;
+  readonly roll: number;
+  readonly scaleX: number;
+  readonly scaleY: number;
+  readonly scaleZ: number;
+} {
+  switch (state) {
+    case "hardTurn":
+      return pose(0, 0, -0.26, 1, 1, 1);
+    case "turbo":
+      return pose(-0.22, 0, 0, 0.94, 1.06, 1.04);
+    case "pass":
+      return pose(0, 0.22, 0, 1, 1, 1);
+    case "wristShot":
+    case "chargeShot":
+      return pose(-0.34, -0.16, 0, 1.02, 1, 1);
+    case "check":
+      return pose(-0.18, 0, 0.34, 1.08, 0.96, 1);
+    case "stumble":
+      return pose(0.16, 0, 0.42, 1, 0.92, 1);
+    case "down":
+      return pose(0, 0, Math.PI / 2, 1.1, 0.72, 1);
+    case "getUp":
+      return pose(0, 0, 0.62, 1, 0.86, 1);
+    case "juke":
+      return pose(0, -0.34, -0.16, 1, 1, 1);
+    case "celebrate":
+      return pose(0, 0, 0, 1.08, 1.12, 1.08);
+    case "skate":
+    case "idle":
+    default:
+      return pose(0, 0, 0, 1, 1, 1);
+  }
+}
+
+function pose(
+  pitch: number,
+  yaw: number,
+  roll: number,
+  scaleX: number,
+  scaleY: number,
+  scaleZ: number
+) {
+  return { pitch, yaw, roll, scaleX, scaleY, scaleZ };
 }
 
 function InvalidModelFallback({
