@@ -1,0 +1,10 @@
+{
+  "name": "@bbh/arcade-assets",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    ".": "./README.md",
+    "./README.md": "./README.md",
+    "./package.json": "./package.json"
+  }
+}

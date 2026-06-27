@@ -9,6 +9,12 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@bbh/arcade-core": ["packages/arcade-core/src/index.ts"],
+      "@bbh/arcade-server": ["packages/arcade-server/src/index.ts"],
+      "@bbh/arcade-client": ["packages/arcade-client/src/main.tsx"]
+    },
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true
