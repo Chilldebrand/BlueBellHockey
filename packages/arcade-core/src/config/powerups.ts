@@ -17,15 +17,15 @@ export interface PowerupDefinition {
   readonly durationMs: number;
 }
 
-export const POWERUP_SPAWN_INTERVAL_MS = 10000;
-export const POWERUP_PICKUP_RADIUS = 76;
+export const POWERUP_SPAWN_INTERVAL_MS = 9000;
+export const POWERUP_PICKUP_RADIUS = 80;
 
 export const POWERUP_DEFINITIONS: Record<PowerupType, PowerupDefinition> = {
-  "speed-boost": { type: "speed-boost", label: "Speed", durationMs: 4200 },
-  "hard-shot": { type: "hard-shot", label: "Hard Shot", durationMs: 5200 },
-  "goalie-freeze": { type: "goalie-freeze", label: "Freeze", durationMs: 2600 },
-  "puck-magnet": { type: "puck-magnet", label: "Magnet", durationMs: 4800 },
-  shield: { type: "shield", label: "Shield", durationMs: 6500 },
+  "speed-boost": { type: "speed-boost", label: "Speed", durationMs: 3600 },
+  "hard-shot": { type: "hard-shot", label: "Hard Shot", durationMs: 4300 },
+  "goalie-freeze": { type: "goalie-freeze", label: "Freeze", durationMs: 2200 },
+  "puck-magnet": { type: "puck-magnet", label: "Magnet", durationMs: 4100 },
+  shield: { type: "shield", label: "Shield", durationMs: 5200 },
   "instant-special": { type: "instant-special", label: "Special", durationMs: 0 }
 };
 

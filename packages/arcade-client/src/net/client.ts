@@ -4,6 +4,7 @@ import type { ServerRoomState } from "../store.js";
 
 export interface ArcadeRoomConnection {
   readonly sessionId: string;
+  readonly reconnectionToken?: string;
   readonly state: ServerRoomState;
   onStateChange(callback: (state: ServerRoomState) => void): unknown;
   onError(callback: (code: number, message?: string) => void): unknown;
@@ -30,6 +31,7 @@ export interface ArcadeMatchmaker {
     roomName: string,
     options: ArcadeRoomOptions
   ): Promise<ArcadeRoomConnection>;
+  reconnect?(reconnectionToken: string): Promise<ArcadeRoomConnection>;
 }
 
 export interface ArcadeRoomOptions {
@@ -46,6 +48,8 @@ export interface ArcadeConnectionDependencies {
 export interface ArcadeConnectionResult {
   readonly connection: ArcadeRoomSession;
   readonly room: ArcadeRoomConnection;
+  readonly options?: ArcadeRoomOptions;
+  readonly isReconnect?: boolean;
 }
 
 export interface ArcadePrivateRoomResult extends ArcadeConnectionResult {
@@ -55,6 +59,21 @@ export interface ArcadePrivateRoomResult extends ArcadeConnectionResult {
 const ROOM_NAME = "arcade";
 const MODE = "arcade3v3";
 const DEFAULT_WS_URL = "ws://localhost:2568";
+export const ARCADE_RECONNECT_STORAGE_KEY = "bbh.arcade.reconnect.v1";
+const RECONNECT_WINDOW_MS = 30_000;
+
+export interface ArcadeReconnectTicket {
+  readonly reconnectionToken: string;
+  readonly options: ArcadeRoomOptions;
+  readonly savedAtMs: number;
+  readonly expiresAtMs: number;
+}
+
+export interface ArcadeStorage {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+}
 
 export class ArcadeRoomSession {
   constructor(readonly room: ArcadeRoomConnection) {}
@@ -94,13 +113,14 @@ export class ArcadeRoomSession {
 export async function connectQuickMatch(
   dependencies: ArcadeConnectionDependencies = {}
 ): Promise<ArcadeConnectionResult> {
-  const room = await joinOrCreateRoom(getMatchmaker(dependencies), {
+  const options = {
     mode: MODE,
     privateCode: "",
     quickMatch: true
-  });
+  } satisfies ArcadeRoomOptions;
+  const room = await joinOrCreateRoom(getMatchmaker(dependencies), options);
 
-  return connectResult(room);
+  return connectResult(room, options);
 }
 
 export async function createPrivateRoom(
@@ -113,19 +133,79 @@ export async function createPrivateRoom(
     ? await matchmaker.create(ROOM_NAME, options)
     : await joinOrCreateRoom(matchmaker, options);
 
-  return { ...connectResult(room), code };
+  return { ...connectResult(room, options), code };
 }
 
 export async function joinPrivateRoom(
   code: string,
   dependencies: ArcadeConnectionDependencies = {}
 ): Promise<ArcadeConnectionResult> {
-  const room = await joinRoom(
-    getMatchmaker(dependencies),
-    privateRoomOptions(normalizePrivateRoomCode(code))
-  );
+  const options = privateRoomOptions(normalizePrivateRoomCode(code));
+  const room = await joinRoom(getMatchmaker(dependencies), options);
 
-  return connectResult(room);
+  return connectResult(room, options);
+}
+
+export async function reconnectPreviousRoom(
+  dependencies: ArcadeConnectionDependencies = {},
+  storage: ArcadeStorage | null = getBrowserStorage(),
+  nowMs = Date.now()
+): Promise<ArcadeConnectionResult | null> {
+  const ticket = readReconnectTicket(storage, nowMs);
+  if (!ticket) {
+    return null;
+  }
+
+  const matchmaker = getMatchmaker(dependencies);
+  if (!matchmaker.reconnect) {
+    clearReconnectTicket(storage);
+    return null;
+  }
+
+  try {
+    const room = await matchmaker.reconnect(ticket.reconnectionToken);
+    return {
+      ...connectResult(room, ticket.options),
+      isReconnect: true
+    };
+  } catch (error) {
+    clearReconnectTicket(storage);
+    throw error;
+  }
+}
+
+export function hasReconnectTicket(
+  storage: ArcadeStorage | null = getBrowserStorage(),
+  nowMs = Date.now()
+): boolean {
+  return readReconnectTicket(storage, nowMs) !== null;
+}
+
+export function saveReconnectTicket(
+  room: ArcadeRoomConnection,
+  options: ArcadeRoomOptions | undefined,
+  storage: ArcadeStorage | null = getBrowserStorage(),
+  nowMs = Date.now()
+): ArcadeReconnectTicket | null {
+  if (!storage || !options || !room.reconnectionToken) {
+    return null;
+  }
+
+  const ticket: ArcadeReconnectTicket = {
+    reconnectionToken: room.reconnectionToken,
+    options,
+    savedAtMs: nowMs,
+    expiresAtMs: nowMs + RECONNECT_WINDOW_MS
+  };
+
+  storage.setItem(ARCADE_RECONNECT_STORAGE_KEY, JSON.stringify(ticket));
+  return ticket;
+}
+
+export function clearReconnectTicket(
+  storage: ArcadeStorage | null = getBrowserStorage()
+): void {
+  storage?.removeItem(ARCADE_RECONNECT_STORAGE_KEY);
 }
 
 export function createPrivateRoomCode(codeGenerator = generateRoomCode): string {
@@ -142,10 +222,14 @@ export function normalizePrivateRoomCode(code: string): string {
   return normalized;
 }
 
-function connectResult(room: ArcadeRoomConnection): ArcadeConnectionResult {
+function connectResult(
+  room: ArcadeRoomConnection,
+  options?: ArcadeRoomOptions
+): ArcadeConnectionResult {
   return {
     connection: new ArcadeRoomSession(room),
-    room
+    room,
+    options
   };
 }
 
@@ -191,4 +275,50 @@ function getArcadeServerUrl(): string {
 
 function generateRoomCode(): string {
   return Math.random().toString(36).slice(2, 8).toUpperCase().padEnd(6, "0");
+}
+
+function readReconnectTicket(
+  storage: ArcadeStorage | null,
+  nowMs: number
+): ArcadeReconnectTicket | null {
+  if (!storage) {
+    return null;
+  }
+
+  const raw = storage.getItem(ARCADE_RECONNECT_STORAGE_KEY);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const ticket = JSON.parse(raw) as Partial<ArcadeReconnectTicket>;
+    const expiresAtMs = Number(ticket.expiresAtMs);
+
+    if (
+      !ticket.reconnectionToken ||
+      !ticket.options ||
+      ticket.options.mode !== MODE ||
+      typeof ticket.options.privateCode !== "string" ||
+      typeof ticket.options.quickMatch !== "boolean" ||
+      !Number.isFinite(expiresAtMs) ||
+      expiresAtMs < nowMs
+    ) {
+      clearReconnectTicket(storage);
+      return null;
+    }
+
+    return {
+      reconnectionToken: ticket.reconnectionToken,
+      options: ticket.options,
+      savedAtMs: Number(ticket.savedAtMs ?? nowMs),
+      expiresAtMs
+    };
+  } catch {
+    clearReconnectTicket(storage);
+    return null;
+  }
+}
+
+function getBrowserStorage(): ArcadeStorage | null {
+  return typeof window === "undefined" ? null : window.localStorage;
 }

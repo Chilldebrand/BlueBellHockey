@@ -1,10 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import { createInitialArcadeClientState, reduceArcadeClientState } from "../store.js";
 import {
+  ARCADE_RECONNECT_STORAGE_KEY,
   ArcadeRoomConnection,
+  hasReconnectTicket,
   connectQuickMatch,
   createPrivateRoom,
-  joinPrivateRoom
+  joinPrivateRoom,
+  reconnectPreviousRoom,
+  saveReconnectTicket
 } from "./client.js";
 
 function serverState(): ArcadeRoomConnection["state"] {
@@ -61,11 +65,31 @@ function serverState(): ArcadeRoomConnection["state"] {
 function fakeRoom(state = serverState()): ArcadeRoomConnection {
   return {
     sessionId: "session-a",
+    reconnectionToken: "room:reconnect-token",
     state,
     onStateChange: vi.fn(),
     onError: vi.fn(),
     onLeave: vi.fn(),
     send: vi.fn()
+  };
+}
+
+function memoryStorage(): Storage {
+  const entries = new Map<string, string>();
+
+  return {
+    get length() {
+      return entries.size;
+    },
+    clear: vi.fn(() => entries.clear()),
+    getItem: vi.fn((key: string) => entries.get(key) ?? null),
+    key: vi.fn((index: number) => Array.from(entries.keys())[index] ?? null),
+    removeItem: vi.fn((key: string) => {
+      entries.delete(key);
+    }),
+    setItem: vi.fn((key: string, value: string) => {
+      entries.set(key, value);
+    })
   };
 }
 
@@ -187,5 +211,53 @@ describe("arcade room connection", () => {
         moveX: 1
       })
     });
+  });
+
+  it("saves and reuses a short-lived reconnect ticket", async () => {
+    const storage = memoryStorage();
+    const room = fakeRoom();
+    const matchmaker = { reconnect: vi.fn().mockResolvedValue(room) };
+    const options = {
+      mode: "arcade3v3" as const,
+      privateCode: "PUCK42",
+      quickMatch: false
+    };
+
+    const ticket = saveReconnectTicket(room, options, storage, 1000);
+    const result = await reconnectPreviousRoom(
+      { matchmaker },
+      storage,
+      2000
+    );
+
+    expect(ticket).toMatchObject({
+      reconnectionToken: "room:reconnect-token",
+      options
+    });
+    expect(storage.getItem(ARCADE_RECONNECT_STORAGE_KEY)).toBeTruthy();
+    expect(hasReconnectTicket(storage, 2000)).toBe(true);
+    expect(matchmaker.reconnect).toHaveBeenCalledWith("room:reconnect-token");
+    expect(result?.isReconnect).toBe(true);
+    expect(result?.room).toBe(room);
+  });
+
+  it("clears expired reconnect tickets instead of reconnecting", async () => {
+    const storage = memoryStorage();
+    const room = fakeRoom();
+    const matchmaker = { reconnect: vi.fn().mockResolvedValue(room) };
+
+    saveReconnectTicket(
+      room,
+      { mode: "arcade3v3", privateCode: "", quickMatch: true },
+      storage,
+      1000
+    );
+
+    await expect(
+      reconnectPreviousRoom({ matchmaker }, storage, 60_000)
+    ).resolves.toBeNull();
+
+    expect(matchmaker.reconnect).not.toHaveBeenCalled();
+    expect(storage.getItem(ARCADE_RECONNECT_STORAGE_KEY)).toBeNull();
   });
 });

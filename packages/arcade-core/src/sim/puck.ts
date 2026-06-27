@@ -19,13 +19,13 @@ export interface PuckConfig {
 export const PUCK_CONFIG: PuckConfig = {
   radius: 18,
   carryOffset: 58,
-  stickReach: 78,
-  frictionPerSecond: 1.8,
+  stickReach: 82,
+  frictionPerSecond: 1.65,
   boardRestitution: 0.72,
-  passSpeed: 760,
-  wristShotSpeed: 980,
-  maxChargedShotSpeed: 1380,
-  maxChargeMs: 650,
+  passSpeed: 820,
+  wristShotSpeed: 1040,
+  maxChargedShotSpeed: 1460,
+  maxChargeMs: 600,
   releasePickupCooldownMs: 220
 };
 

@@ -16,15 +16,15 @@ export interface SkaterMovementConfig {
 }
 
 export const SKATER_MOVEMENT_CONFIG: SkaterMovementConfig = {
-  acceleration: 2200,
-  maxSpeed: 640,
-  glideDrag: 3.2,
+  acceleration: 2350,
+  maxSpeed: 675,
+  glideDrag: 3.05,
   radius: 38,
-  turboAccelerationMultiplier: 1.28,
-  turboMaxSpeedMultiplier: 1.34,
+  turboAccelerationMultiplier: 1.32,
+  turboMaxSpeedMultiplier: 1.38,
   turboHandlingPenalty: 0.82,
-  turboDrainPerSecond: 0.72,
-  turboRechargePerSecond: 0.36,
+  turboDrainPerSecond: 0.78,
+  turboRechargePerSecond: 0.4,
   turboMinActivation: 0.08
 };
 

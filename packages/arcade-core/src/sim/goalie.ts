@@ -16,9 +16,9 @@ export const GOALIE_CONFIG: GoalieConfig = {
   homeX: RINK_CONFIG.goalLineOffset,
   awayX: RINK_CONFIG.width - RINK_CONFIG.goalLineOffset,
   creaseHalfHeight: RINK_CONFIG.goalWidth / 2,
-  lateralSpeed: 520,
-  saveRadius: 72,
-  reboundSpeed: 620
+  lateralSpeed: 560,
+  saveRadius: 78,
+  reboundSpeed: 680
 };
 
 export function stepGoalies(

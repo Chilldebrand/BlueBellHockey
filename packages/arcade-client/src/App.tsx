@@ -19,8 +19,11 @@ import { predictControlledSkater } from "./game/prediction.js";
 import {
   connectQuickMatch,
   createPrivateRoom,
+  hasReconnectTicket,
   joinPrivateRoom,
   normalizePrivateRoomCode,
+  reconnectPreviousRoom,
+  saveReconnectTicket,
   type ArcadeConnectionResult
 } from "./net/client.js";
 import {
@@ -53,12 +56,16 @@ export interface AppConnectionApi {
   readonly connectQuickMatch: typeof connectQuickMatch;
   readonly createPrivateRoom: typeof createPrivateRoom;
   readonly joinPrivateRoom: typeof joinPrivateRoom;
+  readonly reconnectPreviousRoom?: typeof reconnectPreviousRoom;
+  readonly hasReconnectTicket?: typeof hasReconnectTicket;
 }
 
 const defaultConnectionApi: AppConnectionApi = {
   connectQuickMatch,
   createPrivateRoom,
-  joinPrivateRoom
+  joinPrivateRoom,
+  reconnectPreviousRoom,
+  hasReconnectTicket
 };
 
 export function App({
@@ -85,6 +92,7 @@ export function App({
       onLeave: (message) => dispatch({ type: "connection.left", message }),
       onWorldSnapshot: (world) => dispatch({ type: "world.snapshot", world })
     });
+    saveReconnectTicket(result.room, result.options);
   }, []);
 
   useEffect(() => {
@@ -117,6 +125,25 @@ export function App({
     },
     [attachRoom]
   );
+
+  useEffect(() => {
+    if (
+      !connectionApi.reconnectPreviousRoom ||
+      !connectionApi.hasReconnectTicket?.()
+    ) {
+      return;
+    }
+
+    setScreen("lobby");
+    void runConnection(async () => {
+      const result = await connectionApi.reconnectPreviousRoom?.();
+      if (!result) {
+        throw new Error("Reconnect expired");
+      }
+
+      return result;
+    });
+  }, [connectionApi, runConnection]);
 
   const handleQuickMatch = useCallback(() => {
     setScreen("lobby");

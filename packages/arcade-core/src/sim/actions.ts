@@ -14,15 +14,15 @@ export interface CheckConfig {
 }
 
 export const CHECK_CONFIG: CheckConfig = {
-  radius: 92,
-  cooldownMs: 520,
-  activeMs: 140,
-  stumbleMs: 420,
-  knockdownMs: 1050,
-  stumbleSpeed: 300,
-  knockdownSpeed: 620,
-  puckStripSpeed: 420,
-  slideSpeed: 360
+  radius: 96,
+  cooldownMs: 500,
+  activeMs: 150,
+  stumbleMs: 390,
+  knockdownMs: 960,
+  stumbleSpeed: 290,
+  knockdownSpeed: 650,
+  puckStripSpeed: 430,
+  slideSpeed: 380
 };
 
 export function inputAimOrFacing(
