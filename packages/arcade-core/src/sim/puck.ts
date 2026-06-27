@@ -127,13 +127,22 @@ function stepLoosePuck(
     y: puck.position.y + puck.velocity.y * dtSeconds
   };
 
-  reboundFromBoards(puck, config);
+  if (!isAcrossGoalMouth(puck)) {
+    reboundFromBoards(puck, config);
+  }
 
   const drag = Math.max(0, 1 - config.frictionPerSecond * dtSeconds);
   puck.velocity = {
     x: puck.velocity.x * drag,
     y: puck.velocity.y * drag
   };
+}
+
+function isAcrossGoalMouth(puck: PuckState): boolean {
+  return (
+    (puck.position.x <= 0 || puck.position.x >= RINK_CONFIG.width) &&
+    Math.abs(puck.position.y - RINK_CONFIG.height / 2) <= RINK_CONFIG.goalWidth / 2
+  );
 }
 
 function tryPickupLoosePuck(

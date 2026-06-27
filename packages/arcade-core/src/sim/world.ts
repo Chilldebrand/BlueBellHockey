@@ -11,6 +11,9 @@ import type {
 import { stepSkater } from "./skater.js";
 import { createInitialPuckState, stepPuck } from "./puck.js";
 import { recoverContactStates, resolveChecks } from "./actions.js";
+import { createInitialStats } from "./stats.js";
+import { stepGoalies } from "./goalie.js";
+import { resolveGoals } from "./goal.js";
 
 function zeroVector(): Vec2 {
   return { x: 0, y: 0 };
@@ -69,10 +72,13 @@ export function createWorld(seed: number, mode: MatchMode): WorldState {
       fixedTickMs: MATCH_CONFIG.fixedTickMs
     },
     phase: "waiting",
+    remainingMs: MATCH_CONFIG.periodMs,
+    winnerTeamId: null,
     score: {
       home: 0,
       away: 0
     },
+    stats: createInitialStats(),
     skaters,
     goalies,
     puck: createInitialPuckState({
@@ -101,12 +107,26 @@ export function stepWorld(
 
   resolveChecks(world, latestInputBySlot);
   stepPuck(world, latestInputBySlot, dtMs);
+  stepGoalies(world, dtMs);
+  resolveGoals(world);
 
   world.time = {
     ...world.time,
     nowMs: world.time.nowMs + dtMs,
     tick: world.time.tick + 1
   };
+  if ((world.phase as WorldState["phase"]) !== "ended") {
+    world.remainingMs = Math.max(0, world.remainingMs - dtMs);
+    if (world.remainingMs === 0) {
+      world.phase = "ended";
+      world.winnerTeamId =
+        world.score.home === world.score.away
+          ? null
+          : world.score.home > world.score.away
+            ? "home"
+            : "away";
+    }
+  }
   recoverContactStates(world);
 
   return world;

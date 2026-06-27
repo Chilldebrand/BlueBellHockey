@@ -80,6 +80,8 @@ export function resolveChecks(
       targetSlotId: target.id,
       force
     });
+    world.stats[hitter.teamId].hits += 1;
+    world.stats.hits[hitter.teamId] += 1;
 
     if (force >= config.stumbleSpeed) {
       target.contactState = "stumbling";
@@ -124,6 +126,8 @@ export function resolveChecks(
         x: direction.x * Math.max(config.puckStripSpeed, force),
         y: direction.y * Math.max(config.puckStripSpeed, force)
       };
+      world.stats[hitter.teamId].takeaways += 1;
+      world.stats.takeaways[hitter.teamId] += 1;
     }
   }
 }

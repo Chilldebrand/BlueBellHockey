@@ -65,7 +65,7 @@ describe("puck simulation", () => {
     world.phase = "playing";
     world.puck.position = {
       x: RINK_CONFIG.width - PUCK_CONFIG.radius / 2,
-      y: RINK_CONFIG.height / 2
+      y: 40
     };
     world.puck.velocity = { x: 900, y: 0 };
 

@@ -35,6 +35,7 @@ import {
 } from "./store.js";
 import { Scene } from "./render/Scene.js";
 import { Lobby } from "./ui/Lobby.js";
+import { ScoreHud } from "./ui/ScoreHud.js";
 
 export interface AppConnectionApi {
   readonly connectQuickMatch: typeof connectQuickMatch;
@@ -175,6 +176,7 @@ export function App({
 
   return (
     <>
+      <ScoreHud state={state} />
       <Lobby
         state={state}
         onQuickMatch={handleQuickMatch}

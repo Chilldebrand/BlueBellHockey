@@ -26,8 +26,8 @@ export interface InputFrame {
 export type WorldPhase = "waiting" | "playing" | "paused" | "ended";
 
 export interface ScoreState {
-  readonly home: number;
-  readonly away: number;
+  home: number;
+  away: number;
 }
 
 export interface SimTime {
@@ -55,6 +55,24 @@ export interface GoalieEntity {
   readonly owner: "server";
   position: Vec2;
   velocity: Vec2;
+}
+
+export interface TeamStatTotals {
+  goals: number;
+  shots: number;
+  saves: number;
+  hits: number;
+  takeaways: number;
+}
+
+export interface MatchStats {
+  home: TeamStatTotals;
+  away: TeamStatTotals;
+  goals: ScoreState;
+  shots: ScoreState;
+  saves: ScoreState;
+  hits: ScoreState;
+  takeaways: ScoreState;
 }
 
 export interface PuckState {
@@ -92,7 +110,10 @@ export interface WorldState {
   readonly mode: MatchMode;
   time: SimTime;
   phase: WorldPhase;
+  remainingMs: number;
+  winnerTeamId: TeamId | null;
   score: ScoreState;
+  stats: MatchStats;
   skaters: SkaterEntity[];
   goalies: GoalieEntity[];
   puck: PuckState;
