@@ -42,7 +42,9 @@ input {
 }
 
 .turbo-meter,
-.target-indicator {
+.target-indicator,
+.powerup-hud,
+.special-meter {
   align-items: center;
   background: rgba(5, 13, 24, 0.72);
   border: 1px solid rgba(119, 207, 255, 0.32);
@@ -52,11 +54,13 @@ input {
   padding: 6px 10px;
 }
 
-.turbo-meter meter {
+.turbo-meter meter,
+.special-meter meter {
   width: 92px;
 }
 
-.target-indicator strong {
+.target-indicator strong,
+.powerup-hud strong {
   color: #ffdf6e;
   font-size: 12px;
 }

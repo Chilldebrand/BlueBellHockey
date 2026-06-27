@@ -7,7 +7,10 @@ export interface VfxProps {
 const EVENT_LABELS: Record<string, string> = {
   hit: "Hit",
   stumble: "Stumble",
-  knockdown: "Knockdown"
+  knockdown: "Knockdown",
+  powerupPickup: "Powerup",
+  powerupUse: "Use",
+  specialUse: "Special"
 };
 
 export function Vfx({ events }: VfxProps): JSX.Element | null {
@@ -27,12 +30,26 @@ export function Vfx({ events }: VfxProps): JSX.Element | null {
         >
           <boxGeometry args={[64, 12, 20]} />
           <meshStandardMaterial
-            color={event.type === "knockdown" ? "#ffdf6e" : "#ffffff"}
-            emissive={event.type === "hit" ? "#ff4f5e" : "#1f8fff"}
+            color={eventColor(event.type)}
+            emissive={event.type === "hit" ? "#ff4f5e" : eventColor(event.type)}
             emissiveIntensity={0.25}
           />
         </mesh>
       ))}
     </group>
   );
+}
+
+function eventColor(type: string): string {
+  switch (type) {
+    case "knockdown":
+      return "#ffdf6e";
+    case "powerupPickup":
+    case "powerupUse":
+      return "#72f1d1";
+    case "specialUse":
+      return "#ff7ad9";
+    default:
+      return "#ffffff";
+  }
 }

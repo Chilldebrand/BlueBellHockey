@@ -6,6 +6,7 @@ import { selectSkaterAnimation } from "./animation/skaterAnimation.js";
 import { CameraRig } from "./CameraRig.js";
 import { GoalieModel } from "./GoalieModel.js";
 import { Puck, predictedCarriedPuck } from "./Puck.js";
+import { Powerups } from "./Powerups.js";
 import { Rink } from "./Rink.js";
 import { SkaterDebug } from "./SkaterDebug.js";
 import { Vfx } from "./Vfx.js";
@@ -48,6 +49,7 @@ export function Scene({
         <ambientLight intensity={0.95} />
         <directionalLight position={[320, 900, 460]} intensity={1.25} castShadow />
         <Rink />
+        <Powerups pickups={currentWorld.powerupPickups} />
         {skaters.map((skater) => {
           const renderSkater =
             skater.id === localSlotId && predictedLocalSkater

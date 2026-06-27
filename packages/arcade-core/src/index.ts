@@ -13,6 +13,7 @@ export function getArcadeCoreInfo(): ArcadePackageInfo {
 }
 
 export * from "./config/match.js";
+export * from "./config/powerups.js";
 export * from "./config/rink.js";
 export * from "./config/characters.js";
 export * from "./config/specials.js";
@@ -23,7 +24,9 @@ export * from "./sim/goal.js";
 export * from "./sim/goalie.js";
 export * from "./sim/physics.js";
 export * from "./sim/puck.js";
+export * from "./sim/powerups.js";
 export * from "./sim/skater.js";
+export * from "./sim/specials.js";
 export * from "./sim/stats.js";
 export * from "./sim/types.js";
 export * from "./sim/world.js";

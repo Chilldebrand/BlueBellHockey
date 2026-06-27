@@ -11,6 +11,8 @@ import type {
 import { stepSkater } from "./skater.js";
 import { createInitialPuckState, stepPuck } from "./puck.js";
 import { recoverContactStates, resolveChecks } from "./actions.js";
+import { stepPowerups } from "./powerups.js";
+import { resolveSpecials } from "./specials.js";
 import { createInitialStats } from "./stats.js";
 import { stepGoalies } from "./goalie.js";
 import { resolveGoals } from "./goal.js";
@@ -49,7 +51,10 @@ export function createWorld(seed: number, mode: MatchMode): WorldState {
       activeCheckUntilMs: 0,
       turboMeter: 1,
       turboCooldownUntilMs: 0,
-      selectedTargetSlotId: null
+      selectedTargetSlotId: null,
+      heldPowerupType: null,
+      specialCharge: 0,
+      specialCooldownUntilMs: 0
     };
   });
 
@@ -88,6 +93,7 @@ export function createWorld(seed: number, mode: MatchMode): WorldState {
       x: RINK_CONFIG.width / 2,
       y: RINK_CONFIG.height / 2
     }),
+    powerupPickups: [],
     activePowerups: [],
     eventQueue: []
   };
@@ -111,6 +117,8 @@ export function stepWorld(
   }
 
   resolveChecks(world, latestInputBySlot);
+  stepPowerups(world, latestInputBySlot);
+  resolveSpecials(world, latestInputBySlot);
   stepPuck(world, latestInputBySlot, dtMs);
   stepGoalies(world, dtMs);
   resolveGoals(world);

@@ -1,4 +1,5 @@
 import type { MatchMode } from "../config/match.js";
+import type { PowerupType } from "../config/powerups.js";
 import type { GoalieSlot, SkaterSlot, TeamId } from "../config/teams.js";
 
 export interface Vec2 {
@@ -49,6 +50,9 @@ export interface SkaterEntity {
   turboMeter: number;
   turboCooldownUntilMs: number;
   selectedTargetSlotId: string | null;
+  heldPowerupType: PowerupType | null;
+  specialCharge: number;
+  specialCooldownUntilMs: number;
 }
 
 export interface GoalieEntity {
@@ -94,9 +98,17 @@ export interface PuckState {
 
 export interface ActivePowerup {
   readonly id: string;
-  readonly type: string;
+  readonly type: PowerupType;
   readonly slotId: string | null;
+  readonly position: Vec2 | null;
   readonly expiresAtMs: number;
+}
+
+export interface PowerupPickup {
+  readonly id: string;
+  readonly type: PowerupType;
+  readonly position: Vec2;
+  readonly spawnedAtMs: number;
 }
 
 export interface WorldEvent {
@@ -120,6 +132,7 @@ export interface WorldState {
   skaters: SkaterEntity[];
   goalies: GoalieEntity[];
   puck: PuckState;
+  powerupPickups: PowerupPickup[];
   activePowerups: ActivePowerup[];
   eventQueue: WorldEvent[];
 }
