@@ -1,0 +1,62 @@
+import { describe, expect, it } from "vitest";
+import {
+  GOALIE_SLOTS,
+  SKATER_SLOTS,
+  createWorld,
+  stepWorld
+} from "../index";
+
+describe("world lifecycle", () => {
+  it("creates a deterministic initial world for the same seed and mode", () => {
+    const first = createWorld(12345, "arcade3v3");
+    const second = createWorld(12345, "arcade3v3");
+
+    expect(second).toEqual(first);
+  });
+
+  it("creates six skater slots and two server-owned goalie slots", () => {
+    const world = createWorld(12345, "arcade3v3");
+
+    expect(SKATER_SLOTS).toHaveLength(6);
+    expect(world.skaters).toHaveLength(6);
+    expect(SKATER_SLOTS.filter((slot) => slot.teamId === "home")).toHaveLength(3);
+    expect(SKATER_SLOTS.filter((slot) => slot.teamId === "away")).toHaveLength(3);
+
+    expect(GOALIE_SLOTS).toHaveLength(2);
+    expect(world.goalies).toHaveLength(2);
+    expect(world.goalies.every((goalie) => goalie.owner === "server")).toBe(true);
+  });
+
+  it("initializes score to zero for both teams", () => {
+    const world = createWorld(12345, "arcade3v3");
+
+    expect(world.score).toEqual({
+      home: 0,
+      away: 0
+    });
+  });
+
+  it("advances the clock only while playing", () => {
+    const waitingWorld = createWorld(12345, "arcade3v3");
+
+    const waitingResult = stepWorld(waitingWorld, [], 16);
+    expect(waitingResult).toBe(waitingWorld);
+    expect(waitingWorld.time.nowMs).toBe(0);
+
+    const playingWorld = createWorld(12345, "arcade3v3");
+    playingWorld.phase = "playing";
+
+    const playingResult = stepWorld(playingWorld, [], 16);
+    expect(playingResult).toBe(playingWorld);
+    expect(playingWorld.time.nowMs).toBe(16);
+    expect(playingWorld.time.tick).toBe(1);
+  });
+
+  it("creates independent mutable vectors for simulation entities", () => {
+    const world = createWorld(12345, "arcade3v3");
+
+    expect(world.skaters[0].velocity).not.toBe(world.skaters[1].velocity);
+    expect(world.skaters[0].velocity).not.toBe(world.goalies[0].velocity);
+    expect(world.skaters[0].velocity).not.toBe(world.puck.velocity);
+  });
+});
