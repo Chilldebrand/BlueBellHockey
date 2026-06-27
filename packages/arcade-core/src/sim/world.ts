@@ -9,6 +9,7 @@ import type {
   WorldState
 } from "./types.js";
 import { stepSkater } from "./skater.js";
+import { createInitialPuckState, stepPuck } from "./puck.js";
 
 function zeroVector(): Vec2 {
   return { x: 0, y: 0 };
@@ -69,14 +70,10 @@ export function createWorld(seed: number, mode: MatchMode): WorldState {
     },
     skaters,
     goalies,
-    puck: {
-      position: {
-        x: RINK_CONFIG.width / 2,
-        y: RINK_CONFIG.height / 2
-      },
-      velocity: zeroVector(),
-      carrierSlotId: null
-    },
+    puck: createInitialPuckState({
+      x: RINK_CONFIG.width / 2,
+      y: RINK_CONFIG.height / 2
+    }),
     activePowerups: [],
     eventQueue: []
   };
@@ -96,6 +93,8 @@ export function stepWorld(
   for (const skater of world.skaters) {
     stepSkater(skater, latestInputBySlot.get(skater.id), dtMs);
   }
+
+  stepPuck(world, latestInputBySlot, dtMs);
 
   world.time = {
     ...world.time,

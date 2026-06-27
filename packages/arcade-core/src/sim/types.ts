@@ -57,6 +57,14 @@ export interface PuckState {
   position: Vec2;
   velocity: Vec2;
   carrierSlotId: string | null;
+  lastTouchSlotId: string | null;
+  shotBySlotId: string | null;
+  shotPower: number;
+  isChargedShot: boolean;
+  chargeBySlotId: string | null;
+  chargeStartedAtMs: number | null;
+  pickupDisabledForSlotId: string | null;
+  pickupDisabledUntilMs: number;
 }
 
 export interface ActivePowerup {

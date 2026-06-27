@@ -1,6 +1,7 @@
 import { Canvas } from "@react-three/fiber";
 import { RINK_CONFIG, type SkaterEntity, type WorldState } from "@bbh/arcade-core";
 import { interpolateSkaters } from "../game/interpolation.js";
+import { Puck, predictedCarriedPuck } from "./Puck.js";
 import { SkaterDebug } from "./SkaterDebug.js";
 
 export interface SceneProps {
@@ -58,6 +59,9 @@ export function Scene({
             />
           );
         })}
+        <Puck
+          puck={predictedCarriedPuck(currentWorld.puck, predictedLocalSkater)}
+        />
       </Canvas>
     </section>
   );
