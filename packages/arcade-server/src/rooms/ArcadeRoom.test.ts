@@ -351,7 +351,40 @@ describe("ArcadeRoom", () => {
 
     expect(inputHandler).toBeTypeOf("function");
     expect(controlled?.position.x).toBeGreaterThan(740);
-    expect(spoofed?.position.x).toBe(1260);
+    expect(spoofed?.position.x).toBeLessThan(1260);
+  });
+
+  it("injects bot input frames so a solo player has five active skaters", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    const broadcast = vi
+      .spyOn(room, "broadcast")
+      .mockImplementation(() => room as never);
+    const clientA = client("session-a");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(clientA as never, { playerName: "Ada" });
+    const startHandler = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.requestStart"
+    )?.[1];
+
+    startHandler?.(clientA as never, undefined);
+    room.tick(MATCH_CONFIG.fixedTickMs * 3);
+
+    const snapshot = broadcast.mock.calls
+      .filter(([messageType]) => messageType === "server.worldSnapshot")
+      .at(-1)?.[1] as ServerWorldSnapshotMessage | undefined;
+    const human = snapshot?.world.skaters.find(
+      (skater) => skater.id === "home-skater-1"
+    );
+    const botSkaters = snapshot?.world.skaters.filter(
+      (skater) => skater.id !== "home-skater-1"
+    );
+
+    expect(botSkaters).toHaveLength(5);
+    expect(human?.velocity.x).toBe(0);
+    expect(
+      botSkaters?.some((skater) => Math.hypot(skater.velocity.x, skater.velocity.y) > 0)
+    ).toBe(true);
   });
 
   it("rejects non-finite input and stale sequence replays", () => {

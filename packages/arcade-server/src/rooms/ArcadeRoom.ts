@@ -25,6 +25,7 @@ import {
   selectCharacterForSession,
   type RoomRosterSlot
 } from "./roster.js";
+import { createBotInputFrame } from "../ai/bot.js";
 
 export interface ArcadeRoomOptions {
   readonly privateCode?: string;
@@ -83,6 +84,7 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
   private readonly lastInputSequenceBySession = new Map<string, number>();
   private readonly lastSwitchTargetBySession = new Map<string, boolean>();
   private accumulatedTickMs = 0;
+  private botInputSequence = 0;
   private world: WorldState | null = null;
 
   constructor(dependencies: ArcadeRoomDependencies = {}) {
@@ -181,7 +183,10 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     ) {
       this.world = stepWorld(
         this.world,
-        [...this.latestInputBySession.values()],
+        [
+          ...this.latestInputBySession.values(),
+          ...this.createBotInputFrames(this.world)
+        ],
         MATCH_CONFIG.fixedTickMs
       );
       this.accumulatedTickMs -= MATCH_CONFIG.fixedTickMs;
@@ -294,6 +299,7 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
   private handleRematch(): void {
     this.world = createWorld(this.seedGenerator(), this.roomOptions.mode);
     this.world.phase = "playing";
+    this.botInputSequence = 0;
     this.syncStateFromWorld();
     this.broadcastSnapshot();
   }
@@ -351,6 +357,18 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     };
 
     this.broadcast("server.worldSnapshot", message satisfies ArcadeServerMessage);
+  }
+
+  private createBotInputFrames(world: WorldState): InputFrame[] {
+    this.botInputSequence += 1;
+
+    return this.roster
+      .filter((slot) => slot.kind === "bot")
+      .map((slot) => world.skaters.find((skater) => skater.id === slot.slotId))
+      .filter((skater): skater is NonNullable<typeof skater> => Boolean(skater))
+      .map((skater) =>
+        createBotInputFrame(skater, world, this.botInputSequence)
+      );
   }
 }
 
