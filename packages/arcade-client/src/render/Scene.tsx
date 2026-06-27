@@ -3,6 +3,7 @@ import { RINK_CONFIG, type SkaterEntity, type WorldState } from "@bbh/arcade-cor
 import { interpolateSkaters } from "../game/interpolation.js";
 import { Puck, predictedCarriedPuck } from "./Puck.js";
 import { SkaterDebug } from "./SkaterDebug.js";
+import { Vfx } from "./Vfx.js";
 
 export interface SceneProps {
   readonly currentWorld: WorldState | null;
@@ -62,6 +63,7 @@ export function Scene({
         <Puck
           puck={predictedCarriedPuck(currentWorld.puck, predictedLocalSkater)}
         />
+        <Vfx events={currentWorld.eventQueue} />
       </Canvas>
     </section>
   );

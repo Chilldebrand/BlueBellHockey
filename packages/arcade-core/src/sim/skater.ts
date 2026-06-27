@@ -23,6 +23,19 @@ export function stepSkater(
   config: SkaterMovementConfig = SKATER_MOVEMENT_CONFIG
 ): void {
   const dtSeconds = dtMs / 1000;
+  if (skater.contactState === "knockedDown") {
+    skater.position = {
+      x: skater.position.x + skater.velocity.x * dtSeconds,
+      y: skater.position.y + skater.velocity.y * dtSeconds
+    };
+    skater.velocity = {
+      x: skater.velocity.x * Math.max(0, 1 - config.glideDrag * dtSeconds),
+      y: skater.velocity.y * Math.max(0, 1 - config.glideDrag * dtSeconds)
+    };
+    clampSkaterToRink(skater, config);
+    return;
+  }
+
   const movement = normalizedMovement(input);
 
   if (magnitude(movement) > 0) {

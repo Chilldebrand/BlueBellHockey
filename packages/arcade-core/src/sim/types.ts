@@ -42,6 +42,10 @@ export interface SkaterEntity {
   readonly teamId: TeamId;
   position: Vec2;
   velocity: Vec2;
+  contactState: "ready" | "stumbling" | "knockedDown";
+  contactStateUntilMs: number;
+  checkCooldownUntilMs: number;
+  activeCheckUntilMs: number;
 }
 
 export interface GoalieEntity {
@@ -78,6 +82,9 @@ export interface WorldEvent {
   readonly id: string;
   readonly type: string;
   readonly atMs: number;
+  readonly sourceSlotId?: string;
+  readonly targetSlotId?: string;
+  readonly force?: number;
 }
 
 export interface WorldState {

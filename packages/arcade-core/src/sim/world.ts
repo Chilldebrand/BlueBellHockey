@@ -10,6 +10,7 @@ import type {
 } from "./types.js";
 import { stepSkater } from "./skater.js";
 import { createInitialPuckState, stepPuck } from "./puck.js";
+import { recoverContactStates, resolveChecks } from "./actions.js";
 
 function zeroVector(): Vec2 {
   return { x: 0, y: 0 };
@@ -38,7 +39,11 @@ export function createWorld(seed: number, mode: MatchMode): WorldState {
       slot,
       teamId: slot.teamId,
       position: skaterSpawn(slot.index, teamSide),
-      velocity: zeroVector()
+      velocity: zeroVector(),
+      contactState: "ready",
+      contactStateUntilMs: 0,
+      checkCooldownUntilMs: 0,
+      activeCheckUntilMs: 0
     };
   });
 
@@ -94,6 +99,7 @@ export function stepWorld(
     stepSkater(skater, latestInputBySlot.get(skater.id), dtMs);
   }
 
+  resolveChecks(world, latestInputBySlot);
   stepPuck(world, latestInputBySlot, dtMs);
 
   world.time = {
@@ -101,6 +107,7 @@ export function stepWorld(
     nowMs: world.time.nowMs + dtMs,
     tick: world.time.tick + 1
   };
+  recoverContactStates(world);
 
   return world;
 }
