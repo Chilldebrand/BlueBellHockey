@@ -147,6 +147,22 @@ describe("arcade room connection", () => {
     const result = await joinPrivateRoom(" puck42 ", { matchmaker });
     result.connection.chooseTeam("away");
     result.connection.requestStart();
+    result.connection.sendInput({
+      playerId: "session-a",
+      slotId: "home-skater-1",
+      sequence: 1,
+      moveX: 1,
+      moveY: 0,
+      aimX: 0,
+      aimY: 0,
+      pass: false,
+      shoot: false,
+      check: false,
+      turbo: false,
+      switchTarget: false,
+      usePowerup: false,
+      special: false
+    });
 
     expect(matchmaker.join).toHaveBeenCalledWith("arcade", {
       mode: "arcade3v3",
@@ -157,5 +173,12 @@ describe("arcade room connection", () => {
       teamId: "away"
     });
     expect(room.send).toHaveBeenCalledWith("client.requestStart");
+    expect(room.send).toHaveBeenCalledWith("client.input", {
+      type: "client.input",
+      frame: expect.objectContaining({
+        slotId: "home-skater-1",
+        moveX: 1
+      })
+    });
   });
 });

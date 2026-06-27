@@ -16,5 +16,7 @@ export * from "./config/match.js";
 export * from "./config/rink.js";
 export * from "./config/teams.js";
 export * from "./net/messages.js";
+export * from "./sim/physics.js";
+export * from "./sim/skater.js";
 export * from "./sim/types.js";
 export * from "./sim/world.js";

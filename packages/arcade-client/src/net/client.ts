@@ -1,4 +1,4 @@
-import type { TeamId } from "@bbh/arcade-core";
+import type { InputFrame, TeamId } from "@bbh/arcade-core";
 import { Client } from "colyseus.js";
 import type { ServerRoomState } from "../store.js";
 
@@ -8,9 +8,9 @@ export interface ArcadeRoomConnection {
   onStateChange(callback: (state: ServerRoomState) => void): unknown;
   onError(callback: (code: number, message?: string) => void): unknown;
   onLeave(callback: (code: number) => void): unknown;
-  onMessage?(
+  onMessage?<TMessage>(
     type: string,
-    callback: (message: { readonly message?: string }) => void
+    callback: (message: TMessage) => void
   ): unknown;
   send(type: string, message?: unknown): void;
   removeAllListeners?(): void;
@@ -65,6 +65,13 @@ export class ArcadeRoomSession {
 
   requestStart(): void {
     this.room.send("client.requestStart");
+  }
+
+  sendInput(frame: InputFrame): void {
+    this.room.send("client.input", {
+      type: "client.input",
+      frame
+    });
   }
 
   leave(): Promise<unknown> | unknown {

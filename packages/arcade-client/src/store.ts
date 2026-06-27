@@ -1,4 +1,4 @@
-import type { TeamId, WorldPhase } from "@bbh/arcade-core";
+import type { TeamId, WorldPhase, WorldState } from "@bbh/arcade-core";
 import type { ArcadeRoomConnection } from "./net/client.js";
 
 export type ConnectionStatus = "idle" | "connecting" | "connected" | "error";
@@ -33,6 +33,8 @@ export interface ArcadeClientState {
   readonly score: ArcadeScore;
   readonly phase: WorldPhase;
   readonly isRosterValid: boolean;
+  readonly currentWorld: WorldState | null;
+  readonly previousWorld: WorldState | null;
   readonly error: string | null;
 }
 
@@ -50,6 +52,7 @@ export interface ServerRoomState {
 export type ArcadeClientAction =
   | { readonly type: "connection.start" }
   | { readonly type: "room.state"; readonly room: ArcadeRoomConnection }
+  | { readonly type: "world.snapshot"; readonly world: WorldState }
   | { readonly type: "connection.error"; readonly message: string }
   | { readonly type: "connection.left"; readonly message?: string };
 
@@ -64,6 +67,8 @@ export function createInitialArcadeClientState(): ArcadeClientState {
     score: INITIAL_SCORE,
     phase: "waiting",
     isRosterValid: false,
+    currentWorld: null,
+    previousWorld: null,
     error: null
   };
 }
@@ -76,7 +81,19 @@ export function reduceArcadeClientState(
     case "connection.start":
       return { ...state, connectionStatus: "connecting", error: null };
     case "room.state":
-      return mapRoomState(action.room);
+      return {
+        ...mapRoomState(action.room),
+        currentWorld: state.currentWorld,
+        previousWorld: state.previousWorld
+      };
+    case "world.snapshot":
+      return {
+        ...state,
+        phase: action.world.phase,
+        score: action.world.score,
+        previousWorld: state.currentWorld,
+        currentWorld: action.world
+      };
     case "connection.error":
       return { ...state, connectionStatus: "error", error: action.message };
     case "connection.left":
@@ -109,6 +126,8 @@ export function mapRoomState(room: ArcadeRoomConnection): ArcadeClientState {
     },
     phase: serverState.phase ?? "waiting",
     isRosterValid: serverState.isRosterValid ?? false,
+    currentWorld: null,
+    previousWorld: null,
     error: null
   };
 }

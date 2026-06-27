@@ -10,8 +10,10 @@ export interface InputFrame {
   readonly playerId: string;
   readonly slotId: string;
   readonly sequence: number;
-  readonly movement: Vec2;
-  readonly aim: Vec2;
+  readonly moveX: number;
+  readonly moveY: number;
+  readonly aimX: number;
+  readonly aimY: number;
   readonly pass: boolean;
   readonly shoot: boolean;
   readonly check: boolean;

@@ -8,6 +8,7 @@ import type {
   Vec2,
   WorldState
 } from "./types.js";
+import { stepSkater } from "./skater.js";
 
 function zeroVector(): Vec2 {
   return { x: 0, y: 0 };
@@ -83,11 +84,17 @@ export function createWorld(seed: number, mode: MatchMode): WorldState {
 
 export function stepWorld(
   world: WorldState,
-  _inputs: readonly InputFrame[],
+  inputs: readonly InputFrame[],
   dtMs: number
 ): WorldState {
   if (world.phase !== "playing") {
     return world;
+  }
+
+  const latestInputBySlot = latestInputsForSlots(inputs);
+
+  for (const skater of world.skaters) {
+    stepSkater(skater, latestInputBySlot.get(skater.id), dtMs);
   }
 
   world.time = {
@@ -97,4 +104,20 @@ export function stepWorld(
   };
 
   return world;
+}
+
+function latestInputsForSlots(
+  inputs: readonly InputFrame[]
+): ReadonlyMap<string, InputFrame> {
+  const latest = new Map<string, InputFrame>();
+
+  for (const input of inputs) {
+    const current = latest.get(input.slotId);
+
+    if (!current || input.sequence >= current.sequence) {
+      latest.set(input.slotId, input);
+    }
+  }
+
+  return latest;
 }

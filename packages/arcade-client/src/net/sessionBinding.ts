@@ -1,3 +1,4 @@
+import type { ServerWorldSnapshotMessage, WorldState } from "@bbh/arcade-core";
 import type { ArcadeConnectionResult, ArcadeRoomSession } from "./client.js";
 
 export interface ActiveRoomSubscription {
@@ -13,6 +14,7 @@ export interface ArcadeRoomEventHandlers {
   readonly onState: (result: ArcadeConnectionResult) => void;
   readonly onError: (message: string) => void;
   readonly onLeave: (message: string) => void;
+  readonly onWorldSnapshot?: (world: WorldState) => void;
 }
 
 export function attachArcadeRoom(
@@ -41,11 +43,19 @@ export function attachArcadeRoom(
       handlers.onError(message || "Connection error");
     }
   });
-  result.room.onMessage?.("server.error", (message) => {
+  result.room.onMessage?.<{ readonly message?: string }>("server.error", (message) => {
     if (isCurrentRoom()) {
       handlers.onError(message.message || "Room error");
     }
   });
+  result.room.onMessage?.<ServerWorldSnapshotMessage>(
+    "server.worldSnapshot",
+    (message) => {
+      if (isCurrentRoom()) {
+        handlers.onWorldSnapshot?.(message.world);
+      }
+    }
+  );
   result.room.onLeave(() => {
     if (isCurrentRoom()) {
       handlers.onLeave("Disconnected from room");

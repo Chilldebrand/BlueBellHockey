@@ -32,12 +32,14 @@ function fakeConnectionResult(sessionId: string): {
       callbacks.onLeave = callback;
     }),
     onMessage: vi.fn(
-      (
+      <TMessage,>(
         type: string,
-        callback: (message: { readonly message?: string }) => void
+        callback: (message: TMessage) => void
       ) => {
         if (type === "server.error") {
-          callbacks.onServerError = callback;
+          callbacks.onServerError = callback as (
+            message: { readonly message?: string }
+          ) => void;
         }
       }
     ),

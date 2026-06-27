@@ -3,6 +3,8 @@ import {
   MATCH_CONFIG,
   stepWorld,
   type ArcadeServerMessage,
+  type ClientInputMessage,
+  type InputFrame,
   type MatchMode,
   type ServerWorldSnapshotMessage,
   type WorldState
@@ -48,6 +50,7 @@ type StoredArcadeRoomOptions = {
 };
 
 const DEFAULT_MODE: MatchMode = "arcade3v3";
+const MAX_SIMULATION_STEPS_PER_TICK = 5;
 
 function generateRoomCode(): string {
   return Math.random().toString(36).slice(2, 8).toUpperCase().padEnd(6, "0");
@@ -70,6 +73,9 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
   private readonly seedGenerator: () => number;
   private readonly startSimulation: boolean;
   private roster: RoomRosterSlot[] = createRoster();
+  private readonly latestInputBySession = new Map<string, InputFrame>();
+  private readonly lastInputSequenceBySession = new Map<string, number>();
+  private accumulatedTickMs = 0;
   private world: WorldState | null = null;
 
   constructor(dependencies: ArcadeRoomDependencies = {}) {
@@ -115,6 +121,9 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     this.onMessage("client.requestStart", (client) => {
       this.handleRequestStart(client);
     });
+    this.onMessage("client.input", (client, message: unknown) => {
+      this.handleInput(client, message);
+    });
 
     if (this.startSimulation) {
       this.setSimulationInterval(
@@ -135,6 +144,8 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
 
   onLeave(client: Client): void {
     releaseHuman(this.roster, client.sessionId);
+    this.latestInputBySession.delete(client.sessionId);
+    this.lastInputSequenceBySession.delete(client.sessionId);
     fillRosterWithBots(this.roster);
     this.syncRosterState();
   }
@@ -144,7 +155,29 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
       return;
     }
 
-    this.world = stepWorld(this.world, [], dtMs);
+    this.accumulatedTickMs += dtMs;
+
+    let steps = 0;
+    while (
+      this.accumulatedTickMs >= MATCH_CONFIG.fixedTickMs &&
+      steps < MAX_SIMULATION_STEPS_PER_TICK
+    ) {
+      this.world = stepWorld(
+        this.world,
+        [...this.latestInputBySession.values()],
+        MATCH_CONFIG.fixedTickMs
+      );
+      this.accumulatedTickMs -= MATCH_CONFIG.fixedTickMs;
+      steps += 1;
+    }
+
+    if (steps === MAX_SIMULATION_STEPS_PER_TICK) {
+      this.accumulatedTickMs = Math.min(
+        this.accumulatedTickMs,
+        MATCH_CONFIG.fixedTickMs
+      );
+    }
+
     this.syncStateFromWorld();
     this.broadcastSnapshot();
   }
@@ -210,6 +243,33 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     this.syncStateFromWorld();
   }
 
+  private handleInput(client: Client, message: unknown): void {
+    const frame = getClientInputFrame(message);
+    const slot = this.roster.find(
+      (candidate) =>
+        candidate.kind === "human" && candidate.sessionId === client.sessionId
+    );
+
+    if (!frame || !slot) {
+      this.send(client, "server.error", { message: "Invalid input." });
+      return;
+    }
+
+    const lastSequence =
+      this.lastInputSequenceBySession.get(client.sessionId) ?? -1;
+
+    if (frame.sequence <= lastSequence) {
+      return;
+    }
+
+    this.lastInputSequenceBySession.set(client.sessionId, frame.sequence);
+    this.latestInputBySession.set(client.sessionId, {
+      ...frame,
+      playerId: client.sessionId,
+      slotId: slot.slotId
+    });
+  }
+
   private broadcastSnapshot(): void {
     if (!this.world) {
       return;
@@ -247,4 +307,49 @@ function getRequestedTeamId(message: unknown): ChooseTeamMessage["teamId"] {
   }
 
   return (message as ChooseTeamMessage).teamId;
+}
+
+function getClientInputFrame(message: unknown): InputFrame | null {
+  if (!message || typeof message !== "object" || !("frame" in message)) {
+    return null;
+  }
+
+  const candidate = (message as Partial<ClientInputMessage>).frame;
+
+  if (!candidate || typeof candidate !== "object") {
+    return null;
+  }
+
+  const numericFields = [
+    candidate.sequence,
+    candidate.moveX,
+    candidate.moveY,
+    candidate.aimX,
+    candidate.aimY
+  ];
+
+  if (numericFields.some((value) => !Number.isFinite(value))) {
+    return null;
+  }
+
+  if (!Number.isSafeInteger(candidate.sequence) || candidate.sequence < 0) {
+    return null;
+  }
+
+  return {
+    playerId: String(candidate.playerId ?? ""),
+    slotId: String(candidate.slotId ?? ""),
+    sequence: candidate.sequence,
+    moveX: candidate.moveX,
+    moveY: candidate.moveY,
+    aimX: candidate.aimX,
+    aimY: candidate.aimY,
+    pass: candidate.pass === true,
+    shoot: candidate.shoot === true,
+    check: candidate.check === true,
+    turbo: candidate.turbo === true,
+    switchTarget: candidate.switchTarget === true,
+    usePowerup: candidate.usePowerup === true,
+    special: candidate.special === true
+  };
 }
