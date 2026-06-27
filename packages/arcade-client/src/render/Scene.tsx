@@ -1,7 +1,9 @@
 import { Canvas } from "@react-three/fiber";
-import { RINK_CONFIG, type SkaterEntity, type WorldState } from "@bbh/arcade-core";
+import { type SkaterEntity, type WorldState } from "@bbh/arcade-core";
 import { interpolateSkaters } from "../game/interpolation.js";
+import { CameraRig } from "./CameraRig.js";
 import { Puck, predictedCarriedPuck } from "./Puck.js";
+import { Rink } from "./Rink.js";
 import { SkaterDebug } from "./SkaterDebug.js";
 import { Vfx } from "./Vfx.js";
 
@@ -23,27 +25,26 @@ export function Scene({
   }
 
   const skaters = interpolateSkaters(previousWorld, currentWorld, 0.75, localSlotId);
+  const renderedPuck = predictedCarriedPuck(
+    currentWorld.puck,
+    predictedLocalSkater
+  );
 
   return (
-    <section aria-label="Arcade rink debug view" style={{ height: 360 }}>
+    <section className="arcade-rink-shell" aria-label="Arcade rink debug view">
       <Canvas
-        orthographic
+        shadows
         camera={{
-          position: [RINK_CONFIG.width / 2, 1400, RINK_CONFIG.height / 2],
-          zoom: 0.45,
+          position: [520, 1180, 980],
+          fov: 44,
           near: 0.1,
           far: 3000
         }}
       >
-        <ambientLight intensity={0.8} />
-        <directionalLight position={[0, 600, 400]} intensity={1.1} />
-        <mesh
-          position={[RINK_CONFIG.width / 2, 0, RINK_CONFIG.height / 2]}
-          rotation={[-Math.PI / 2, 0, 0]}
-        >
-          <planeGeometry args={[RINK_CONFIG.width, RINK_CONFIG.height]} />
-          <meshStandardMaterial color="#dcecf7" />
-        </mesh>
+        <CameraRig puck={renderedPuck.position} events={currentWorld.eventQueue} />
+        <ambientLight intensity={0.95} />
+        <directionalLight position={[320, 900, 460]} intensity={1.25} castShadow />
+        <Rink />
         {skaters.map((skater) => {
           const renderSkater =
             skater.id === localSlotId && predictedLocalSkater
@@ -57,12 +58,11 @@ export function Scene({
               teamId={skater.teamId}
               position={renderSkater.position}
               isLocal={skater.id === localSlotId}
+              hasPossession={currentWorld.puck.carrierSlotId === skater.id}
             />
           );
         })}
-        <Puck
-          puck={predictedCarriedPuck(currentWorld.puck, predictedLocalSkater)}
-        />
+        <Puck puck={renderedPuck} />
         <Vfx events={currentWorld.eventQueue} />
       </Canvas>
     </section>

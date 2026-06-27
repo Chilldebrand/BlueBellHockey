@@ -291,12 +291,14 @@ export function createPrivateRoomCode(codeGenerator = generateRoomCode): string 
 export function normalizeArcadeRoomOptions(
   options: ArcadeRoomOptions = {}
 ): NormalizedArcadeRoomOptions {
+  const quickMatch = options.quickMatch ?? true;
+
   return {
     privateCode:
-      options.privateCode === undefined
+      options.privateCode === undefined || quickMatch
         ? ""
         : normalizeRoomCode(options.privateCode),
-    quickMatch: options.quickMatch ?? true,
+    quickMatch,
     mode: options.mode ?? DEFAULT_MODE
   };
 }

@@ -34,8 +34,8 @@ import {
   type ArcadeClientAction
 } from "./store.js";
 import { Scene } from "./render/Scene.js";
+import { HUD } from "./ui/HUD.js";
 import { Lobby } from "./ui/Lobby.js";
-import { ScoreHud } from "./ui/ScoreHud.js";
 
 export interface AppConnectionApi {
   readonly connectQuickMatch: typeof connectQuickMatch;
@@ -176,21 +176,23 @@ export function App({
 
   return (
     <>
-      <ScoreHud state={state} />
-      <Lobby
-        state={state}
-        onQuickMatch={handleQuickMatch}
-        onCreatePrivateRoom={handleCreatePrivateRoom}
-        onJoinPrivateRoom={handleJoinPrivateRoom}
-        onChooseTeam={handleChooseTeam}
-        onRequestStart={handleRequestStart}
-      />
+      <HUD state={state} />
       <Scene
         currentWorld={state.currentWorld}
         previousWorld={state.previousWorld}
         localSlotId={localSlotId}
         predictedLocalSkater={predictedLocalSkater}
       />
+      {state.phase === "playing" ? null : (
+        <Lobby
+          state={state}
+          onQuickMatch={handleQuickMatch}
+          onCreatePrivateRoom={handleCreatePrivateRoom}
+          onJoinPrivateRoom={handleJoinPrivateRoom}
+          onChooseTeam={handleChooseTeam}
+          onRequestStart={handleRequestStart}
+        />
+      )}
     </>
   );
 }

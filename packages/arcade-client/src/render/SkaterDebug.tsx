@@ -5,6 +5,7 @@ export interface SkaterDebugProps {
   readonly teamId: TeamId;
   readonly position: Vec2;
   readonly isLocal: boolean;
+  readonly hasPossession?: boolean;
 }
 
 const TEAM_COLORS: Record<TeamId, string> = {
@@ -16,7 +17,8 @@ export function SkaterDebug({
   id,
   teamId,
   position,
-  isLocal
+  isLocal,
+  hasPossession = false
 }: SkaterDebugProps): JSX.Element {
   return (
     <group position={[position.x, 10, position.y]} name={id}>
@@ -32,6 +34,12 @@ export function SkaterDebug({
         <boxGeometry args={[18, 36, 18]} />
         <meshStandardMaterial color={isLocal ? "#ffffff" : "#d9e6f2"} />
       </mesh>
+      {isLocal || hasPossession ? (
+        <mesh position={[0, 4, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[52, 58, 24]} />
+          <meshStandardMaterial color={hasPossession ? "#ffdf6e" : "#ffffff"} />
+        </mesh>
+      ) : null}
     </group>
   );
 }

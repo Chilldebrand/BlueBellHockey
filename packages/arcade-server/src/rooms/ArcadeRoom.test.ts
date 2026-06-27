@@ -139,6 +139,17 @@ describe("ArcadeRoom", () => {
       quickMatch: true,
       mode: "arcade3v3"
     });
+    expect(
+      normalizeArcadeRoomOptions({
+        privateCode: "",
+        quickMatch: true,
+        mode: "arcade3v3"
+      })
+    ).toEqual({
+      privateCode: "",
+      quickMatch: true,
+      mode: "arcade3v3"
+    });
   });
 
   it("normalizes matchmaker options during auth before filtering", async () => {

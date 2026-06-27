@@ -23,13 +23,15 @@ export function Lobby({
   const joinInputId = useId();
   const isConnecting = state.connectionStatus === "connecting";
   const isConnected = state.connectionStatus === "connected";
+  const roomLabel =
+    state.roomCode || (isConnected ? "Quick match room" : "No room joined");
 
   return (
     <main className="arcade-shell">
       <section className="connection-panel" aria-label="Room connection">
         <div>
           <h1>BBH Arcade</h1>
-          <p>{state.roomCode ? `Room ${state.roomCode}` : "No room joined"}</p>
+          <p>{state.roomCode ? `Room ${roomLabel}` : roomLabel}</p>
         </div>
         <div className="connection-actions">
           <button type="button" onClick={onQuickMatch} disabled={isConnecting}>
