@@ -115,7 +115,7 @@ describe("ArcadeRoom", () => {
   });
 
   it("assigns joined humans to skater slots and fills the rest with bots", () => {
-    const room = createTestRoom({ codeGenerator: () => "ROOM99" });
+    const room = createTestRoom();
     room.onCreate({ quickMatch: true, mode: "arcade3v3" });
 
     room.onJoin(client("session-a") as never, { playerName: "Ada" });
@@ -140,10 +140,80 @@ describe("ArcadeRoom", () => {
       isBot: true,
       botId: "bot-home-skater-3"
     });
+    expect(room.state.isRosterValid).toBe(true);
+  });
+
+  it("moves a joined player to the requested team from a client message", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    const sender = vi
+      .spyOn(room, "send")
+      .mockImplementation(() => room as never);
+    const clientA = client("session-a");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(clientA as never, { playerName: "Ada" });
+    const handler = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.chooseTeam"
+    )?.[1];
+
+    expect(handler).toBeTypeOf("function");
+    handler?.(clientA as never, { teamId: "away" });
+
+    const slots = [
+      ...room.state.teams.home.slots,
+      ...room.state.teams.away.slots
+    ];
+    expect(slots.find((slot) => slot.sessionId === "session-a")).toMatchObject({
+      teamId: "away",
+      kind: "human",
+      playerName: "Ada"
+    });
+    expect(sender).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed team selection messages without throwing", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    const sender = vi
+      .spyOn(room, "send")
+      .mockImplementation(() => room as never);
+    const clientA = client("session-a");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(clientA as never, { playerName: "Ada" });
+    const handler = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.chooseTeam"
+    )?.[1];
+
+    expect(handler).toBeTypeOf("function");
+    expect(() => handler?.(clientA as never, null)).not.toThrow();
+    expect(sender).toHaveBeenCalledWith(clientA, "server.error", {
+      message: "Invalid team."
+    });
+  });
+
+  it("starts the authoritative room phase from a client start request", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    const sender = vi
+      .spyOn(room, "send")
+      .mockImplementation(() => room as never);
+    const clientA = client("session-a");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(clientA as never, { playerName: "Ada" });
+    const handler = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.requestStart"
+    )?.[1];
+
+    expect(handler).toBeTypeOf("function");
+    expect(room.state.phase).toBe("waiting");
+    handler?.(clientA as never, undefined);
+
+    expect(room.state.phase).toBe("playing");
+    expect(sender).not.toHaveBeenCalled();
   });
 
   it("removes a leaving human without transferring another owned slot", () => {
-    const room = createTestRoom({ codeGenerator: () => "ROOM99" });
+    const room = createTestRoom();
     room.onCreate({ quickMatch: true, mode: "arcade3v3" });
     room.onJoin(client("session-a") as never, { playerName: "Ada" });
     room.onJoin(client("session-b") as never, { playerName: "Grace" });
@@ -170,7 +240,7 @@ describe("ArcadeRoom", () => {
   });
 
   it("rejects a seventh joined human", () => {
-    const room = createTestRoom({ codeGenerator: () => "ROOM99" });
+    const room = createTestRoom();
     room.onCreate({ quickMatch: true, mode: "arcade3v3" });
 
     for (let i = 0; i < 6; i += 1) {
@@ -185,7 +255,7 @@ describe("ArcadeRoom", () => {
   });
 
   it("broadcasts authoritative world snapshots on each tick", () => {
-    const room = createTestRoom({ codeGenerator: () => "ROOM99" });
+    const room = createTestRoom();
     const broadcast = vi
       .spyOn(room, "broadcast")
       .mockImplementation(() => room as never);

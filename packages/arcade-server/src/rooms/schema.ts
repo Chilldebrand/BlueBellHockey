@@ -41,6 +41,7 @@ export class ArcadeRoomState extends Schema {
   @type(ArcadeClockState) clock = new ArcadeClockState();
   @type("string") privateCode = "";
   @type("string") mode: MatchMode = "arcade3v3";
+  @type("boolean") isRosterValid = false;
   @type(ArcadeTeamsState) teams = new ArcadeTeamsState();
 }
 

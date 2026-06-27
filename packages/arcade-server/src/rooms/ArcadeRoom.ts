@@ -17,6 +17,7 @@ import {
   assignHumanToOpenSlot,
   createRoster,
   fillRosterWithBots,
+  moveHumanToTeam,
   releaseHuman,
   type RoomRosterSlot
 } from "./roster.js";
@@ -30,13 +31,16 @@ export interface ArcadeRoomOptions {
 export type NormalizedArcadeRoomOptions = Required<ArcadeRoomOptions>;
 
 export interface ArcadeRoomDependencies {
-  readonly codeGenerator?: () => string;
   readonly seedGenerator?: () => number;
   readonly startSimulation?: boolean;
 }
 
 interface JoinOptions {
   readonly playerName?: string;
+}
+
+interface ChooseTeamMessage {
+  readonly teamId?: string;
 }
 
 type StoredArcadeRoomOptions = {
@@ -63,7 +67,6 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
   maxClients = 6;
 
   readonly roomOptions: StoredArcadeRoomOptions;
-  private readonly codeGenerator: () => string;
   private readonly seedGenerator: () => number;
   private readonly startSimulation: boolean;
   private roster: RoomRosterSlot[] = createRoster();
@@ -71,7 +74,6 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
 
   constructor(dependencies: ArcadeRoomDependencies = {}) {
     super();
-    this.codeGenerator = dependencies.codeGenerator ?? generateRoomCode;
     this.seedGenerator = dependencies.seedGenerator ?? (() => 1);
     this.startSimulation = dependencies.startSimulation ?? true;
     this.roomOptions = {
@@ -107,6 +109,12 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     this.syncRoomMetadata();
     this.syncStateFromWorld();
     this.syncRosterState();
+    this.onMessage("client.chooseTeam", (client, message: unknown) => {
+      this.handleChooseTeam(client, message);
+    });
+    this.onMessage("client.requestStart", (client) => {
+      this.handleRequestStart(client);
+    });
 
     if (this.startSimulation) {
       this.setSimulationInterval(
@@ -172,6 +180,34 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     }
 
     applyRosterToState(this.state, this.roster);
+    this.state.isRosterValid = this.roster.every((slot) => slot.kind !== "open");
+  }
+
+  private handleChooseTeam(client: Client, message: unknown): void {
+    const teamId = getRequestedTeamId(message);
+
+    if (teamId !== "home" && teamId !== "away") {
+      this.send(client, "server.error", { message: "Invalid team." });
+      return;
+    }
+
+    moveHumanToTeam(this.roster, client.sessionId, teamId);
+    fillRosterWithBots(this.roster);
+    this.syncRosterState();
+  }
+
+  private handleRequestStart(client: Client): void {
+    if (!this.world || !this.state.isRosterValid) {
+      this.send(client, "server.error", { message: "Roster is not ready." });
+      return;
+    }
+
+    if (this.world.phase !== "waiting") {
+      return;
+    }
+
+    this.world.phase = "playing";
+    this.syncStateFromWorld();
   }
 
   private broadcastSnapshot(): void {
@@ -203,4 +239,12 @@ export function normalizeArcadeRoomOptions(
     quickMatch: options.quickMatch ?? true,
     mode: options.mode ?? DEFAULT_MODE
   };
+}
+
+function getRequestedTeamId(message: unknown): ChooseTeamMessage["teamId"] {
+  if (!message || typeof message !== "object" || !("teamId" in message)) {
+    return undefined;
+  }
+
+  return (message as ChooseTeamMessage).teamId;
 }

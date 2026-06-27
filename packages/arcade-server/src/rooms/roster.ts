@@ -105,3 +105,39 @@ export function releaseHuman(
 
   return slot;
 }
+
+export function moveHumanToTeam(
+  roster: RoomRosterSlot[],
+  sessionId: string,
+  teamId: TeamId
+): RoomRosterSlot | null {
+  const current = roster.find(
+    (candidate) =>
+      candidate.kind === "human" && candidate.sessionId === sessionId
+  );
+
+  if (!current || current.teamId === teamId) {
+    return current ?? null;
+  }
+
+  const target = roster.find(
+    (candidate) => candidate.teamId === teamId && candidate.kind !== "human"
+  );
+
+  if (!target) {
+    return current;
+  }
+
+  const playerName = current.playerName;
+  current.kind = "bot";
+  current.sessionId = null;
+  current.playerName = null;
+  current.botId = botIdForSlot(current.slotId);
+
+  target.kind = "human";
+  target.sessionId = sessionId;
+  target.playerName = playerName;
+  target.botId = null;
+
+  return target;
+}
