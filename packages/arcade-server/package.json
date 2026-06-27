@@ -12,12 +12,15 @@
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.json",
+    "build": "npm run build --workspace @bbh/arcade-core && tsc -p tsconfig.json",
     "test": "npm run build --workspace @bbh/arcade-core && vitest run",
     "start": "node dist/index.js"
   },
   "dependencies": {
     "@bbh/arcade-core": "*",
+    "@colyseus/schema": "^3.0.0",
+    "@colyseus/ws-transport": "^0.16.0",
+    "colyseus": "^0.16.0",
     "express": "^4.21.2"
   },
   "devDependencies": {

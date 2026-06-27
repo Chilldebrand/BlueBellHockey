@@ -5,6 +5,7 @@
     "rootDir": "./src",
     "lib": ["ES2021"],
     "types": ["node"],
+    "experimentalDecorators": true,
     "composite": true
   },
   "references": [{ "path": "../arcade-core" }],
