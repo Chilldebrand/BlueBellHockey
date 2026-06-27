@@ -46,7 +46,10 @@ export function createWorld(seed: number, mode: MatchMode): WorldState {
       contactState: "ready",
       contactStateUntilMs: 0,
       checkCooldownUntilMs: 0,
-      activeCheckUntilMs: 0
+      activeCheckUntilMs: 0,
+      turboMeter: 1,
+      turboCooldownUntilMs: 0,
+      selectedTargetSlotId: null
     };
   });
 
@@ -101,6 +104,8 @@ export function stepWorld(
 
   const latestInputBySlot = latestInputsForSlots(inputs);
 
+  updateAssistTargets(world, latestInputBySlot);
+
   for (const skater of world.skaters) {
     stepSkater(skater, latestInputBySlot.get(skater.id), dtMs);
   }
@@ -130,6 +135,35 @@ export function stepWorld(
   recoverContactStates(world);
 
   return world;
+}
+
+function updateAssistTargets(
+  world: WorldState,
+  inputsBySlot: ReadonlyMap<string, InputFrame>
+): void {
+  for (const skater of world.skaters) {
+    const input = inputsBySlot.get(skater.id);
+    if (!input?.switchTarget) {
+      continue;
+    }
+
+    const candidates = world.skaters.filter((candidate) =>
+      world.puck.carrierSlotId === skater.id
+        ? candidate.teamId === skater.teamId && candidate.id !== skater.id
+        : candidate.teamId !== skater.teamId
+    );
+
+    if (candidates.length === 0) {
+      skater.selectedTargetSlotId = null;
+      continue;
+    }
+
+    const currentIndex = candidates.findIndex(
+      (candidate) => candidate.id === skater.selectedTargetSlotId
+    );
+    skater.selectedTargetSlotId =
+      candidates[(currentIndex + 1) % candidates.length]?.id ?? null;
+  }
 }
 
 function latestInputsForSlots(

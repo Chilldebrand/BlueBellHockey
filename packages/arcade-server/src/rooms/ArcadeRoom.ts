@@ -81,6 +81,7 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
   private roster: RoomRosterSlot[] = createRoster();
   private readonly latestInputBySession = new Map<string, InputFrame>();
   private readonly lastInputSequenceBySession = new Map<string, number>();
+  private readonly lastSwitchTargetBySession = new Map<string, boolean>();
   private accumulatedTickMs = 0;
   private world: WorldState | null = null;
 
@@ -155,6 +156,7 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     releaseHuman(this.roster, client.sessionId);
     this.latestInputBySession.delete(client.sessionId);
     this.lastInputSequenceBySession.delete(client.sessionId);
+    this.lastSwitchTargetBySession.delete(client.sessionId);
     fillRosterWithBots(this.roster);
     this.syncRosterState();
   }
@@ -302,11 +304,16 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
       return;
     }
 
+    const previousSwitch =
+      this.lastSwitchTargetBySession.get(client.sessionId) ?? false;
+    const switchTarget = frame.switchTarget && !previousSwitch;
+    this.lastSwitchTargetBySession.set(client.sessionId, frame.switchTarget);
     this.lastInputSequenceBySession.set(client.sessionId, frame.sequence);
     this.latestInputBySession.set(client.sessionId, {
       ...frame,
       playerId: client.sessionId,
-      slotId: slot.slotId
+      slotId: slot.slotId,
+      switchTarget
     });
   }
 

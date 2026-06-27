@@ -41,6 +41,26 @@ input {
   font-size: 22px;
 }
 
+.turbo-meter,
+.target-indicator {
+  align-items: center;
+  background: rgba(5, 13, 24, 0.72);
+  border: 1px solid rgba(119, 207, 255, 0.32);
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 6px 10px;
+}
+
+.turbo-meter meter {
+  width: 92px;
+}
+
+.target-indicator strong {
+  color: #ffdf6e;
+  font-size: 12px;
+}
+
 .arcade-callout {
   color: #ffffff;
   font-size: 18px;

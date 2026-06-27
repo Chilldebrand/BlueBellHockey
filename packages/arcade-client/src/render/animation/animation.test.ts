@@ -14,6 +14,9 @@ function skater(overrides: Partial<SkaterEntity> = {}): SkaterEntity {
     contactStateUntilMs: 0,
     checkCooldownUntilMs: 0,
     activeCheckUntilMs: 0,
+    turboMeter: 1,
+    turboCooldownUntilMs: 0,
+    selectedTargetSlotId: null,
     ...overrides
   };
 }

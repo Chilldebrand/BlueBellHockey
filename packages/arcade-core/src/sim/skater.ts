@@ -7,13 +7,25 @@ export interface SkaterMovementConfig {
   readonly maxSpeed: number;
   readonly glideDrag: number;
   readonly radius: number;
+  readonly turboAccelerationMultiplier: number;
+  readonly turboMaxSpeedMultiplier: number;
+  readonly turboHandlingPenalty: number;
+  readonly turboDrainPerSecond: number;
+  readonly turboRechargePerSecond: number;
+  readonly turboMinActivation: number;
 }
 
 export const SKATER_MOVEMENT_CONFIG: SkaterMovementConfig = {
   acceleration: 2200,
   maxSpeed: 640,
   glideDrag: 3.2,
-  radius: 38
+  radius: 38,
+  turboAccelerationMultiplier: 1.28,
+  turboMaxSpeedMultiplier: 1.34,
+  turboHandlingPenalty: 0.82,
+  turboDrainPerSecond: 0.72,
+  turboRechargePerSecond: 0.36,
+  turboMinActivation: 0.08
 };
 
 export function stepSkater(
@@ -37,14 +49,37 @@ export function stepSkater(
   }
 
   const movement = normalizedMovement(input);
+  const turboActive =
+    input?.turbo === true && skater.turboMeter >= config.turboMinActivation;
+
+  if (turboActive) {
+    skater.turboMeter = clamp(
+      skater.turboMeter - config.turboDrainPerSecond * dtSeconds,
+      0,
+      1
+    );
+  } else {
+    skater.turboMeter = clamp(
+      skater.turboMeter + config.turboRechargePerSecond * dtSeconds,
+      0,
+      1
+    );
+  }
 
   if (magnitude(movement) > 0) {
+    const acceleration = turboActive
+      ? config.acceleration * config.turboAccelerationMultiplier
+      : config.acceleration;
+    const maxSpeed = turboActive
+      ? config.maxSpeed * config.turboMaxSpeedMultiplier
+      : config.maxSpeed;
+    const handling = turboActive ? config.turboHandlingPenalty : 1;
     skater.velocity = clampMagnitude(
       {
-        x: skater.velocity.x + movement.x * config.acceleration * dtSeconds,
-        y: skater.velocity.y + movement.y * config.acceleration * dtSeconds
+        x: skater.velocity.x + movement.x * acceleration * handling * dtSeconds,
+        y: skater.velocity.y + movement.y * acceleration * handling * dtSeconds
       },
-      config.maxSpeed
+      maxSpeed
     );
   } else {
     const drag = Math.max(0, 1 - config.glideDrag * dtSeconds);

@@ -198,6 +198,26 @@ export function passDirectionWithAssist(
   assistCosine = 0.65
 ): Vec2 {
   const aim = inputAimOrFacing(input, carrier);
+  const selectedTarget = world.skaters.find(
+    (skater) =>
+      skater.id === carrier.selectedTargetSlotId &&
+      skater.teamId === carrier.teamId &&
+      skater.id !== carrier.id
+  );
+
+  if (selectedTarget) {
+    const selectedDirection = normalizeOrZero({
+      x: selectedTarget.position.x - carrier.position.x,
+      y: selectedTarget.position.y - carrier.position.y
+    });
+    const selectedScore =
+      aim.x * selectedDirection.x + aim.y * selectedDirection.y;
+
+    if (selectedScore >= 0.15) {
+      return selectedDirection;
+    }
+  }
+
   let bestTeammate: SkaterEntity | null = null;
   let bestScore = assistCosine;
 

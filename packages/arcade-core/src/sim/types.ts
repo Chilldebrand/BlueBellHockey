@@ -46,6 +46,9 @@ export interface SkaterEntity {
   contactStateUntilMs: number;
   checkCooldownUntilMs: number;
   activeCheckUntilMs: number;
+  turboMeter: number;
+  turboCooldownUntilMs: number;
+  selectedTargetSlotId: string | null;
 }
 
 export interface GoalieEntity {
