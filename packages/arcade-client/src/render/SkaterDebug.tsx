@@ -1,4 +1,5 @@
 import type { TeamId, Vec2 } from "@bbh/arcade-core";
+import { CharacterModel } from "./CharacterModel.js";
 
 export interface SkaterDebugProps {
   readonly id: string;
@@ -30,10 +31,7 @@ export function SkaterDebug({
           emissiveIntensity={isLocal ? 0.2 : 0}
         />
       </mesh>
-      <mesh position={[0, 18, 0]}>
-        <boxGeometry args={[18, 36, 18]} />
-        <meshStandardMaterial color={isLocal ? "#ffffff" : "#d9e6f2"} />
-      </mesh>
+      <CharacterModel teamId={teamId} isLocal={isLocal} />
       {isLocal || hasPossession ? (
         <mesh position={[0, 4, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[52, 58, 24]} />

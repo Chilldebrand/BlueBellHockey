@@ -2,6 +2,7 @@ import { Canvas } from "@react-three/fiber";
 import { type SkaterEntity, type WorldState } from "@bbh/arcade-core";
 import { interpolateSkaters } from "../game/interpolation.js";
 import { CameraRig } from "./CameraRig.js";
+import { GoalieModel } from "./GoalieModel.js";
 import { Puck, predictedCarriedPuck } from "./Puck.js";
 import { Rink } from "./Rink.js";
 import { SkaterDebug } from "./SkaterDebug.js";
@@ -62,6 +63,15 @@ export function Scene({
             />
           );
         })}
+        {currentWorld.goalies.map((goalie) => (
+          <group
+            key={goalie.id}
+            name={goalie.id}
+            position={[goalie.position.x, 10, goalie.position.y]}
+          >
+            <GoalieModel teamId={goalie.teamId} />
+          </group>
+        ))}
         <Puck puck={renderedPuck} />
         <Vfx events={currentWorld.eventQueue} />
       </Canvas>

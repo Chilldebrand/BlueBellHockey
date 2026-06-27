@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bbh.local/schemas/arcade-character-roster.schema.json",
+  "title": "Arcade Character Roster",
+  "type": "object",
+  "required": ["characters"],
+  "additionalProperties": false,
+  "properties": {
+    "characters": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/character"
+      }
+    }
+  },
+  "$defs": {
+    "character": {
+      "type": "object",
+      "required": [
+        "id",
+        "role",
+        "displayName",
+        "assetPath",
+        "proportions",
+        "bones",
+        "attachments",
+        "materialSlots",
+        "animationClips"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{2,40}$"
+        },
+        "role": {
+          "enum": ["skater", "goalie"]
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 2
+        },
+        "assetPath": {
+          "type": "string",
+          "pattern": "^/arcade/models/(skaters|goalies)/[a-z0-9-]+\\.glb$"
+        },
+        "proportions": {
+          "type": "object",
+          "required": ["headScale", "bodyHeight", "handScale", "footScale"],
+          "additionalProperties": false,
+          "properties": {
+            "headScale": {
+              "type": "number",
+              "minimum": 1.45
+            },
+            "bodyHeight": {
+              "type": "number",
+              "minimum": 55
+            },
+            "handScale": {
+              "type": "number",
+              "minimum": 1
+            },
+            "footScale": {
+              "type": "number",
+              "minimum": 1
+            }
+          }
+        },
+        "bones": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "attachments": {
+          "type": "object",
+          "required": ["stick_hand", "stick_blade", "puck_blade", "nameplate"],
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "materialSlots": {
+          "type": "object",
+          "required": ["uniform", "characterGear"],
+          "additionalProperties": false,
+          "properties": {
+            "uniform": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "uniqueItems": true
+            },
+            "characterGear": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "uniqueItems": true
+            }
+          }
+        },
+        "animationClips": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}

@@ -34,6 +34,7 @@ import {
   type ArcadeClientAction
 } from "./store.js";
 import { Scene } from "./render/Scene.js";
+import { ModelPreview } from "./render/ModelPreview.js";
 import { HUD } from "./ui/HUD.js";
 import { Lobby } from "./ui/Lobby.js";
 
@@ -173,6 +174,12 @@ export function App({
     localSlotId,
     latestInputRef.current
   );
+  const isModelPreviewRoute =
+    typeof window !== "undefined" && window.location.pathname === "/model-preview";
+
+  if (isModelPreviewRoute) {
+    return <ModelPreview />;
+  }
 
   return (
     <>

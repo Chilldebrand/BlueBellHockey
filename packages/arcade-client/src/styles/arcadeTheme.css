@@ -55,6 +55,11 @@ input {
   width: 100%;
 }
 
+[aria-label="Arcade character model preview"] {
+  height: 100vh;
+  width: 100%;
+}
+
 .arcade-shell {
   display: grid;
   gap: 16px;
