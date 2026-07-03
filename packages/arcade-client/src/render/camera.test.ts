@@ -11,12 +11,12 @@ describe("camera rig math", () => {
     ).toEqual({ x: 220, y: 780 });
   });
 
-  it("sits behind the target on -x so play reads north-south", () => {
+  it("sits low behind the target on -x so play reads north-south and close", () => {
     const target = { x: 1000, y: 500 };
 
     expect(computeCameraPosition(target)).toEqual({
-      x: 380,
-      y: 1150,
+      x: 570,
+      y: 660,
       z: 500
     });
   });

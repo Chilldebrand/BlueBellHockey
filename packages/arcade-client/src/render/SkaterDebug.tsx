@@ -52,6 +52,14 @@ const TEAM_COLORS: Record<TeamId, string> = {
   away: "#ff4f5e"
 };
 
+/**
+ * NHL-Arcade-style character/ice ratio: the blockout body is ~69 units tall,
+ * which reads tiny on a 1000-unit-wide sheet (≈14.5 player-heights across).
+ * The reference game fits ~9 across, so bodies render 1.6× (≈110 units) while
+ * physics stays untouched. Visual only — debug vectors stay world-accurate.
+ */
+export const SKATER_MODEL_SCALE = 1.6;
+
 export function SkaterDebug({
   id,
   teamId,
@@ -67,7 +75,7 @@ export function SkaterDebug({
   return (
     <group position={[position.x, 10, position.y]} name={id}>
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[isLocal ? 48 : 38, 24]} />
+        <circleGeometry args={[isLocal ? 56 : 46, 24]} />
         <meshStandardMaterial
           color={TEAM_COLORS[teamId]}
           emissive={isLocal ? "#ffffff" : "#000000"}
@@ -75,11 +83,13 @@ export function SkaterDebug({
         />
       </mesh>
       <group rotation={[0, facing === undefined ? 0 : -facing, 0]}>
-        <CharacterModel
-          teamId={teamId}
-          isLocal={isLocal}
-          animationState={animationState}
-        />
+        <group scale={SKATER_MODEL_SCALE}>
+          <CharacterModel
+            teamId={teamId}
+            isLocal={isLocal}
+            animationState={animationState}
+          />
+        </group>
         {showVectors ? (
           <mesh position={[34, 22, 0]}>
             <boxGeometry args={[36, 2.5, 2.5]} />

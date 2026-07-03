@@ -23,6 +23,10 @@ export function computeCameraTarget({
  * North-south presentation: the camera sits behind the home goal line side
  * (-x of the target) looking up-ice, so sim +x — home's attacking direction —
  * is up-screen and the goals are top and bottom.
+ *
+ * Framing calibrated against 3-on-3 NHL Arcade: roughly half the rink length
+ * in frame and players ~1/5 of screen height, so the ice reads compact and
+ * the characters read big.
  */
 export function computeCameraPosition(
   target: Vec2,
@@ -31,8 +35,8 @@ export function computeCameraPosition(
   const scale = punchIn ? 0.84 : 1;
 
   return {
-    x: Math.round(target.x - 620 * scale),
-    y: Math.round(1150 * scale),
+    x: Math.round(target.x - 430 * scale),
+    y: Math.round(660 * scale),
     z: Math.round(target.y)
   };
 }

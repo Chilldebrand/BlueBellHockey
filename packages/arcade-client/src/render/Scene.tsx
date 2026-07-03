@@ -95,6 +95,7 @@ export function Scene({
             key={goalie.id}
             name={goalie.id}
             position={[goalie.position.x, 10, goalie.position.y]}
+            scale={1.5}
           >
             <GoalieModel
               teamId={goalie.teamId}
