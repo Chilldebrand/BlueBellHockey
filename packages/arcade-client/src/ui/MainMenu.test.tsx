@@ -9,9 +9,14 @@ describe("arcade menu flow", () => {
       renderToStaticMarkup(<BootSplash onContinue={vi.fn()} />)
     ).toContain("Press Start");
     const menu = renderToStaticMarkup(
-      <MainMenu onQuickMatch={vi.fn()} onPrivateRoom={vi.fn()} />
+      <MainMenu
+        onQuickMatch={vi.fn()}
+        onPrivateRoom={vi.fn()}
+        onFreeSkate={vi.fn()}
+      />
     );
     expect(menu).toContain("Quick Match");
     expect(menu).toContain("Private Room");
+    expect(menu).toContain("Free Skate");
   });
 });

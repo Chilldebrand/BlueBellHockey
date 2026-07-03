@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "arcade-client",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:arcade-client"],
+      "port": 5173
+    },
+    {
+      "name": "arcade-server",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:arcade-server"],
+      "port": 2567
+    }
+  ]
+}

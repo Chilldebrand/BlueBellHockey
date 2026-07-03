@@ -47,6 +47,7 @@ import { HUD } from "./ui/HUD.js";
 import { BootSplash } from "./ui/BootSplash.js";
 import { ControllerPrompt } from "./ui/ControllerPrompt.js";
 import { FaceoffIntro } from "./ui/FaceoffIntro.js";
+import { FreeSkate } from "./ui/FreeSkate.js";
 import { Lobby } from "./ui/Lobby.js";
 import { MainMenu } from "./ui/MainMenu.js";
 import { Postgame } from "./ui/Postgame.js";
@@ -83,7 +84,9 @@ export function App({
   const keyboardRef = useRef<KeyboardInputTracker | null>(null);
   const inputSequenceRef = useRef(0);
   const latestInputRef = useRef<InputFrame | null>(null);
-  const [screen, setScreen] = useState<"boot" | "menu" | "lobby">("boot");
+  const [screen, setScreen] = useState<"boot" | "menu" | "lobby" | "freeskate">(
+    "boot"
+  );
 
   const attachRoom = useCallback((result: ArcadeConnectionResult) => {
     attachArcadeRoom(activeRoomRef, result, {
@@ -244,8 +247,13 @@ export function App({
       <MainMenu
         onQuickMatch={handleQuickMatch}
         onPrivateRoom={handleCreatePrivateRoom}
+        onFreeSkate={() => setScreen("freeskate")}
       />
     );
+  }
+
+  if (screen === "freeskate") {
+    return <FreeSkate onExit={() => setScreen("menu")} />;
   }
 
   if (state.phase === "ended" && state.currentWorld) {

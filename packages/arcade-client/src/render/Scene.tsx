@@ -16,13 +16,16 @@ export interface SceneProps {
   readonly previousWorld: WorldState | null;
   readonly localSlotId: string | null;
   readonly predictedLocalSkater: SkaterEntity | null;
+  /** Feel-lab overlays: velocity vectors and other sim diagnostics. */
+  readonly debugOverlays?: boolean;
 }
 
 export function Scene({
   currentWorld,
   previousWorld,
   localSlotId,
-  predictedLocalSkater
+  predictedLocalSkater,
+  debugOverlays = false
 }: SceneProps): JSX.Element | null {
   if (!currentWorld) {
     return null;
@@ -67,6 +70,8 @@ export function Scene({
               position={renderSkater.position}
               isLocal={skater.id === localSlotId}
               hasPossession={currentWorld.puck.carrierSlotId === skater.id}
+              velocity={renderSkater.velocity}
+              showVectors={debugOverlays}
               animationState={selectSkaterAnimation({
                 skater: sourceSkater,
                 puck: currentWorld.puck,

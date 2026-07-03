@@ -1,11 +1,13 @@
 export interface MainMenuProps {
   readonly onQuickMatch: () => void;
   readonly onPrivateRoom: () => void;
+  readonly onFreeSkate?: () => void;
 }
 
 export function MainMenu({
   onQuickMatch,
-  onPrivateRoom
+  onPrivateRoom,
+  onFreeSkate
 }: MainMenuProps): JSX.Element {
   return (
     <main className="menu-screen main-menu">
@@ -16,6 +18,11 @@ export function MainMenu({
       <button type="button" onClick={onPrivateRoom}>
         Private Room
       </button>
+      {onFreeSkate ? (
+        <button type="button" onClick={onFreeSkate}>
+          Free Skate
+        </button>
+      ) : null}
     </main>
   );
 }

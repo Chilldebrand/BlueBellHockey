@@ -1,6 +1,7 @@
 import { MATCH_CONFIG, type MatchMode } from "../config/match.js";
 import { RINK_CONFIG } from "../config/rink.js";
 import { GOALIE_SLOTS, SKATER_SLOTS } from "../config/teams.js";
+import { TUNING } from "../config/tuning.js";
 import type {
   GoalieEntity,
   InputFrame,
@@ -113,15 +114,20 @@ export function stepWorld(
   updateAssistTargets(world, latestInputBySlot);
 
   for (const skater of world.skaters) {
-    stepSkater(skater, latestInputBySlot.get(skater.id), dtMs);
+    stepSkater(skater, latestInputBySlot.get(skater.id), dtMs, TUNING.skater);
   }
 
-  resolveChecks(world, latestInputBySlot);
-  stepPowerups(world, latestInputBySlot);
-  resolveSpecials(world, latestInputBySlot);
-  stepPuck(world, latestInputBySlot, dtMs);
-  stepGoalies(world, dtMs);
+  resolveChecks(world, latestInputBySlot, TUNING.check);
+  if (TUNING.flags.powerupsEnabled) {
+    stepPowerups(world, latestInputBySlot);
+  }
+  if (TUNING.flags.specialsEnabled) {
+    resolveSpecials(world, latestInputBySlot);
+  }
+  stepPuck(world, latestInputBySlot, dtMs, TUNING.puck);
+  stepGoalies(world, dtMs, TUNING.goalie);
   resolveGoals(world);
+  trimEventQueue(world);
 
   world.time = {
     ...world.time,
@@ -143,6 +149,19 @@ export function stepWorld(
   recoverContactStates(world);
 
   return world;
+}
+
+// Events are one-shot cues for VFX/HUD; anything older than this is no longer
+// renderable, so drop it. Without a cap the queue grows for the whole match
+// (and forever in an endless local free-skate world).
+const EVENT_RETENTION_MS = 5000;
+
+function trimEventQueue(world: WorldState): void {
+  const cutoff = world.time.nowMs - EVENT_RETENTION_MS;
+
+  if (world.eventQueue.length > 0 && world.eventQueue[0].atMs < cutoff) {
+    world.eventQueue = world.eventQueue.filter((event) => event.atMs >= cutoff);
+  }
 }
 
 function updateAssistTargets(

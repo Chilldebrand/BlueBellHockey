@@ -9,6 +9,38 @@ export interface SkaterDebugProps {
   readonly isLocal: boolean;
   readonly hasPossession?: boolean;
   readonly animationState?: SkaterAnimationState;
+  /** Sim-plane velocity; when set with showVectors, renders a debug arrow. */
+  readonly velocity?: Vec2;
+  readonly showVectors?: boolean;
+}
+
+// Sim plane (x, y) renders as three.js (x, z); yaw θ around +Y rotates the +X
+// axis to (cosθ, 0, -sinθ), so matching a plane direction needs θ = atan2(-y, x).
+function yawForPlaneDirection(direction: Vec2): number {
+  return Math.atan2(-direction.y, direction.x);
+}
+
+function VelocityArrow({ velocity }: { readonly velocity: Vec2 }): JSX.Element | null {
+  const speed = Math.hypot(velocity.x, velocity.y);
+
+  if (speed < 1) {
+    return null;
+  }
+
+  const length = Math.min(240, speed * 0.35);
+
+  return (
+    <group rotation={[0, yawForPlaneDirection(velocity), 0]}>
+      <mesh position={[length / 2, 26, 0]}>
+        <boxGeometry args={[length, 3, 3]} />
+        <meshBasicMaterial color="#3dfc9d" />
+      </mesh>
+      <mesh position={[length, 26, 0]} rotation={[0, 0, -Math.PI / 2]}>
+        <coneGeometry args={[7, 16, 8]} />
+        <meshBasicMaterial color="#3dfc9d" />
+      </mesh>
+    </group>
+  );
 }
 
 const TEAM_COLORS: Record<TeamId, string> = {
@@ -22,7 +54,9 @@ export function SkaterDebug({
   position,
   isLocal,
   hasPossession = false,
-  animationState = "idle"
+  animationState = "idle",
+  velocity,
+  showVectors = false
 }: SkaterDebugProps): JSX.Element {
   return (
     <group position={[position.x, 10, position.y]} name={id}>
@@ -45,6 +79,7 @@ export function SkaterDebug({
           <meshStandardMaterial color={hasPossession ? "#ffdf6e" : "#ffffff"} />
         </mesh>
       ) : null}
+      {showVectors && velocity ? <VelocityArrow velocity={velocity} /> : null}
     </group>
   );
 }
