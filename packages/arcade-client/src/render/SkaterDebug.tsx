@@ -13,6 +13,8 @@ export interface SkaterDebugProps {
   readonly velocity?: Vec2;
   /** Body orientation in sim-plane radians; orients the model and debug arrow. */
   readonly facing?: number;
+  /** Blade offset in body space (x forward, y lateral) for the stick overlay. */
+  readonly bladeOffset?: Vec2;
   readonly showVectors?: boolean;
 }
 
@@ -59,6 +61,7 @@ export function SkaterDebug({
   animationState = "idle",
   velocity,
   facing,
+  bladeOffset,
   showVectors = false
 }: SkaterDebugProps): JSX.Element {
   return (
@@ -81,6 +84,12 @@ export function SkaterDebug({
           <mesh position={[34, 22, 0]}>
             <boxGeometry args={[36, 2.5, 2.5]} />
             <meshBasicMaterial color="#ffdf6e" />
+          </mesh>
+        ) : null}
+        {showVectors && bladeOffset ? (
+          <mesh position={[bladeOffset.x, 8, bladeOffset.y]}>
+            <sphereGeometry args={[8, 10, 8]} />
+            <meshBasicMaterial color="#7df1ff" />
           </mesh>
         ) : null}
       </group>

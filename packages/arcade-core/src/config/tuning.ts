@@ -1,10 +1,12 @@
 import { CHECK_CONFIG, type CheckConfig } from "../sim/actions.js";
+import { GESTURE_CONFIG, type GestureConfig } from "../sim/gestures.js";
 import { GOALIE_CONFIG, type GoalieConfig } from "../sim/goalie.js";
 import { PUCK_CONFIG, type PuckConfig } from "../sim/puck.js";
 import {
   SKATER_MOVEMENT_CONFIG,
   type SkaterMovementConfig
 } from "../sim/skater.js";
+import { STICK_CONFIG, type StickConfig } from "../sim/stick.js";
 
 type Mutable<T> = { -readonly [Key in keyof T]: T[Key] };
 
@@ -22,6 +24,8 @@ export interface TuningFlags {
  */
 export interface Tuning {
   readonly skater: SkaterMovementConfig;
+  readonly stick: StickConfig;
+  readonly gestures: GestureConfig;
   readonly puck: PuckConfig;
   readonly check: CheckConfig;
   readonly goalie: GoalieConfig;
@@ -30,6 +34,8 @@ export interface Tuning {
 
 type MutableTuning = {
   skater: Mutable<SkaterMovementConfig>;
+  stick: Mutable<StickConfig>;
+  gestures: Mutable<GestureConfig>;
   puck: Mutable<PuckConfig>;
   check: Mutable<CheckConfig>;
   goalie: Mutable<GoalieConfig>;
@@ -39,12 +45,16 @@ type MutableTuning = {
 function buildDefaults(): MutableTuning {
   return {
     skater: { ...SKATER_MOVEMENT_CONFIG },
+    stick: { ...STICK_CONFIG },
+    gestures: { ...GESTURE_CONFIG },
     puck: { ...PUCK_CONFIG },
     check: { ...CHECK_CONFIG },
     goalie: { ...GOALIE_CONFIG },
+    // Grounded-arcade scope: powerups and character specials are cut from
+    // the roadmap; the systems stay in code but never activate.
     flags: {
-      powerupsEnabled: true,
-      specialsEnabled: true
+      powerupsEnabled: false,
+      specialsEnabled: false
     }
   };
 }
@@ -76,6 +86,8 @@ export function resetTuning(): void {
 export function snapshotTuning(): Tuning {
   return {
     skater: { ...TUNING.skater },
+    stick: { ...TUNING.stick },
+    gestures: { ...TUNING.gestures },
     puck: { ...TUNING.puck },
     check: { ...TUNING.check },
     goalie: { ...TUNING.goalie },

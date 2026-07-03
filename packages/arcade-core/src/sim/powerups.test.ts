@@ -1,7 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { POWERUP_SPAWN_POINTS } from "../config/powerups.js";
+import { applyTuning, resetTuning } from "../config/tuning.js";
 import type { InputFrame, WorldState } from "./types.js";
 import { createWorld, stepWorld } from "./world.js";
+
+// Powerups/specials are cut from the grounded-arcade scope and disabled by
+// default; these tests cover the dormant systems with the flags forced on.
+beforeEach(() => {
+  applyTuning({ flags: { powerupsEnabled: true, specialsEnabled: true } });
+});
+
+afterEach(() => {
+  resetTuning();
+});
 
 function input(slotId: string, overrides: Partial<InputFrame> = {}): InputFrame {
   return {
@@ -10,10 +21,9 @@ function input(slotId: string, overrides: Partial<InputFrame> = {}): InputFrame 
     sequence: 1,
     moveX: 0,
     moveY: 0,
-    aimX: 1,
-    aimY: 0,
+    stickX: 0,
+    stickY: 0,
     pass: false,
-    shoot: false,
     check: false,
     turbo: false,
     switchTarget: false,

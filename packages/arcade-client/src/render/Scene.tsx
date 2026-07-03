@@ -1,5 +1,9 @@
 import { Canvas } from "@react-three/fiber";
-import { type SkaterEntity, type WorldState } from "@bbh/arcade-core";
+import {
+  bladeBodyOffset,
+  type SkaterEntity,
+  type WorldState
+} from "@bbh/arcade-core";
 import { interpolateSkaters } from "../game/interpolation.js";
 import { selectGoalieAnimation } from "./animation/goalieAnimation.js";
 import { selectSkaterAnimation } from "./animation/skaterAnimation.js";
@@ -72,6 +76,7 @@ export function Scene({
               hasPossession={currentWorld.puck.carrierSlotId === skater.id}
               velocity={renderSkater.velocity}
               facing={renderSkater.facing}
+              bladeOffset={bladeBodyOffset(sourceSkater)}
               showVectors={debugOverlays}
               animationState={selectSkaterAnimation({
                 skater: sourceSkater,

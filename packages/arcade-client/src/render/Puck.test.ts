@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { PUCK_CONFIG, createWorld } from "@bbh/arcade-core";
+import { bladeWorldPosition, createWorld } from "@bbh/arcade-core";
 import { predictedCarriedPuck } from "./Puck.js";
 
 describe("predictedCarriedPuck", () => {
-  it("keeps a carried puck attached to the predicted local carrier", () => {
+  it("snaps a carried puck to the predicted local carrier's blade", () => {
     const world = createWorld(1, "arcade3v3");
     const predictedCarrier = {
       ...world.skaters[0],
@@ -16,9 +16,15 @@ describe("predictedCarriedPuck", () => {
 
     const puck = predictedCarriedPuck(world.puck, predictedCarrier);
 
-    expect(puck.position).toEqual({
-      x: predictedCarrier.position.x + PUCK_CONFIG.carryOffset,
-      y: predictedCarrier.position.y
-    });
+    expect(puck.position).toEqual(bladeWorldPosition(predictedCarrier));
+  });
+
+  it("returns the authoritative puck when someone else carries it", () => {
+    const world = createWorld(1, "arcade3v3");
+    world.puck.carrierSlotId = "away-skater-1";
+
+    const puck = predictedCarriedPuck(world.puck, world.skaters[0]);
+
+    expect(puck).toBe(world.puck);
   });
 });

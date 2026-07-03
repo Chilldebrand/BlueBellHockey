@@ -13,15 +13,12 @@ function input(
     sequence: 1,
     moveX: 1,
     moveY: 0,
-    aimX: 1,
-    aimY: 0,
+    stickX: 0,
+    stickY: 0,
     pass: false,
-    shoot: false,
     check: false,
     turbo: false,
     switchTarget: false,
-    usePowerup: false,
-    special: false,
     ...overrides
   };
 }
@@ -70,9 +67,7 @@ describe("turbo and assist targeting", () => {
     stepWorld(world, [input(carrier.id, { switchTarget: true })], 16);
 
     expect(carrier.selectedTargetSlotId).toBe("home-skater-2");
-    expect(
-      passDirectionWithAssist(world, carrier, input(carrier.id, { aimX: 0.2, aimY: 1 }))
-    ).toEqual(
+    expect(passDirectionWithAssist(world, carrier)).toEqual(
       expect.objectContaining({
         y: expect.any(Number)
       })

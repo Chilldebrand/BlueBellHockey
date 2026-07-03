@@ -8,9 +8,16 @@ export interface GamepadLike {
   readonly buttons: readonly { readonly pressed: boolean }[];
 }
 
+/**
+ * NHL-style hybrid layout: left stick skates, right stick IS the puck —
+ * sweep it to stickhandle, flick up for a wrist shot, pull back then flick
+ * up for a slap shot. Controller up maps to stick-forward (+Y in body space).
+ * The stick uses a light deadzone so slow dangles aren't eaten.
+ */
 export function gamepadStateFromGamepad(
   gamepad: GamepadLike | null | undefined,
-  deadzone = 0.18
+  moveDeadzone = 0.18,
+  stickDeadzone = 0.08
 ): ArcadeInputState {
   if (!gamepad) {
     return createNeutralInputState();
@@ -18,17 +25,16 @@ export function gamepadStateFromGamepad(
 
   return {
     ...createNeutralInputState(),
-    moveX: applyDeadzone(gamepad.axes[0] ?? 0, deadzone),
-    moveY: applyDeadzone(gamepad.axes[1] ?? 0, deadzone),
-    aimX: applyDeadzone(gamepad.axes[2] ?? 0, deadzone),
-    aimY: applyDeadzone(gamepad.axes[3] ?? 0, deadzone),
-    pass: gamepad.buttons[0]?.pressed === true,
-    shoot: gamepad.buttons[1]?.pressed === true,
-    check: gamepad.buttons[2]?.pressed === true,
-    turbo: gamepad.buttons[5]?.pressed === true,
-    switchTarget: gamepad.buttons[4]?.pressed === true,
-    usePowerup: gamepad.buttons[3]?.pressed === true,
-    special: gamepad.buttons[7]?.pressed === true
+    moveX: applyDeadzone(gamepad.axes[0] ?? 0, moveDeadzone),
+    moveY: applyDeadzone(gamepad.axes[1] ?? 0, moveDeadzone),
+    stickX: applyDeadzone(gamepad.axes[2] ?? 0, stickDeadzone),
+    stickY: applyDeadzone(-(gamepad.axes[3] ?? 0), stickDeadzone),
+    pass: gamepad.buttons[0]?.pressed === true, // A
+    check: gamepad.buttons[2]?.pressed === true, // X
+    turbo:
+      gamepad.buttons[5]?.pressed === true || // RB
+      gamepad.buttons[7]?.pressed === true, // RT
+    switchTarget: gamepad.buttons[4]?.pressed === true // LB
   };
 }
 

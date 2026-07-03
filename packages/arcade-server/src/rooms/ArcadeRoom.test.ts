@@ -20,8 +20,8 @@ function inputMessage(
   overrides: Partial<{
     readonly moveX: number;
     readonly moveY: number;
-    readonly aimX: number;
-    readonly aimY: number;
+    readonly stickX: number;
+    readonly stickY: number;
   }> = {}
 ): {
   readonly type: "client.input";
@@ -31,15 +31,12 @@ function inputMessage(
     readonly sequence: number;
     readonly moveX: number;
     readonly moveY: number;
-    readonly aimX: number;
-    readonly aimY: number;
+    readonly stickX: number;
+    readonly stickY: number;
     readonly pass: boolean;
-    readonly shoot: boolean;
     readonly check: boolean;
     readonly turbo: boolean;
     readonly switchTarget: boolean;
-    readonly usePowerup: boolean;
-    readonly special: boolean;
   };
 } {
   return {
@@ -50,15 +47,12 @@ function inputMessage(
       sequence,
       moveX: 0,
       moveY: 0,
-      aimX: 0,
-      aimY: 0,
+      stickX: 0,
+      stickY: 0,
       pass: false,
-      shoot: false,
       check: false,
       turbo: false,
       switchTarget: false,
-      usePowerup: false,
-      special: false,
       ...overrides
     }
   };
@@ -326,15 +320,12 @@ describe("ArcadeRoom", () => {
         sequence: 1,
         moveX: 1,
         moveY: 0,
-        aimX: 0,
-        aimY: 0,
+        stickX: 0,
+        stickY: 0,
         pass: false,
-        shoot: false,
         check: false,
         turbo: false,
-        switchTarget: false,
-        usePowerup: false,
-        special: false
+        switchTarget: false
       }
     });
     room.tick(100);

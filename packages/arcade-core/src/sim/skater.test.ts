@@ -19,15 +19,12 @@ function inputFrame(
     sequence,
     moveX: 0,
     moveY: 0,
-    aimX: 0,
-    aimY: 0,
+    stickX: 0,
+    stickY: 0,
     pass: false,
-    shoot: false,
     check: false,
     turbo: false,
     switchTarget: false,
-    usePowerup: false,
-    special: false,
     ...overrides
   };
 }

@@ -14,15 +14,12 @@ function scriptedFrame(tick: number): InputFrame {
     sequence: tick + 1,
     moveX: Math.sin(tick * 0.2),
     moveY: Math.cos(tick * 0.15),
-    aimX: 0,
-    aimY: 0,
+    stickX: Math.sin(tick * 0.4),
+    stickY: tick % 45 === 0 ? 1 : Math.cos(tick * 0.3) * 0.4,
     pass: tick % 30 === 0,
-    shoot: tick % 45 === 0,
     check: false,
     turbo: tick % 3 === 0,
-    switchTarget: false,
-    usePowerup: false,
-    special: false
+    switchTarget: false
   };
 }
 

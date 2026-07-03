@@ -15,6 +15,7 @@ import {
   mergeInputStates
 } from "../input/inputState.js";
 import { createKeyboardInputTracker } from "../input/keyboard.js";
+import { createMouseStickTracker } from "../input/mouse.js";
 import { Scene } from "../render/Scene.js";
 
 const FREE_SKATE_SEED = 20260703;
@@ -52,6 +53,7 @@ export function FreeSkate({ onExit }: FreeSkateProps): JSX.Element {
     (window as unknown as Record<string, unknown>).__bbhFreeSkateSim =
       simRef.current;
     const keyboard = createKeyboardInputTracker();
+    const mouse = createMouseStickTracker();
     let raf = 0;
     let lastTime = performance.now();
 
@@ -61,7 +63,10 @@ export function FreeSkate({ onExit }: FreeSkateProps): JSX.Element {
 
       const liveFrame = createInputFrame({
         input: mergeInputStates(
-          keyboard.read() ?? createNeutralInputState(),
+          mergeInputStates(
+            keyboard.read() ?? createNeutralInputState(),
+            mouse.read()
+          ),
           gamepadStateFromGamepad(navigator.getGamepads?.()[0] ?? null)
         ),
         playerId: "free-skate",
@@ -104,6 +109,7 @@ export function FreeSkate({ onExit }: FreeSkateProps): JSX.Element {
     return () => {
       cancelAnimationFrame(raf);
       keyboard.dispose();
+      mouse.dispose();
       delete (window as unknown as Record<string, unknown>).__bbhFreeSkateSim;
     };
   }, []);
@@ -235,8 +241,9 @@ export function FreeSkate({ onExit }: FreeSkateProps): JSX.Element {
         </button>
       </div>
       <div className="free-skate-help">
-        WASD move · Shift turbo · Space shoot · J pass · K check · Q switch
-        target
+        WASD move · Shift turbo · right stick / mouse / IJKL = puck control
+        (flick fwd = wrist, pull back + flick = slap) · Space tap/hold = simple
+        shot · F pass · G check · Q switch
       </div>
     </div>
   );

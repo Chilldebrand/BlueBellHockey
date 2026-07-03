@@ -1,4 +1,4 @@
-import { PUCK_CONFIG, type PuckState, type SkaterEntity } from "@bbh/arcade-core";
+import { bladeWorldPosition, type PuckState, type SkaterEntity } from "@bbh/arcade-core";
 
 export interface PuckProps {
   readonly puck: PuckState;
@@ -32,11 +32,10 @@ export function predictedCarriedPuck(
     return puck;
   }
 
+  // Snap the locally-carried puck to the predicted carrier's blade so it
+  // doesn't trail a network tick behind the player's own stick.
   return {
     ...puck,
-    position: {
-      x: predictedCarrier.position.x + PUCK_CONFIG.carryOffset,
-      y: predictedCarrier.position.y
-    }
+    position: bladeWorldPosition(predictedCarrier)
   };
 }

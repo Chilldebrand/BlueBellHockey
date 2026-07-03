@@ -1,5 +1,5 @@
 import type { InputFrame, SkaterEntity, Vec2, WorldState } from "./types.js";
-import { magnitude, normalizeOrZero } from "./physics.js";
+import { fromAngle, magnitude, normalizeOrZero } from "./physics.js";
 
 export interface CheckConfig {
   readonly radius: number;
@@ -25,28 +25,9 @@ export const CHECK_CONFIG: CheckConfig = {
   slideSpeed: 380
 };
 
-export function inputAimOrFacing(
-  input: InputFrame | undefined,
-  skater: SkaterEntity
-): Vec2 {
-  const aim = normalizeOrZero({
-    x: input?.aimX ?? 0,
-    y: input?.aimY ?? 0
-  });
-
-  if (magnitude(aim) > 0) {
-    return aim;
-  }
-
-  const velocityDirection = normalizeOrZero(skater.velocity);
-  if (magnitude(velocityDirection) > 0) {
-    return velocityDirection;
-  }
-
-  return {
-    x: skater.teamId === "home" ? 1 : -1,
-    y: 0
-  };
+/** Body-facing unit direction — checks, passes, and pokes act along it. */
+export function facingDirection(skater: SkaterEntity): Vec2 {
+  return fromAngle(skater.facing);
 }
 
 export function resolveChecks(
@@ -66,12 +47,12 @@ export function resolveChecks(
     hitter.checkCooldownUntilMs = world.time.nowMs + config.cooldownMs;
     hitter.activeCheckUntilMs = world.time.nowMs + config.activeMs;
 
-    const target = findCheckTarget(world, hitter, input, config);
+    const target = findCheckTarget(world, hitter, config);
     if (!target) {
       continue;
     }
 
-    const force = checkForce(hitter, input, target);
+    const force = checkForce(hitter, target);
     world.eventQueue.push({
       id: `hit-${world.time.tick}-${hitter.id}-${target.id}`,
       type: "hit",
@@ -99,9 +80,10 @@ export function resolveChecks(
     if (force >= config.knockdownSpeed) {
       target.contactState = "knockedDown";
       target.contactStateUntilMs = world.time.nowMs + config.knockdownMs;
+      const slide = facingDirection(hitter);
       target.velocity = {
-        x: inputAimOrFacing(input, hitter).x * config.slideSpeed,
-        y: inputAimOrFacing(input, hitter).y * config.slideSpeed
+        x: slide.x * config.slideSpeed,
+        y: slide.y * config.slideSpeed
       };
       world.eventQueue.push({
         id: `knockdown-${world.time.tick}-${target.id}`,
@@ -117,7 +99,7 @@ export function resolveChecks(
       world.puck.carrierSlotId === target.id &&
       force >= config.puckStripSpeed
     ) {
-      const direction = inputAimOrFacing(input, hitter);
+      const direction = facingDirection(hitter);
       world.puck.carrierSlotId = null;
       world.puck.lastTouchSlotId = hitter.id;
       world.puck.pickupDisabledForSlotId = target.id;
@@ -147,10 +129,9 @@ export function recoverContactStates(world: WorldState): void {
 function findCheckTarget(
   world: WorldState,
   hitter: SkaterEntity,
-  input: InputFrame,
   config: CheckConfig
 ): SkaterEntity | null {
-  const direction = inputAimOrFacing(input, hitter);
+  const direction = facingDirection(hitter);
   let best: SkaterEntity | null = null;
   let bestDistance = Number.POSITIVE_INFINITY;
 
@@ -176,12 +157,8 @@ function findCheckTarget(
   return best;
 }
 
-function checkForce(
-  hitter: SkaterEntity,
-  input: InputFrame,
-  target: SkaterEntity
-): number {
-  const direction = inputAimOrFacing(input, hitter);
+function checkForce(hitter: SkaterEntity, target: SkaterEntity): number {
+  const direction = facingDirection(hitter);
   const toTarget = normalizeOrZero({
     x: target.position.x - hitter.position.x,
     y: target.position.y - hitter.position.y
@@ -194,10 +171,9 @@ function checkForce(
 export function passDirectionWithAssist(
   world: WorldState,
   carrier: SkaterEntity,
-  input: InputFrame | undefined,
   assistCosine = 0.65
 ): Vec2 {
-  const aim = inputAimOrFacing(input, carrier);
+  const aim = facingDirection(carrier);
   const selectedTarget = world.skaters.find(
     (skater) =>
       skater.id === carrier.selectedTargetSlotId &&

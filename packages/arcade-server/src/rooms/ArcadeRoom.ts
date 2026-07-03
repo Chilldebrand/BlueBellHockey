@@ -424,8 +424,8 @@ function getClientInputFrame(message: unknown): InputFrame | null {
     candidate.sequence,
     candidate.moveX,
     candidate.moveY,
-    candidate.aimX,
-    candidate.aimY
+    candidate.stickX,
+    candidate.stickY
   ];
 
   if (numericFields.some((value) => !Number.isFinite(value))) {
@@ -436,20 +436,19 @@ function getClientInputFrame(message: unknown): InputFrame | null {
     return null;
   }
 
+  const axis = (value: number) => Math.max(-1, Math.min(1, value));
+
   return {
     playerId: String(candidate.playerId ?? ""),
     slotId: String(candidate.slotId ?? ""),
     sequence: candidate.sequence,
-    moveX: candidate.moveX,
-    moveY: candidate.moveY,
-    aimX: candidate.aimX,
-    aimY: candidate.aimY,
+    moveX: axis(candidate.moveX ?? 0),
+    moveY: axis(candidate.moveY ?? 0),
+    stickX: axis(candidate.stickX ?? 0),
+    stickY: axis(candidate.stickY ?? 0),
     pass: candidate.pass === true,
-    shoot: candidate.shoot === true,
     check: candidate.check === true,
     turbo: candidate.turbo === true,
-    switchTarget: candidate.switchTarget === true,
-    usePowerup: candidate.usePowerup === true,
-    special: candidate.special === true
+    switchTarget: candidate.switchTarget === true
   };
 }

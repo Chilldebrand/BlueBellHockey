@@ -13,15 +13,21 @@ export interface InputFrame {
   readonly sequence: number;
   readonly moveX: number;
   readonly moveY: number;
-  readonly aimX: number;
-  readonly aimY: number;
+  /**
+   * Raw right-stick sample in BODY space: stickY is forward (along facing,
+   * push away = shoot direction), stickX is lateral (right of facing). The
+   * client sends raw samples; the deterministic sim interprets stickhandling
+   * and shot gestures from them (skill stick) — there is no shoot button.
+   */
+  readonly stickX: number;
+  readonly stickY: number;
   readonly pass: boolean;
-  readonly shoot: boolean;
   readonly check: boolean;
   readonly turbo: boolean;
   readonly switchTarget: boolean;
-  readonly usePowerup: boolean;
-  readonly special: boolean;
+  /** Deferred systems (powerups/specials) — legacy fields, not sent on the wire. */
+  readonly usePowerup?: boolean;
+  readonly special?: boolean;
 }
 
 export type WorldPhase = "waiting" | "playing" | "paused" | "ended";
@@ -37,6 +43,46 @@ export interface SimTime {
   readonly fixedTickMs: number;
 }
 
+/**
+ * Stick blade offset in body space, eased toward the right-stick sample each
+ * tick (rate-limited so the blade is a physical thing, not a teleport).
+ * x = lateral (right of facing), y = forward reach. prev* holds last tick's
+ * offset so blade velocity is derivable for pokes and shot power.
+ */
+export interface StickState {
+  localX: number;
+  localY: number;
+  prevLocalX: number;
+  prevLocalY: number;
+}
+
+export type GesturePhase = "neutral" | "handling" | "windup";
+
+export type GestureReleaseType = "none" | "wrist" | "slap";
+
+/**
+ * Deterministic skill-stick gesture state, replicated with the skater so
+ * server and client prediction interpret the same raw samples identically.
+ */
+export interface GestureState {
+  phase: GesturePhase;
+  /** Sim time the windup began; 0 when not winding. */
+  windupStartMs: number;
+  /** Peak back-depth reached during the windup (0..1). */
+  windupDepth: number;
+  /** Previous tick's raw stick sample (body space). */
+  prevStickX: number;
+  prevStickY: number;
+  /** No new release fires before this sim time. */
+  cooldownUntilMs: number;
+  /** Shot latched this tick for the puck step to consume (then cleared). */
+  pendingReleaseType: GestureReleaseType;
+  /** Normalized 0..1 shot power for the pending release. */
+  pendingReleasePower: number;
+  /** Lateral stick position at release — aims the shot left/right of facing. */
+  pendingReleaseSide: number;
+}
+
 export interface SkaterEntity {
   readonly id: string;
   readonly slot: SkaterSlot;
@@ -45,6 +91,8 @@ export interface SkaterEntity {
   velocity: Vec2;
   /** Body orientation in radians on the sim plane (0 = +x). */
   facing: number;
+  stick: StickState;
+  gesture: GestureState;
   contactState: "ready" | "stumbling" | "knockedDown";
   contactStateUntilMs: number;
   checkCooldownUntilMs: number;
@@ -95,8 +143,6 @@ export interface PuckState {
   shotBySlotId: string | null;
   shotPower: number;
   isChargedShot: boolean;
-  chargeBySlotId: string | null;
-  chargeStartedAtMs: number | null;
   pickupDisabledForSlotId: string | null;
   pickupDisabledUntilMs: number;
 }

@@ -44,6 +44,8 @@ export interface SkaterMovementConfig {
   readonly turboMinActivation: number;
   /** Per-second velocity decay while sliding out a knockdown. */
   readonly knockdownDrag: number;
+  /** Speed multiplier while winding up a slap shot — telegraphs the bomb. */
+  readonly windupSpeedMultiplier: number;
 }
 
 export const SKATER_MOVEMENT_CONFIG: SkaterMovementConfig = {
@@ -66,7 +68,8 @@ export const SKATER_MOVEMENT_CONFIG: SkaterMovementConfig = {
   turboDrainPerSecond: 0.78,
   turboRechargePerSecond: 0.4,
   turboMinActivation: 0.08,
-  knockdownDrag: 3.05
+  knockdownDrag: 3.05,
+  windupSpeedMultiplier: 0.62
 };
 
 /**
@@ -109,7 +112,9 @@ export function stepSkater(
   );
 
   const maxSpeed =
-    config.maxSpeed * (turboActive ? config.turboMaxSpeedMultiplier : 1);
+    config.maxSpeed *
+    (turboActive ? config.turboMaxSpeedMultiplier : 1) *
+    (skater.gesture.phase === "windup" ? config.windupSpeedMultiplier : 1);
   const speed = magnitude(skater.velocity);
   let braking = false;
 

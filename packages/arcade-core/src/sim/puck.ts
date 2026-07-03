@@ -1,13 +1,17 @@
 import { RINK_CONFIG } from "../config/rink.js";
 import type { InputFrame, PuckState, SkaterEntity, Vec2, WorldState } from "./types.js";
 import { containCircleInRink } from "./boards.js";
-import { clamp, expDecay, magnitude, normalizeOrZero } from "./physics.js";
-import { inputAimOrFacing, passDirectionWithAssist } from "./actions.js";
+import { expDecay, magnitude, normalizeOrZero, rotate } from "./physics.js";
+import { passDirectionWithAssist } from "./actions.js";
+import { clearPendingRelease } from "./gestures.js";
+import { bladeWorldPosition, bladeWorldVelocity } from "./stick.js";
 
 export interface PuckConfig {
   readonly radius: number;
-  readonly carryOffset: number;
-  readonly stickReach: number;
+  /** Blade-to-puck distance inside which a loose puck is gathered. */
+  readonly pickupRadius: number;
+  /** A loose puck faster than this (relative to the blade) can't be gathered. */
+  readonly pickupMaxRelativeSpeed: number;
   /** Per-second exponential decay of planar speed while scraping the ice. */
   readonly frictionPerSecond: number;
   /** Per-second decay while airborne — much lighter than ice scrape. */
@@ -26,19 +30,35 @@ export interface PuckConfig {
   /** Goal post radius (posts sit at the goal-mouth edges on the goal line). */
   readonly postRadius: number;
   readonly postRestitution: number;
+  /**
+   * Tether carry: the puck is pulled toward the blade by a spring instead of
+   * being pinned, so it lags on turns, swings on dangles, and can be poked.
+   */
+  readonly carryStiffness: number;
+  /** Cap on the tether's per-second velocity correction. */
+  readonly carryMaxAccel: number;
+  /** Blade-to-puck distance beyond which possession breaks (over-dangled). */
+  readonly carryBreakDistance: number;
+  /** Opponent blade within this of a carried puck pokes it loose. */
+  readonly pokeRadius: number;
+  /** Speed given to a poked-loose puck along the poking blade's motion. */
+  readonly pokeImpulse: number;
   readonly passSpeed: number;
   readonly wristShotSpeed: number;
   readonly maxChargedShotSpeed: number;
-  readonly maxChargeMs: number;
-  /** Vertical launch speed a fully charged shot adds (rising slapper). */
-  readonly chargeLiftSpeed: number;
+  /** Vertical launch speed of a full-power wrist shot. */
+  readonly wristLiftSpeed: number;
+  /** Vertical launch speed a full-power slap adds (rising slapper). */
+  readonly slapLiftSpeed: number;
+  /** How much the lateral stick position bends a shot off the facing line. */
+  readonly shotSideBlend: number;
   readonly releasePickupCooldownMs: number;
 }
 
 export const PUCK_CONFIG: PuckConfig = {
   radius: 18,
-  carryOffset: 58,
-  stickReach: 82,
+  pickupRadius: 48,
+  pickupMaxRelativeSpeed: 760,
   frictionPerSecond: 0.55,
   airDragPerSecond: 0.12,
   gravity: 2300,
@@ -49,11 +69,17 @@ export const PUCK_CONFIG: PuckConfig = {
   boardTangentRetention: 0.94,
   postRadius: 10,
   postRestitution: 0.82,
+  carryStiffness: 14,
+  carryMaxAccel: 26000,
+  carryBreakDistance: 96,
+  pokeRadius: 34,
+  pokeImpulse: 480,
   passSpeed: 820,
   wristShotSpeed: 1040,
   maxChargedShotSpeed: 1460,
-  maxChargeMs: 600,
-  chargeLiftSpeed: 330,
+  wristLiftSpeed: 170,
+  slapLiftSpeed: 330,
+  shotSideBlend: 0.55,
   releasePickupCooldownMs: 220
 };
 
@@ -71,8 +97,6 @@ export function createInitialPuckState(position: Vec2): PuckState {
     shotBySlotId: null,
     shotPower: 0,
     isChargedShot: false,
-    chargeBySlotId: null,
-    chargeStartedAtMs: null,
     pickupDisabledForSlotId: null,
     pickupDisabledUntilMs: 0
   };
@@ -89,30 +113,35 @@ export function stepPuck(
     : undefined;
 
   if (carrier) {
-    stepCarriedPuck(world, carrier, inputsBySlot.get(carrier.id), config);
+    stepCarriedPuck(world, carrier, inputsBySlot.get(carrier.id), dtMs, config);
     return;
   }
 
   stepLoosePuck(world, dtMs, config);
-  tryPickupLoosePuck(world, inputsBySlot, config);
+  tryPickupLoosePuck(world, dtMs, config);
 }
 
 function stepCarriedPuck(
   world: WorldState,
   carrier: SkaterEntity,
   input: InputFrame | undefined,
+  dtMs: number,
   config: PuckConfig
 ): void {
-  const direction = inputAimOrFacing(input, carrier);
+  const puck = world.puck;
+  const dt = dtMs / 1000;
+  puck.height = 0;
+  puck.verticalVelocity = 0;
+  puck.lastTouchSlotId = carrier.id;
 
-  world.puck.position = carriedPuckPosition(carrier, direction, config);
-  world.puck.velocity = { x: 0, y: 0 };
-  world.puck.height = 0;
-  world.puck.verticalVelocity = 0;
-  world.puck.lastTouchSlotId = carrier.id;
+  // Releases decided this tick beat the tether: shot gesture, then pass.
+  if (carrier.gesture.pendingReleaseType !== "none") {
+    releaseGestureShot(world, carrier, config);
+    return;
+  }
 
   if (input?.pass) {
-    releasePuck(world, carrier, passDirectionWithAssist(world, carrier, input), {
+    releasePuck(world, carrier, passDirectionWithAssist(world, carrier), {
       speed: config.passSpeed,
       lift: 0,
       shotPower: 0,
@@ -123,33 +152,140 @@ function stepCarriedPuck(
     return;
   }
 
-  if (input?.shoot) {
-    if (world.puck.chargeBySlotId !== carrier.id) {
-      world.puck.chargeBySlotId = carrier.id;
-      world.puck.chargeStartedAtMs = world.time.nowMs;
-    }
+  // Opponent blade on the puck: poked loose.
+  const poker = findPokingOpponent(world, carrier, config);
+
+  if (poker) {
+    const pokeDirection = normalizeOrZero(bladeWorldVelocity(poker, dt));
+    const direction =
+      magnitude(pokeDirection) > 0
+        ? pokeDirection
+        : normalizeOrZero({
+            x: puck.position.x - poker.position.x,
+            y: puck.position.y - poker.position.y
+          });
+
+    puck.carrierSlotId = null;
+    puck.lastTouchSlotId = poker.id;
+    puck.pickupDisabledForSlotId = carrier.id;
+    puck.pickupDisabledUntilMs = world.time.nowMs + 250;
+    puck.velocity = {
+      x: carrier.velocity.x * 0.35 + direction.x * config.pokeImpulse,
+      y: carrier.velocity.y * 0.35 + direction.y * config.pokeImpulse
+    };
+    world.stats[poker.teamId].takeaways += 1;
+    world.stats.takeaways[poker.teamId] += 1;
+    world.eventQueue.push({
+      id: `poke-${world.time.tick}-${poker.id}`,
+      type: "poke",
+      atMs: world.time.nowMs,
+      sourceSlotId: poker.id,
+      targetSlotId: carrier.id
+    });
     return;
   }
 
-  if (world.puck.chargeBySlotId === carrier.id) {
-    const chargeMs = Math.max(
-      0,
-      world.time.nowMs - (world.puck.chargeStartedAtMs ?? world.time.nowMs)
-    );
-    const charge = clamp(chargeMs / config.maxChargeMs, 0, 1);
-    const speed =
-      config.wristShotSpeed +
-      (config.maxChargedShotSpeed - config.wristShotSpeed) * charge;
+  // Tether: spring the puck's velocity toward tracking the blade point.
+  const blade = bladeWorldPosition(carrier);
+  const toBladeX = blade.x - puck.position.x;
+  const toBladeY = blade.y - puck.position.y;
+  const separation = Math.hypot(toBladeX, toBladeY);
 
-    releasePuck(world, carrier, direction, {
-      speed,
-      lift: charge * config.chargeLiftSpeed,
-      shotPower: speed,
-      isChargedShot: charge > 0.15,
-      shotBySlotId: carrier.id,
-      pickupCooldownMs: config.releasePickupCooldownMs
-    });
+  if (separation > config.carryBreakDistance) {
+    // Over-dangled: the puck slips off the blade and rolls loose.
+    puck.carrierSlotId = null;
+    puck.pickupDisabledForSlotId = carrier.id;
+    puck.pickupDisabledUntilMs = world.time.nowMs + 180;
+    return;
   }
+
+  const desiredVelX = carrier.velocity.x + toBladeX * config.carryStiffness;
+  const desiredVelY = carrier.velocity.y + toBladeY * config.carryStiffness;
+  let correctionX = desiredVelX - puck.velocity.x;
+  let correctionY = desiredVelY - puck.velocity.y;
+  const correction = Math.hypot(correctionX, correctionY);
+  const maxCorrection = config.carryMaxAccel * dt;
+
+  if (correction > maxCorrection && correction > 0) {
+    const scale = maxCorrection / correction;
+    correctionX *= scale;
+    correctionY *= scale;
+  }
+
+  puck.velocity.x += correctionX;
+  puck.velocity.y += correctionY;
+  puck.position.x += puck.velocity.x * dt;
+  puck.position.y += puck.velocity.y * dt;
+  containCircleInRink(
+    puck.position,
+    puck.velocity,
+    config.radius,
+    0,
+    config.boardTangentRetention
+  );
+}
+
+function releaseGestureShot(
+  world: WorldState,
+  carrier: SkaterEntity,
+  config: PuckConfig
+): void {
+  const gesture = carrier.gesture;
+  const isSlap = gesture.pendingReleaseType === "slap";
+  const power = gesture.pendingReleasePower;
+  const speed = isSlap
+    ? config.wristShotSpeed +
+      (config.maxChargedShotSpeed - config.wristShotSpeed) * power
+    : config.wristShotSpeed * (0.78 + 0.22 * power);
+  const lift = (isSlap ? config.slapLiftSpeed : config.wristLiftSpeed) * power;
+  const direction = rotate(
+    normalizeOrZero({
+      x: 1,
+      y: gesture.pendingReleaseSide * config.shotSideBlend
+    }),
+    carrier.facing
+  );
+
+  releasePuck(world, carrier, direction, {
+    speed,
+    lift,
+    shotPower: speed,
+    isChargedShot: isSlap && power > 0.5,
+    shotBySlotId: carrier.id,
+    pickupCooldownMs: config.releasePickupCooldownMs
+  });
+  world.eventQueue.push({
+    id: `shot-${world.time.tick}-${carrier.id}`,
+    type: "shot",
+    atMs: world.time.nowMs,
+    sourceSlotId: carrier.id,
+    force: speed
+  });
+  clearPendingRelease(gesture);
+}
+
+function findPokingOpponent(
+  world: WorldState,
+  carrier: SkaterEntity,
+  config: PuckConfig
+): SkaterEntity | null {
+  for (const opponent of world.skaters) {
+    if (opponent.teamId === carrier.teamId || opponent.contactState !== "ready") {
+      continue;
+    }
+
+    const blade = bladeWorldPosition(opponent);
+    const distance = Math.hypot(
+      world.puck.position.x - blade.x,
+      world.puck.position.y - blade.y
+    );
+
+    if (distance <= config.pokeRadius + config.radius) {
+      return opponent;
+    }
+  }
+
+  return null;
 }
 
 function stepLoosePuck(
@@ -289,45 +425,63 @@ function collideWithPosts(world: WorldState, config: PuckConfig): void {
 
 function tryPickupLoosePuck(
   world: WorldState,
-  inputsBySlot: ReadonlyMap<string, InputFrame>,
+  dtMs: number,
   config: PuckConfig
 ): void {
+  const puck = world.puck;
+
   // A puck sailing overhead can't be gathered off the stick.
-  if (world.puck.height > 40) {
+  if (puck.height > 40) {
     return;
   }
 
+  const dt = dtMs / 1000;
+
   for (const skater of world.skaters) {
     if (
-      world.puck.pickupDisabledForSlotId === skater.id &&
-      world.time.nowMs < world.puck.pickupDisabledUntilMs
+      puck.pickupDisabledForSlotId === skater.id &&
+      world.time.nowMs < puck.pickupDisabledUntilMs
     ) {
       continue;
     }
 
-    const direction = inputAimOrFacing(inputsBySlot.get(skater.id), skater);
-    const stick = carriedPuckPosition(skater, direction, config);
-    const distance = magnitude({
-      x: world.puck.position.x - stick.x,
-      y: world.puck.position.y - stick.y
-    });
-
-    if (distance <= config.stickReach) {
-      world.puck.carrierSlotId = skater.id;
-      world.puck.lastTouchSlotId = skater.id;
-      world.puck.shotBySlotId = null;
-      world.puck.shotPower = 0;
-      world.puck.isChargedShot = false;
-      world.puck.chargeBySlotId = null;
-      world.puck.chargeStartedAtMs = null;
-      world.puck.pickupDisabledForSlotId = null;
-      world.puck.pickupDisabledUntilMs = 0;
-      world.puck.position = stick;
-      world.puck.velocity = { x: 0, y: 0 };
-      world.puck.height = 0;
-      world.puck.verticalVelocity = 0;
-      return;
+    if (skater.contactState !== "ready") {
+      continue;
     }
+
+    const blade = bladeWorldPosition(skater);
+    const distance = Math.hypot(
+      puck.position.x - blade.x,
+      puck.position.y - blade.y
+    );
+
+    if (distance > config.pickupRadius) {
+      continue;
+    }
+
+    // A rocket off the blade deflects rather than sticking.
+    const bladeVelocity = bladeWorldVelocity(skater, dt);
+    const relativeSpeed = Math.hypot(
+      puck.velocity.x - bladeVelocity.x,
+      puck.velocity.y - bladeVelocity.y
+    );
+
+    if (relativeSpeed > config.pickupMaxRelativeSpeed) {
+      continue;
+    }
+
+    // Gather: possession starts, the tether reels the puck in from where it
+    // lies (no teleport onto the blade).
+    puck.carrierSlotId = skater.id;
+    puck.lastTouchSlotId = skater.id;
+    puck.shotBySlotId = null;
+    puck.shotPower = 0;
+    puck.isChargedShot = false;
+    puck.pickupDisabledForSlotId = null;
+    puck.pickupDisabledUntilMs = 0;
+    puck.height = 0;
+    puck.verticalVelocity = 0;
+    return;
   }
 }
 
@@ -345,16 +499,17 @@ function releasePuck(
   }
 ): void {
   const normalized = normalizeOrZero(direction);
+  const blade = bladeWorldPosition(carrier);
 
   world.puck.carrierSlotId = null;
   world.puck.lastTouchSlotId = carrier.id;
   world.puck.shotBySlotId = release.shotBySlotId;
   world.puck.shotPower = release.shotPower;
   world.puck.isChargedShot = release.isChargedShot;
-  world.puck.chargeBySlotId = null;
-  world.puck.chargeStartedAtMs = null;
   world.puck.pickupDisabledForSlotId = carrier.id;
   world.puck.pickupDisabledUntilMs = world.time.nowMs + release.pickupCooldownMs;
+  world.puck.position = { ...blade };
+  containCircleInRink(world.puck.position, { x: 0, y: 0 }, PUCK_CONFIG.radius, 0);
   world.puck.velocity = {
     x: normalized.x * release.speed,
     y: normalized.y * release.speed
@@ -363,13 +518,3 @@ function releasePuck(
   world.puck.verticalVelocity = release.lift;
 }
 
-function carriedPuckPosition(
-  skater: SkaterEntity,
-  direction: Vec2,
-  config: PuckConfig
-): Vec2 {
-  return {
-    x: skater.position.x + direction.x * config.carryOffset,
-    y: skater.position.y + direction.y * config.carryOffset
-  };
-}

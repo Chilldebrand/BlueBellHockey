@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { GoalieEntity, PuckState, SkaterEntity } from "@bbh/arcade-core";
+import {
+  createGestureState,
+  createStickState,
+  type GoalieEntity,
+  type PuckState,
+  type SkaterEntity
+} from "@bbh/arcade-core";
 import { selectGoalieAnimation } from "./goalieAnimation.js";
 import { selectSkaterAnimation } from "./skaterAnimation.js";
 
@@ -11,6 +17,8 @@ function skater(overrides: Partial<SkaterEntity> = {}): SkaterEntity {
     position: { x: 0, y: 0 },
     velocity: { x: 0, y: 0 },
     facing: 0,
+    stick: createStickState(),
+    gesture: createGestureState(),
     contactState: "ready",
     contactStateUntilMs: 0,
     checkCooldownUntilMs: 0,
@@ -35,8 +43,6 @@ const puck: PuckState = {
   shotBySlotId: null,
   shotPower: 0,
   isChargedShot: false,
-  chargeBySlotId: null,
-  chargeStartedAtMs: null,
   pickupDisabledForSlotId: null,
   pickupDisabledUntilMs: 0
 };
@@ -70,14 +76,27 @@ describe("gameplay animation adapters", () => {
     ).toBe("down");
   });
 
-  it("uses local input hints only for visual state selection", () => {
+  it("shows the windup while charging and the shot right after release", () => {
+    const windingUp = skater({
+      gesture: { ...createGestureState(), phase: "windup" }
+    });
+    expect(
+      selectSkaterAnimation({
+        skater: windingUp,
+        puck: { ...puck, carrierSlotId: "home-skater-1" },
+        events: [],
+        nowMs: 0
+      })
+    ).toBe("chargeShot");
+
     expect(
       selectSkaterAnimation({
         skater: skater(),
-        puck: { ...puck, carrierSlotId: "home-skater-1" },
-        events: [],
-        nowMs: 0,
-        localHints: { shoot: true }
+        puck,
+        events: [
+          { id: "shot-1", type: "shot", atMs: 0, sourceSlotId: "home-skater-1" }
+        ],
+        nowMs: 100
       })
     ).toBe("wristShot");
   });

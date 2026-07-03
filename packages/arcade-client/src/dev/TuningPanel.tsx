@@ -14,6 +14,8 @@ type TuningGroup = keyof Tuning;
 
 const GROUP_LABELS: Record<TuningGroup, string> = {
   skater: "Skating",
+  stick: "Stick",
+  gestures: "Shot Gestures",
   puck: "Puck",
   check: "Checking",
   goalie: "Goalie",

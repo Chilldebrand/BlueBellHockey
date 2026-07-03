@@ -20,15 +20,12 @@ function inputFrame(
     sequence,
     moveX: 0,
     moveY: 0,
-    aimX: 1,
-    aimY: 0,
+    stickX: 0,
+    stickY: 0,
     pass: false,
-    shoot: false,
     check: false,
     turbo: false,
     switchTarget: false,
-    usePowerup: false,
-    special: false,
     ...overrides
   };
 }
@@ -40,11 +37,11 @@ function playingWorld(): WorldState {
 }
 
 describe("puck simulation", () => {
-  it("allows a skater to pick up a loose puck by stick reach", () => {
+  it("allows a skater to gather a loose puck near the blade", () => {
     const world = playingWorld();
-    const skater = world.skaters[0];
+    const skater = world.skaters[0]; // faces +x, blade rests ahead
     world.puck.position = {
-      x: skater.position.x + PUCK_CONFIG.carryOffset,
+      x: skater.position.x + 60,
       y: skater.position.y
     };
 
@@ -141,6 +138,69 @@ describe("puck simulation", () => {
     stepWorld(world, [], 32);
 
     expect(world.score.home).toBe(1);
+  });
+
+  it("tethers the carried puck: it trails the blade instead of teleporting", () => {
+    const world = playingWorld();
+    const skater = world.skaters[0];
+    world.puck.carrierSlotId = skater.id;
+    world.puck.position = { ...skater.position };
+
+    stepWorld(world, [inputFrame(skater.id, 1, { moveX: 1, turbo: true })], 16);
+
+    const blade = {
+      x: skater.position.x + 52, // rest offset ahead of a facing-+x skater
+      y: skater.position.y
+    };
+    const gap = Math.hypot(
+      world.puck.position.x - blade.x,
+      world.puck.position.y - blade.y
+    );
+
+    expect(world.puck.carrierSlotId).toBe(skater.id);
+    expect(gap).toBeGreaterThan(1); // lags, not pinned
+    expect(gap).toBeLessThan(PUCK_CONFIG.carryBreakDistance);
+  });
+
+  it("loses the puck when it falls too far off the blade", () => {
+    const world = playingWorld();
+    const skater = world.skaters[0];
+    world.puck.carrierSlotId = skater.id;
+    world.puck.position = {
+      x: skater.position.x - PUCK_CONFIG.carryBreakDistance - 30,
+      y: skater.position.y
+    };
+
+    stepWorld(world, [inputFrame(skater.id, 1)], 16);
+
+    expect(world.puck.carrierSlotId).toBeNull();
+    expect(world.puck.pickupDisabledForSlotId).toBe(skater.id);
+  });
+
+  it("lets an opponent's blade poke the carried puck loose", () => {
+    const world = playingWorld();
+    const carrier = world.skaters[0];
+    const defender = world.skaters[3]; // away team
+    world.puck.carrierSlotId = carrier.id;
+    // Puck riding at the carrier's blade; defender's blade right on it.
+    world.puck.position = {
+      x: carrier.position.x + 52,
+      y: carrier.position.y
+    };
+    defender.facing = Math.PI; // blade points -x, toward the puck
+    defender.position = {
+      x: world.puck.position.x + 52,
+      y: world.puck.position.y
+    };
+
+    stepWorld(world, [inputFrame(carrier.id, 1)], 16);
+
+    expect(world.puck.carrierSlotId).toBeNull();
+    expect(world.puck.lastTouchSlotId).toBe(defender.id);
+    expect(world.stats.away.takeaways).toBe(1);
+    expect(
+      world.eventQueue.some((event) => event.type === "poke")
+    ).toBe(true);
   });
 
   it("deflects off a goal post", () => {

@@ -4,7 +4,7 @@ import { DEFAULT_BOT_DIFFICULTY } from "./decision.js";
 import { createBotInputFrame } from "./bot.js";
 
 describe("bot input frames", () => {
-  it("converts a carrier decision into normalized authoritative input", () => {
+  it("converts a carrier shoot decision into a stick flick", () => {
     const world = createWorld(1, "arcade3v3");
     const bot = world.skaters.find((skater) => skater.id === "home-skater-1");
 
@@ -13,7 +13,6 @@ describe("bot input frames", () => {
     }
 
     bot.position = { x: 1580, y: 500 };
-    bot.specialCharge = 1;
     world.puck.carrierSlotId = bot.id;
 
     const frame = createBotInputFrame(bot, world, 7, {
@@ -27,12 +26,10 @@ describe("bot input frames", () => {
       slotId: "home-skater-1",
       sequence: 7,
       pass: false,
-      shoot: true,
-      turbo: true,
-      special: true
+      stickY: 1, // full-forward stick sample reads as a wrist flick in the sim
+      turbo: true
     });
     expect(Math.hypot(frame.moveX, frame.moveY)).toBeCloseTo(1);
-    expect(frame.aimX).toBeGreaterThan(0);
   });
 
   it("uses pressure to create pass and target-switch frames", () => {
@@ -57,7 +54,6 @@ describe("bot input frames", () => {
 
     expect(frame.pass).toBe(true);
     expect(frame.switchTarget).toBe(true);
-    expect(frame.aimX).toBeGreaterThan(0);
-    expect(frame.aimY).toBeGreaterThan(0);
+    expect(frame.stickY).toBe(0); // passing, not flicking a shot
   });
 });

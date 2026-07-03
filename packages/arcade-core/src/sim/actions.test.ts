@@ -12,15 +12,12 @@ function inputFrame(
     sequence,
     moveX: 0,
     moveY: 0,
-    aimX: 1,
-    aimY: 0,
+    stickX: 0,
+    stickY: 0,
     pass: false,
-    shoot: false,
     check: false,
     turbo: false,
     switchTarget: false,
-    usePowerup: false,
-    special: false,
     ...overrides
   };
 }
@@ -72,27 +69,4 @@ describe("puck actions", () => {
     expect(world.puck.velocity.y).toBeGreaterThan(0);
   });
 
-  it("releases a charged shot stronger than a wrist shot", () => {
-    const wristWorld = givePuckToFirstSkater();
-    stepWorld(wristWorld, [inputFrame("home-skater-1", 1, { shoot: true })], 16);
-    stepWorld(wristWorld, [inputFrame("home-skater-1", 2, { shoot: false })], 16);
-
-    const chargedWorld = givePuckToFirstSkater();
-    stepWorld(
-      chargedWorld,
-      [inputFrame("home-skater-1", 1, { shoot: true })],
-      320
-    );
-    stepWorld(
-      chargedWorld,
-      [inputFrame("home-skater-1", 2, { shoot: false })],
-      16
-    );
-
-    expect(chargedWorld.puck.carrierSlotId).toBeNull();
-    expect(magnitude(chargedWorld.puck.velocity)).toBeGreaterThan(
-      magnitude(wristWorld.puck.velocity)
-    );
-    expect(chargedWorld.puck.shotPower).toBeGreaterThan(wristWorld.puck.shotPower);
-  });
 });

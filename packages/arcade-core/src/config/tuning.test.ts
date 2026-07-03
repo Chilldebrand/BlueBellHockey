@@ -44,15 +44,12 @@ describe("tuning", () => {
       sequence: 1,
       moveX: 1,
       moveY: 0,
-      aimX: 0,
-      aimY: 0,
+      stickX: 0,
+      stickY: 0,
       pass: false,
-      shoot: false,
       check: false,
       turbo: false,
-      switchTarget: false,
-      usePowerup: false,
-      special: false
+      switchTarget: false
     };
 
     for (let tick = 0; tick < 20; tick += 1) {

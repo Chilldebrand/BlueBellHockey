@@ -25,15 +25,13 @@ function scriptedInputs(tick: number): InputFrame[] {
       sequence: tick,
       moveX: Math.sin(phase),
       moveY: Math.cos(phase * 0.8),
-      aimX: Math.cos(phase * 1.3),
-      aimY: Math.sin(phase * 0.6),
+      // Sweeps the stick through handles, windups, and flicks over the script.
+      stickX: Math.cos(phase * 1.3),
+      stickY: (tick + slotIndex) % 61 === 0 ? 1 : Math.sin(phase * 0.6),
       pass: (tick + slotIndex) % 47 === 0,
-      shoot: (tick + slotIndex) % 61 === 0,
       check: (tick + slotIndex) % 53 === 0,
       turbo: Math.floor(tick / 40 + slotIndex) % 3 === 0,
-      switchTarget: (tick + slotIndex) % 97 === 0,
-      usePowerup: (tick + slotIndex) % 71 === 0,
-      special: (tick + slotIndex) % 83 === 0
+      switchTarget: (tick + slotIndex) % 97 === 0
     };
   });
 }

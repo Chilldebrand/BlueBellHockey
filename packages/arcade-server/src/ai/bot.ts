@@ -10,6 +10,12 @@ import {
   type BotDifficulty
 } from "./decision.js";
 
+/**
+ * Bots speak the same skill-stick protocol as humans: raw stick samples the
+ * deterministic sim turns into gestures. A shooting bot snaps the stick full
+ * forward — the sample-to-sample jump reads as a wrist flick. (Slap windups
+ * are a future bot skill.) Otherwise the stick rests neutral.
+ */
 export function createBotInputFrame(
   bot: SkaterEntity,
   world: WorldState,
@@ -21,10 +27,7 @@ export function createBotInputFrame(
     x: decision.moveTarget.x - bot.position.x,
     y: decision.moveTarget.y - bot.position.y
   });
-  const aim = normalizeOrZero({
-    x: decision.aimTarget.x - bot.position.x,
-    y: decision.aimTarget.y - bot.position.y
-  });
+  const shootFlick = decision.shoot && world.puck.carrierSlotId === bot.id;
 
   return {
     playerId: `bot:${bot.id}`,
@@ -32,14 +35,11 @@ export function createBotInputFrame(
     sequence,
     moveX: movement.x,
     moveY: movement.y,
-    aimX: aim.x,
-    aimY: aim.y,
+    stickX: 0,
+    stickY: shootFlick ? 1 : 0,
     pass: decision.pass,
-    shoot: decision.shoot,
     check: decision.check,
     turbo: decision.turbo,
-    switchTarget: decision.switchTarget,
-    usePowerup: decision.usePowerup,
-    special: decision.special
+    switchTarget: decision.switchTarget
   };
 }

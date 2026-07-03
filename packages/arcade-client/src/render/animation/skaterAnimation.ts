@@ -45,8 +45,12 @@ export function selectSkaterAnimation({
     return "pass";
   }
 
-  if (puck.carrierSlotId === skater.id && localHints?.shoot) {
-    return puck.chargeBySlotId === skater.id ? "chargeShot" : "wristShot";
+  if (puck.carrierSlotId === skater.id && skater.gesture.phase === "windup") {
+    return "chargeShot";
+  }
+
+  if (recentEvent(events, nowMs, "shot", skater.id)) {
+    return "wristShot";
   }
 
   const speed = Math.hypot(skater.velocity.x, skater.velocity.y);
