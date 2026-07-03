@@ -87,6 +87,9 @@ export interface MatchStats {
 export interface PuckState {
   position: Vec2;
   velocity: Vec2;
+  /** Height above the ice (0 = on the deck); shots can lift the puck. */
+  height: number;
+  verticalVelocity: number;
   carrierSlotId: string | null;
   lastTouchSlotId: string | null;
   shotBySlotId: string | null;

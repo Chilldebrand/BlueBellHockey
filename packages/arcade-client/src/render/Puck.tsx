@@ -7,7 +7,11 @@ export interface PuckProps {
 export function Puck({ puck }: PuckProps): JSX.Element {
   return (
     <mesh
-      position={[puck.position.x, puck.carrierSlotId ? 22 : 12, puck.position.y]}
+      position={[
+        puck.position.x,
+        (puck.carrierSlotId ? 22 : 12) + puck.height,
+        puck.position.y
+      ]}
       name="puck"
     >
       <sphereGeometry args={[18, 16, 10]} />

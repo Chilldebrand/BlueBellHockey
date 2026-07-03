@@ -28,6 +28,8 @@ function skater(overrides: Partial<SkaterEntity> = {}): SkaterEntity {
 const puck: PuckState = {
   position: { x: 0, y: 0 },
   velocity: { x: 0, y: 0 },
+  height: 0,
+  verticalVelocity: 0,
   carrierSlotId: null,
   lastTouchSlotId: null,
   shotBySlotId: null,

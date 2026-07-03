@@ -1,6 +1,7 @@
 import { MATCH_CONFIG } from "../config/match.js";
 import { RINK_CONFIG } from "../config/rink.js";
 import type { TeamId } from "../config/teams.js";
+import { GOAL_HEIGHT } from "./puck.js";
 import type { WorldState } from "./types.js";
 
 export function resolveGoals(world: WorldState): void {
@@ -41,6 +42,8 @@ export function resetForFaceoff(world: WorldState): void {
     y: RINK_CONFIG.height / 2
   };
   world.puck.velocity = { x: 0, y: 0 };
+  world.puck.height = 0;
+  world.puck.verticalVelocity = 0;
   world.puck.carrierSlotId = null;
   world.puck.shotBySlotId = null;
   world.puck.shotPower = 0;
@@ -57,6 +60,12 @@ function scoringTeamForPuck(world: WorldState): TeamId | null {
     RINK_CONFIG.goalWidth / 2;
 
   if (!inGoalMouth) {
+    return null;
+  }
+
+  // Over the bar is not a goal (the puck step already clangs those out, but
+  // the scoring rule must not depend on it).
+  if (world.puck.height >= GOAL_HEIGHT) {
     return null;
   }
 
