@@ -14,6 +14,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "npm run build --workspace @bbh/arcade-core && tsc -p tsconfig.json",
     "test": "npm run build --workspace @bbh/arcade-core && vitest run",
+    "smoke": "npm run build --workspace @bbh/arcade-core && tsx scripts/two-client-smoke.ts",
     "start": "node dist/index.js"
   },
   "dependencies": {

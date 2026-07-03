@@ -1,7 +1,40 @@
 # Arcade Rebuild Release Checklist
 
-Date: 2026-06-27
+Date: 2026-06-27 (updated 2026-07-03)
 Branch: `DalesMajorPLan`
+
+## 2026-07-03 — Physics + skill-stick rewrite ("new heart, existing chassis")
+
+The simulation core was rewritten per the approved restart plan. Summary of
+what changed relative to the notes below:
+
+- **Skating**: facing + anisotropic-grip ice model (capped turn rate, edge
+  bite vs glide, brake stops, turbo handling tradeoff), rounded-corner boards
+  with restitution + tangential slide.
+- **Puck**: vertical axis (gravity/lift/ice bounce), posts + crossbar, corner
+  rimming; carried puck is a spring **tether to the stick blade** (lags on
+  turns, breaks when over-dangled, pokeable).
+- **Controls**: NHL-style **skill stick** — raw right-stick samples on the
+  wire, deterministic gesture detection in the shared sim (flick = wrist,
+  windup + flick = slap, one-timers off passes). Mouse and Space-synth
+  fallbacks for KB/M. The shoot button is gone.
+- **Prediction**: full input-replay reconciliation (per-slot input acks in
+  snapshots, unacked-frame re-simulation, smoothing) — the "shallow
+  prediction" limitation below is CLOSED.
+- **Contact**: skater-skater collision impulses, goalie body blocking,
+  carrier jostle.
+- **Goalies**: swept save test (no tunneling), save types by height/side,
+  cover→faceoff vs directional rebounds.
+- **Scope**: powerups + specials are CUT from the roadmap (grounded-arcade
+  decision) — flag-disabled in `TUNING.flags`, HUD elements removed.
+- **Feel lab**: Free Skate mode (client-only sim) with a live tuning panel,
+  debug overlays, and a deterministic input recorder. Feel tuning happens
+  there; lock final values into `DEFAULT_TUNING`.
+- **Automated e2e**: `npm run smoke --workspace @bbh/arcade-server` boots the
+  real server and drives two websocket clients through a match slice.
+
+Remaining manual gates: real-browser two-tab playthrough (rendering needs
+WebGL), gamepad feel pass in Free Skate, rematch flow eyeball, mobile layout.
 
 This checklist is the release-gate evidence log for the parallel arcade rebuild. The rebuild remains a parallel package path (`@bbh/arcade-*`); the root README has not been rewritten to make it the primary app.
 
