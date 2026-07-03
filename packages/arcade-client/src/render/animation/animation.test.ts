@@ -25,6 +25,7 @@ function skater(overrides: Partial<SkaterEntity> = {}): SkaterEntity {
     activeCheckUntilMs: 0,
     turboMeter: 1,
     turboCooldownUntilMs: 0,
+    oneTimerUntilMs: 0,
     selectedTargetSlotId: null,
     heldPowerupType: null,
     specialCharge: 0,
@@ -43,6 +44,8 @@ const puck: PuckState = {
   shotBySlotId: null,
   shotPower: 0,
   isChargedShot: false,
+  passedFromSlotId: null,
+  passedAtMs: 0,
   pickupDisabledForSlotId: null,
   pickupDisabledUntilMs: 0
 };

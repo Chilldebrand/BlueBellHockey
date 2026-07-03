@@ -48,6 +48,8 @@ export function resetForFaceoff(world: WorldState): void {
   world.puck.shotBySlotId = null;
   world.puck.shotPower = 0;
   world.puck.isChargedShot = false;
+  world.puck.passedFromSlotId = null;
+  world.puck.passedAtMs = 0;
   world.puck.pickupDisabledForSlotId = null;
   world.puck.pickupDisabledUntilMs = 0;
 }

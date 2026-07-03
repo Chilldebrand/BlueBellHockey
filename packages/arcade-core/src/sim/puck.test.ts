@@ -127,11 +127,17 @@ describe("puck simulation", () => {
     ).toBe(true);
   });
 
-  it("scores a low puck through the same goal mouth", () => {
+  it("scores a low puck through the goal mouth when the goalie is beaten", () => {
     const world = playingWorld();
+    const awayGoalie = world.goalies.find((goalie) => goalie.teamId === "away");
+    if (!awayGoalie) {
+      throw new Error("Missing away goalie");
+    }
+    // Goalie caught way over on the far side: cross-crease shot beats him.
+    awayGoalie.position.y = RINK_CONFIG.height / 2 + 200;
     world.puck.position = {
       x: RINK_CONFIG.width - PUCK_CONFIG.radius - 4,
-      y: RINK_CONFIG.height / 2
+      y: RINK_CONFIG.height / 2 - 60
     };
     world.puck.velocity = { x: 900, y: 0 };
 

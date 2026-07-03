@@ -59,6 +59,7 @@ export function createWorld(seed: number, mode: MatchMode): WorldState {
       activeCheckUntilMs: 0,
       turboMeter: 1,
       turboCooldownUntilMs: 0,
+      oneTimerUntilMs: 0,
       selectedTargetSlotId: null,
       heldPowerupType: null,
       specialCharge: 0,

@@ -99,6 +99,8 @@ export interface SkaterEntity {
   activeCheckUntilMs: number;
   turboMeter: number;
   turboCooldownUntilMs: number;
+  /** Shooting before this sim time fires a bonus one-timer (fed by a pass). */
+  oneTimerUntilMs: number;
   selectedTargetSlotId: string | null;
   heldPowerupType: PowerupType | null;
   specialCharge: number;
@@ -143,6 +145,9 @@ export interface PuckState {
   shotBySlotId: string | null;
   shotPower: number;
   isChargedShot: boolean;
+  /** Set while a pass is in flight — a teammate gathering it arms a one-timer. */
+  passedFromSlotId: string | null;
+  passedAtMs: number;
   pickupDisabledForSlotId: string | null;
   pickupDisabledUntilMs: number;
 }
@@ -169,6 +174,8 @@ export interface WorldEvent {
   readonly sourceSlotId?: string;
   readonly targetSlotId?: string;
   readonly force?: number;
+  /** Event-specific qualifier, e.g. the save type ("pad", "glove", ...). */
+  readonly detail?: string;
 }
 
 export interface WorldState {

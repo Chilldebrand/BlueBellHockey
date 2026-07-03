@@ -156,6 +156,43 @@ describe("skill-stick gestures", () => {
     expect(world.puck.velocity.y).toBeGreaterThan(50); // pulled to the stick side
   });
 
+  it("arms and fires a one-timer off a teammate's pass", () => {
+    const world = carrierWorld();
+    const passer = world.skaters[0]; // home-skater-1, facing +x
+    const receiver = world.skaters[1]; // home-skater-2
+    receiver.position = { x: passer.position.x + 260, y: passer.position.y };
+    receiver.facing = 0;
+
+    // Pass, then let the puck travel to the receiver.
+    stepWorld(world, [frame(passer.id, 1, { pass: true })], TICK);
+
+    for (let tick = 0; tick < 40 && world.puck.carrierSlotId === null; tick += 1) {
+      stepWorld(world, [], TICK);
+    }
+
+    expect(world.puck.carrierSlotId).toBe(receiver.id);
+    expect(receiver.oneTimerUntilMs).toBeGreaterThan(world.time.nowMs);
+
+    // Immediate forward flick: the one-timer beats a plain wrist shot.
+    stepWorld(
+      world,
+      [
+        {
+          ...frame(receiver.id, 2),
+          slotId: receiver.id,
+          stickY: 1
+        }
+      ],
+      TICK
+    );
+
+    expect(world.puck.carrierSlotId).toBeNull();
+    expect(magnitude(world.puck.velocity)).toBeGreaterThan(1100); // > wrist max
+    expect(world.eventQueue.some((event) => event.type === "oneTimer")).toBe(
+      true
+    );
+  });
+
   it("interprets identical samples identically on two sim instances", () => {
     const script: [number, number][] = [
       [0, 0.2],

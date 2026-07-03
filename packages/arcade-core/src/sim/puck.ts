@@ -46,6 +46,10 @@ export interface PuckConfig {
   readonly passSpeed: number;
   readonly wristShotSpeed: number;
   readonly maxChargedShotSpeed: number;
+  /** Shooting within this of gathering a teammate's pass is a one-timer. */
+  readonly oneTimerWindowMs: number;
+  /** Power multiplier a one-timer adds to the shot. */
+  readonly oneTimerPowerMultiplier: number;
   /** Vertical launch speed of a full-power wrist shot. */
   readonly wristLiftSpeed: number;
   /** Vertical launch speed a full-power slap adds (rising slapper). */
@@ -77,6 +81,8 @@ export const PUCK_CONFIG: PuckConfig = {
   passSpeed: 820,
   wristShotSpeed: 1040,
   maxChargedShotSpeed: 1460,
+  oneTimerWindowMs: 550,
+  oneTimerPowerMultiplier: 1.22,
   wristLiftSpeed: 170,
   slapLiftSpeed: 330,
   shotSideBlend: 0.55,
@@ -97,6 +103,8 @@ export function createInitialPuckState(position: Vec2): PuckState {
     shotBySlotId: null,
     shotPower: 0,
     isChargedShot: false,
+    passedFromSlotId: null,
+    passedAtMs: 0,
     pickupDisabledForSlotId: null,
     pickupDisabledUntilMs: 0
   };
@@ -149,6 +157,9 @@ function stepCarriedPuck(
       shotBySlotId: null,
       pickupCooldownMs: config.releasePickupCooldownMs
     });
+    // A teammate gathering this in-flight pass gets a one-timer window.
+    puck.passedFromSlotId = carrier.id;
+    puck.passedAtMs = world.time.nowMs;
     return;
   }
 
@@ -233,11 +244,17 @@ function releaseGestureShot(
   const gesture = carrier.gesture;
   const isSlap = gesture.pendingReleaseType === "slap";
   const power = gesture.pendingReleasePower;
-  const speed = isSlap
-    ? config.wristShotSpeed +
-      (config.maxChargedShotSpeed - config.wristShotSpeed) * power
-    : config.wristShotSpeed * (0.78 + 0.22 * power);
-  const lift = (isSlap ? config.slapLiftSpeed : config.wristLiftSpeed) * power;
+  const isOneTimer = world.time.nowMs < carrier.oneTimerUntilMs;
+  const oneTimerBoost = isOneTimer ? config.oneTimerPowerMultiplier : 1;
+  const speed =
+    (isSlap
+      ? config.wristShotSpeed +
+        (config.maxChargedShotSpeed - config.wristShotSpeed) * power
+      : config.wristShotSpeed * (0.78 + 0.22 * power)) * oneTimerBoost;
+  const lift =
+    (isSlap ? config.slapLiftSpeed : config.wristLiftSpeed) *
+    power *
+    (isOneTimer ? 1.15 : 1);
   const direction = rotate(
     normalizeOrZero({
       x: 1,
@@ -259,8 +276,20 @@ function releaseGestureShot(
     type: "shot",
     atMs: world.time.nowMs,
     sourceSlotId: carrier.id,
-    force: speed
+    force: speed,
+    detail: isOneTimer ? "oneTimer" : isSlap ? "slap" : "wrist"
   });
+
+  if (isOneTimer) {
+    carrier.oneTimerUntilMs = 0;
+    world.eventQueue.push({
+      id: `onetimer-${world.time.tick}-${carrier.id}`,
+      type: "oneTimer",
+      atMs: world.time.nowMs,
+      sourceSlotId: carrier.id
+    });
+  }
+
   clearPendingRelease(gesture);
 }
 
@@ -481,6 +510,20 @@ function tryPickupLoosePuck(
     puck.pickupDisabledUntilMs = 0;
     puck.height = 0;
     puck.verticalVelocity = 0;
+
+    // Catch-and-release: taking a teammate's fresh pass arms a one-timer.
+    if (
+      puck.passedFromSlotId &&
+      puck.passedFromSlotId !== skater.id &&
+      world.time.nowMs - puck.passedAtMs <= config.oneTimerWindowMs &&
+      world.skaters.find((mate) => mate.id === puck.passedFromSlotId)?.teamId ===
+        skater.teamId
+    ) {
+      skater.oneTimerUntilMs = world.time.nowMs + config.oneTimerWindowMs;
+    }
+
+    puck.passedFromSlotId = null;
+    puck.passedAtMs = 0;
     return;
   }
 }
@@ -506,6 +549,8 @@ function releasePuck(
   world.puck.shotBySlotId = release.shotBySlotId;
   world.puck.shotPower = release.shotPower;
   world.puck.isChargedShot = release.isChargedShot;
+  world.puck.passedFromSlotId = null;
+  world.puck.passedAtMs = 0;
   world.puck.pickupDisabledForSlotId = carrier.id;
   world.puck.pickupDisabledUntilMs = world.time.nowMs + release.pickupCooldownMs;
   world.puck.position = { ...blade };
