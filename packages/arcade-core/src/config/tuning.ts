@@ -1,4 +1,5 @@
 import { CHECK_CONFIG, type CheckConfig } from "../sim/actions.js";
+import { COLLISION_CONFIG, type CollisionConfig } from "../sim/collision.js";
 import { GESTURE_CONFIG, type GestureConfig } from "../sim/gestures.js";
 import { GOALIE_CONFIG, type GoalieConfig } from "../sim/goalie.js";
 import { PUCK_CONFIG, type PuckConfig } from "../sim/puck.js";
@@ -28,6 +29,7 @@ export interface Tuning {
   readonly gestures: GestureConfig;
   readonly puck: PuckConfig;
   readonly check: CheckConfig;
+  readonly collision: CollisionConfig;
   readonly goalie: GoalieConfig;
   readonly flags: TuningFlags;
 }
@@ -38,6 +40,7 @@ type MutableTuning = {
   gestures: Mutable<GestureConfig>;
   puck: Mutable<PuckConfig>;
   check: Mutable<CheckConfig>;
+  collision: Mutable<CollisionConfig>;
   goalie: Mutable<GoalieConfig>;
   flags: Mutable<TuningFlags>;
 };
@@ -49,6 +52,7 @@ function buildDefaults(): MutableTuning {
     gestures: { ...GESTURE_CONFIG },
     puck: { ...PUCK_CONFIG },
     check: { ...CHECK_CONFIG },
+    collision: { ...COLLISION_CONFIG },
     goalie: { ...GOALIE_CONFIG },
     // Grounded-arcade scope: powerups and character specials are cut from
     // the roadmap; the systems stay in code but never activate.
@@ -90,6 +94,7 @@ export function snapshotTuning(): Tuning {
     gestures: { ...TUNING.gestures },
     puck: { ...TUNING.puck },
     check: { ...TUNING.check },
+    collision: { ...TUNING.collision },
     goalie: { ...TUNING.goalie },
     flags: { ...TUNING.flags }
   };

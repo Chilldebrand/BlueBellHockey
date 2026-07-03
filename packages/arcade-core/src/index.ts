@@ -22,6 +22,7 @@ export * from "./config/tuning.js";
 export * from "./net/messages.js";
 export * from "./sim/actions.js";
 export * from "./sim/boards.js";
+export * from "./sim/collision.js";
 export * from "./sim/gestures.js";
 export * from "./sim/stick.js";
 export * from "./sim/goal.js";

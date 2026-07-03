@@ -18,6 +18,7 @@ const GROUP_LABELS: Record<TuningGroup, string> = {
   gestures: "Shot Gestures",
   puck: "Puck",
   check: "Checking",
+  collision: "Body Contact",
   goalie: "Goalie",
   flags: "Flags"
 };

@@ -13,6 +13,7 @@ import { stepSkater } from "./skater.js";
 import { createInitialPuckState, stepPuck } from "./puck.js";
 import { recoverContactStates, resolveChecks } from "./actions.js";
 import { clearPendingRelease, createGestureState, stepGesture } from "./gestures.js";
+import { resolveSkaterCollisions } from "./collision.js";
 import { createStickState, updateStick } from "./stick.js";
 import { stepPowerups } from "./powerups.js";
 import { resolveSpecials } from "./specials.js";
@@ -129,7 +130,10 @@ export function stepWorld(
     updateStick(skater, input, dtSeconds, TUNING.stick);
   }
 
+  // Deliberate checks read full closing speed, THEN body contact separates —
+  // otherwise the collision impulse bleeds the force out of a big hit.
   resolveChecks(world, latestInputBySlot, TUNING.check);
+  resolveSkaterCollisions(world, TUNING.collision);
   if (TUNING.flags.powerupsEnabled) {
     stepPowerups(world, latestInputBySlot);
   }
