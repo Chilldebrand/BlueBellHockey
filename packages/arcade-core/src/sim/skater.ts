@@ -48,9 +48,11 @@ export interface SkaterMovementConfig {
   readonly windupSpeedMultiplier: number;
 }
 
+// Feel pass 2026-07-03: normal skating slowed so turbo reads as a real burst
+// (cruise 560, turbo 840 — a full 50% jump instead of the old 38%).
 export const SKATER_MOVEMENT_CONFIG: SkaterMovementConfig = {
   acceleration: 1450,
-  maxSpeed: 675,
+  maxSpeed: 560,
   radius: 38,
   glideDrag: 0.55,
   releaseDrag: 1.15,
@@ -61,8 +63,8 @@ export const SKATER_MOVEMENT_CONFIG: SkaterMovementConfig = {
   overSpeedDrag: 2.4,
   boardRestitution: 0.35,
   boardTangentRetention: 0.86,
-  turboAccelerationMultiplier: 1.32,
-  turboMaxSpeedMultiplier: 1.38,
+  turboAccelerationMultiplier: 1.42,
+  turboMaxSpeedMultiplier: 1.5,
   turboTurnRateMultiplier: 0.55,
   turboGripMultiplier: 0.45,
   turboDrainPerSecond: 0.78,

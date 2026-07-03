@@ -11,13 +11,13 @@ describe("camera rig math", () => {
     ).toEqual({ x: 220, y: 780 });
   });
 
-  it("uses a high diagonal camera offset over the clamped target", () => {
+  it("sits behind the target on -x so play reads north-south", () => {
     const target = { x: 1000, y: 500 };
 
     expect(computeCameraPosition(target)).toEqual({
-      x: 520,
-      y: 1180,
-      z: 980
+      x: 380,
+      y: 1150,
+      z: 500
     });
   });
 });

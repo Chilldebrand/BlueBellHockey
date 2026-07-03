@@ -40,8 +40,11 @@ export function createInputFrame({
     playerId,
     slotId,
     sequence,
-    moveX: clampAxis(input.moveX),
-    moveY: clampAxis(input.moveY),
+    // North-south camera: screen-up is sim +x (up-ice) and screen-right is
+    // sim +y, so movement rotates from screen space into world space here.
+    // The skill stick is body-relative and needs no camera mapping.
+    moveX: clampAxis(-input.moveY),
+    moveY: clampAxis(input.moveX),
     stickX: clampAxis(input.stickX),
     stickY: clampAxis(input.stickY),
     pass: input.pass,
