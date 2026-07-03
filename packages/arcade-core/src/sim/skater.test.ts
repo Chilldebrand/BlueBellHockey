@@ -4,7 +4,8 @@ import {
   SKATER_MOVEMENT_CONFIG,
   createWorld,
   stepWorld,
-  type InputFrame
+  type InputFrame,
+  type WorldState
 } from "../index";
 
 function inputFrame(
@@ -31,7 +32,13 @@ function inputFrame(
   };
 }
 
-function speedOf(slotId: string, world = createWorld(1, "arcade3v3")): number {
+function playingWorld(seed = 1): WorldState {
+  const world = createWorld(seed, "arcade3v3");
+  world.phase = "playing";
+  return world;
+}
+
+function speedOf(world: WorldState, slotId: string): number {
   const skater = world.skaters.find((candidate) => candidate.id === slotId);
   if (!skater) {
     throw new Error(`Missing skater ${slotId}`);
@@ -41,56 +48,145 @@ function speedOf(slotId: string, world = createWorld(1, "arcade3v3")): number {
 }
 
 describe("skater movement", () => {
-  it("accelerates a controlled skater from compact input fields", () => {
-    const world = createWorld(1, "arcade3v3");
-    world.phase = "playing";
-    const skater = world.skaters[0];
+  it("accelerates along its facing and respects the speed cap", () => {
+    const world = playingWorld();
+    const skater = world.skaters[0]; // home: spawns facing +x
     const startX = skater.position.x;
 
-    stepWorld(world, [inputFrame(skater.id, 1, { moveX: 1 })], 100);
+    // 1.2s of full-forward input: enough to reach the cap, short enough to
+    // stay off the far boards.
+    for (let tick = 0; tick < 12; tick += 1) {
+      stepWorld(world, [inputFrame(skater.id, tick + 1, { moveX: 1 })], 100);
+    }
 
     expect(skater.position.x).toBeGreaterThan(startX);
     expect(skater.velocity.x).toBeGreaterThan(0);
-    expect(speedOf(skater.id, world)).toBeLessThanOrEqual(
-      SKATER_MOVEMENT_CONFIG.maxSpeed
+    expect(speedOf(world, skater.id)).toBeLessThanOrEqual(
+      SKATER_MOVEMENT_CONFIG.maxSpeed + 1e-6
     );
   });
 
-  it("glides and decays velocity without fresh movement input", () => {
-    const world = createWorld(1, "arcade3v3");
-    world.phase = "playing";
+  it("glides on after input is released, decaying gradually", () => {
+    const world = playingWorld();
     const skater = world.skaters[0];
 
-    stepWorld(world, [inputFrame(skater.id, 1, { moveX: 1 })], 100);
-    const acceleratedSpeed = speedOf(skater.id, world);
+    stepWorld(world, [inputFrame(skater.id, 1, { moveX: 1 })], 300);
+    const acceleratedSpeed = speedOf(world, skater.id);
     const acceleratedX = skater.position.x;
+
     stepWorld(world, [], 100);
 
     expect(skater.position.x).toBeGreaterThan(acceleratedX);
-    expect(speedOf(skater.id, world)).toBeGreaterThan(0);
-    expect(speedOf(skater.id, world)).toBeLessThan(acceleratedSpeed);
+    expect(speedOf(world, skater.id)).toBeGreaterThan(acceleratedSpeed * 0.5);
+    expect(speedOf(world, skater.id)).toBeLessThan(acceleratedSpeed);
   });
 
-  it("keeps skaters inside the rink bounds", () => {
-    const world = createWorld(1, "arcade3v3");
-    world.phase = "playing";
+  it("caps how fast facing can turn toward the stick", () => {
+    const world = playingWorld();
     const skater = world.skaters[0];
-    skater.position.x = RINK_CONFIG.width - SKATER_MOVEMENT_CONFIG.radius / 2;
-    skater.velocity.x = SKATER_MOVEMENT_CONFIG.maxSpeed;
+    expect(skater.facing).toBe(0);
 
-    stepWorld(world, [inputFrame(skater.id, 1, { moveX: 1 })], 100);
+    // Full-left stick asks for a π/2 turn; one 100ms step at standstill can
+    // only cover turnRate * 0.1 radians.
+    stepWorld(world, [inputFrame(skater.id, 1, { moveY: 1 })], 100);
 
-    expect(skater.position.x).toBeLessThanOrEqual(
-      RINK_CONFIG.width - SKATER_MOVEMENT_CONFIG.radius
+    expect(skater.facing).toBeCloseTo(
+      SKATER_MOVEMENT_CONFIG.turnRate * 0.1,
+      5
     );
-    expect(skater.velocity.x).toBe(0);
+  });
+
+  it("turns slower at speed than at a standstill", () => {
+    const atRest = playingWorld();
+    const atSpeed = playingWorld();
+    const restSkater = atRest.skaters[0];
+    const fastSkater = atSpeed.skaters[0];
+    fastSkater.velocity = { x: SKATER_MOVEMENT_CONFIG.maxSpeed, y: 0 };
+
+    stepWorld(atRest, [inputFrame(restSkater.id, 1, { moveY: 1 })], 50);
+    stepWorld(atSpeed, [inputFrame(fastSkater.id, 1, { moveY: 1 })], 50);
+
+    expect(Math.abs(fastSkater.facing)).toBeLessThan(
+      Math.abs(restSkater.facing) *
+        (SKATER_MOVEMENT_CONFIG.highSpeedTurnRetention + 0.1)
+    );
+  });
+
+  it("bleeds sideways velocity much faster than forward velocity", () => {
+    const forward = playingWorld();
+    const sideways = playingWorld();
+    forward.skaters[0].velocity = { x: 400, y: 0 }; // along facing (0 rad)
+    sideways.skaters[0].velocity = { x: 0, y: 400 }; // fully lateral
+
+    stepWorld(forward, [], 200);
+    stepWorld(sideways, [], 200);
+
+    const forwardSpeed = speedOf(forward, forward.skaters[0].id);
+    const lateralSpeed = speedOf(sideways, sideways.skaters[0].id);
+
+    expect(lateralSpeed).toBeLessThan(forwardSpeed * 0.5);
+  });
+
+  it("stops much faster when the stick is pulled against travel", () => {
+    const braking = playingWorld();
+    const coasting = playingWorld();
+    braking.skaters[0].velocity = { x: 500, y: 0 };
+    coasting.skaters[0].velocity = { x: 500, y: 0 };
+
+    stepWorld(braking, [inputFrame(braking.skaters[0].id, 1, { moveX: -1 })], 200);
+    stepWorld(coasting, [], 200);
+
+    expect(speedOf(braking, braking.skaters[0].id)).toBeLessThan(
+      speedOf(coasting, coasting.skaters[0].id) * 0.6
+    );
+  });
+
+  it("integrates near-identically across different tick slicing", () => {
+    const coarse = playingWorld();
+    const fine = playingWorld();
+    const slotId = coarse.skaters[0].id;
+
+    for (let tick = 0; tick < 30; tick += 1) {
+      const move = { moveX: 0.7, moveY: 0.4 };
+      stepWorld(coarse, [inputFrame(slotId, tick + 1, move)], 32);
+      stepWorld(fine, [inputFrame(slotId, tick * 2 + 1, move)], 16);
+      stepWorld(fine, [inputFrame(slotId, tick * 2 + 2, move)], 16);
+    }
+
+    const coarseSkater = coarse.skaters[0];
+    const fineSkater = fine.skaters[0];
+    const positionError = Math.hypot(
+      coarseSkater.position.x - fineSkater.position.x,
+      coarseSkater.position.y - fineSkater.position.y
+    );
+
+    expect(positionError).toBeLessThan(12); // < 1/3 skater radius over ~1s
+    expect(speedOf(coarse, slotId)).toBeCloseTo(speedOf(fine, slotId), -1);
+  });
+
+  it("rebounds off the boards keeping most tangential speed", () => {
+    const world = playingWorld();
+    const skater = world.skaters[0];
+    skater.position = {
+      x: RINK_CONFIG.width / 2, // mid-rink: straight wall, not a corner
+      y: RINK_CONFIG.height - SKATER_MOVEMENT_CONFIG.radius - 4
+    };
+    skater.facing = Math.atan2(1, 1);
+    skater.velocity = { x: 300, y: 300 };
+
+    stepWorld(world, [], 32);
+
+    expect(skater.position.y).toBeLessThanOrEqual(
+      RINK_CONFIG.height - SKATER_MOVEMENT_CONFIG.radius
+    );
+    expect(skater.velocity.y).toBeLessThanOrEqual(0); // bounced back
+    expect(Math.abs(skater.velocity.y)).toBeLessThan(300 * 0.5); // deadened
+    expect(skater.velocity.x).toBeGreaterThan(100); // still sliding along
   });
 
   it("produces deterministic results for repeated input sequences", () => {
-    const first = createWorld(1, "arcade3v3");
-    const second = createWorld(1, "arcade3v3");
-    first.phase = "playing";
-    second.phase = "playing";
+    const first = playingWorld();
+    const second = playingWorld();
     const inputs = [
       inputFrame("home-skater-1", 1, { moveX: 1, moveY: 0.25 }),
       inputFrame("home-skater-1", 2, { moveX: 0.5, moveY: 1 }),

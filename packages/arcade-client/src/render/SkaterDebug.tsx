@@ -11,6 +11,8 @@ export interface SkaterDebugProps {
   readonly animationState?: SkaterAnimationState;
   /** Sim-plane velocity; when set with showVectors, renders a debug arrow. */
   readonly velocity?: Vec2;
+  /** Body orientation in sim-plane radians; orients the model and debug arrow. */
+  readonly facing?: number;
   readonly showVectors?: boolean;
 }
 
@@ -56,6 +58,7 @@ export function SkaterDebug({
   hasPossession = false,
   animationState = "idle",
   velocity,
+  facing,
   showVectors = false
 }: SkaterDebugProps): JSX.Element {
   return (
@@ -68,11 +71,19 @@ export function SkaterDebug({
           emissiveIntensity={isLocal ? 0.2 : 0}
         />
       </mesh>
-      <CharacterModel
-        teamId={teamId}
-        isLocal={isLocal}
-        animationState={animationState}
-      />
+      <group rotation={[0, facing === undefined ? 0 : -facing, 0]}>
+        <CharacterModel
+          teamId={teamId}
+          isLocal={isLocal}
+          animationState={animationState}
+        />
+        {showVectors ? (
+          <mesh position={[34, 22, 0]}>
+            <boxGeometry args={[36, 2.5, 2.5]} />
+            <meshBasicMaterial color="#ffdf6e" />
+          </mesh>
+        ) : null}
+      </group>
       {isLocal || hasPossession ? (
         <mesh position={[0, 4, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[52, 58, 24]} />

@@ -46,6 +46,8 @@ export function createWorld(seed: number, mode: MatchMode): WorldState {
       teamId: slot.teamId,
       position: skaterSpawn(slot.index, teamSide),
       velocity: zeroVector(),
+      // Face the attacking direction: home spawns on -x and attacks +x.
+      facing: teamSide === -1 ? 0 : Math.PI,
       contactState: "ready",
       contactStateUntilMs: 0,
       checkCooldownUntilMs: 0,

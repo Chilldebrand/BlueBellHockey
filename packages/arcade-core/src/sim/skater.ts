@@ -1,99 +1,215 @@
-import { RINK_CONFIG } from "../config/rink.js";
 import type { InputFrame, SkaterEntity, Vec2 } from "./types.js";
-import { clamp, clampMagnitude, magnitude, normalizeOrZero } from "./physics.js";
+import { containCircleInRink } from "./boards.js";
+import {
+  angleDifference,
+  angleOf,
+  clamp,
+  dot,
+  expDecay,
+  fromAngle,
+  magnitude,
+  normalizeOrZero,
+  turnToward
+} from "./physics.js";
 
 export interface SkaterMovementConfig {
+  /** Thrust along the facing direction (units/s²). */
   readonly acceleration: number;
   readonly maxSpeed: number;
-  readonly glideDrag: number;
   readonly radius: number;
+  /** Per-second decay of along-facing speed — light, this is the ice glide. */
+  readonly glideDrag: number;
+  /** Extra per-second decay applied when there is no movement input. */
+  readonly releaseDrag: number;
+  /** Per-second decay of sideways speed — heavy, this is the edge bite. */
+  readonly lateralGrip: number;
+  /** Per-second decay while the stick is pulled against travel (hard stop). */
+  readonly brakeDrag: number;
+  /** How fast facing turns toward the stick at a standstill (rad/s). */
+  readonly turnRate: number;
+  /** Fraction of turnRate still available at max speed (broad fast arcs). */
+  readonly highSpeedTurnRetention: number;
+  /** Per-second decay pulling an over-cap skater back to max speed. */
+  readonly overSpeedDrag: number;
+  readonly boardRestitution: number;
+  readonly boardTangentRetention: number;
   readonly turboAccelerationMultiplier: number;
   readonly turboMaxSpeedMultiplier: number;
-  readonly turboHandlingPenalty: number;
+  /** Turbo turns worse: multiplies turn rate (< 1). */
+  readonly turboTurnRateMultiplier: number;
+  /** Turbo edges bite less: multiplies lateral grip (< 1). */
+  readonly turboGripMultiplier: number;
   readonly turboDrainPerSecond: number;
   readonly turboRechargePerSecond: number;
   readonly turboMinActivation: number;
+  /** Per-second velocity decay while sliding out a knockdown. */
+  readonly knockdownDrag: number;
 }
 
 export const SKATER_MOVEMENT_CONFIG: SkaterMovementConfig = {
-  acceleration: 2350,
+  acceleration: 1450,
   maxSpeed: 675,
-  glideDrag: 3.05,
   radius: 38,
+  glideDrag: 0.55,
+  releaseDrag: 1.15,
+  lateralGrip: 7.5,
+  brakeDrag: 5.5,
+  turnRate: 9.5,
+  highSpeedTurnRetention: 0.42,
+  overSpeedDrag: 2.4,
+  boardRestitution: 0.35,
+  boardTangentRetention: 0.86,
   turboAccelerationMultiplier: 1.32,
   turboMaxSpeedMultiplier: 1.38,
-  turboHandlingPenalty: 0.82,
+  turboTurnRateMultiplier: 0.55,
+  turboGripMultiplier: 0.45,
   turboDrainPerSecond: 0.78,
   turboRechargePerSecond: 0.4,
-  turboMinActivation: 0.08
+  turboMinActivation: 0.08,
+  knockdownDrag: 3.05
 };
 
+/**
+ * Facing + anisotropic-grip skating. The stick steers the skater's facing at
+ * a capped, speed-dependent turn rate; thrust pushes along facing; velocity
+ * is split into an along-facing component (long glide) and a lateral one
+ * (fast decay — the edges bite), so hard turns at speed carve a visible,
+ * controllable drift arc instead of snapping direction. Turbo trades top
+ * speed for turn rate and grip.
+ */
 export function stepSkater(
   skater: SkaterEntity,
   input: InputFrame | undefined,
   dtMs: number,
   config: SkaterMovementConfig = SKATER_MOVEMENT_CONFIG
 ): void {
-  const dtSeconds = dtMs / 1000;
+  const dt = dtMs / 1000;
+
   if (skater.contactState === "knockedDown") {
-    skater.position = {
-      x: skater.position.x + skater.velocity.x * dtSeconds,
-      y: skater.position.y + skater.velocity.y * dtSeconds
-    };
-    skater.velocity = {
-      x: skater.velocity.x * Math.max(0, 1 - config.glideDrag * dtSeconds),
-      y: skater.velocity.y * Math.max(0, 1 - config.glideDrag * dtSeconds)
-    };
-    clampSkaterToRink(skater, config);
+    const slide = expDecay(config.knockdownDrag, dt);
+    skater.velocity.x *= slide;
+    skater.velocity.y *= slide;
+    integrateAndContain(skater, dt, config);
     return;
   }
 
-  const movement = normalizedMovement(input);
+  const move = normalizedMovement(input);
+  const hasInput = magnitude(move) > 0;
   const turboActive =
     input?.turbo === true && skater.turboMeter >= config.turboMinActivation;
 
-  if (turboActive) {
-    skater.turboMeter = clamp(
-      skater.turboMeter - config.turboDrainPerSecond * dtSeconds,
-      0,
-      1
-    );
-  } else {
-    skater.turboMeter = clamp(
-      skater.turboMeter + config.turboRechargePerSecond * dtSeconds,
-      0,
-      1
-    );
+  skater.turboMeter = clamp(
+    skater.turboMeter +
+      (turboActive
+        ? -config.turboDrainPerSecond
+        : config.turboRechargePerSecond) *
+        dt,
+    0,
+    1
+  );
+
+  const maxSpeed =
+    config.maxSpeed * (turboActive ? config.turboMaxSpeedMultiplier : 1);
+  const speed = magnitude(skater.velocity);
+  let braking = false;
+
+  if (hasInput) {
+    const desired = angleOf(move);
+    const speedFactor = maxSpeed > 0 ? clamp(speed / maxSpeed, 0, 1) : 1;
+    const turnRate =
+      config.turnRate *
+      (1 - speedFactor * (1 - config.highSpeedTurnRetention)) *
+      (turboActive ? config.turboTurnRateMultiplier : 1);
+
+    skater.facing = turnToward(skater.facing, desired, turnRate * dt);
+
+    const alignment = Math.cos(angleDifference(skater.facing, desired));
+
+    if (alignment > 0) {
+      const thrust =
+        config.acceleration *
+        (turboActive ? config.turboAccelerationMultiplier : 1) *
+        alignment;
+      skater.velocity.x += Math.cos(skater.facing) * thrust * dt;
+      skater.velocity.y += Math.sin(skater.facing) * thrust * dt;
+    } else if (alignment < -0.35) {
+      // Stick pulled against the body: dig in and stop hard.
+      braking = true;
+    }
   }
 
-  if (magnitude(movement) > 0) {
-    const acceleration = turboActive
-      ? config.acceleration * config.turboAccelerationMultiplier
-      : config.acceleration;
-    const maxSpeed = turboActive
-      ? config.maxSpeed * config.turboMaxSpeedMultiplier
-      : config.maxSpeed;
-    const handling = turboActive ? config.turboHandlingPenalty : 1;
-    skater.velocity = clampMagnitude(
-      {
-        x: skater.velocity.x + movement.x * acceleration * handling * dtSeconds,
-        y: skater.velocity.y + movement.y * acceleration * handling * dtSeconds
-      },
-      maxSpeed
-    );
-  } else {
-    const drag = Math.max(0, 1 - config.glideDrag * dtSeconds);
-    skater.velocity = {
-      x: skater.velocity.x * drag,
-      y: skater.velocity.y * drag
-    };
+  applyAnisotropicDrag(skater, dt, config, {
+    hasInput,
+    braking,
+    turboActive
+  });
+  capSpeed(skater, maxSpeed, dt, config);
+  integrateAndContain(skater, dt, config);
+}
+
+function applyAnisotropicDrag(
+  skater: SkaterEntity,
+  dt: number,
+  config: SkaterMovementConfig,
+  state: { hasInput: boolean; braking: boolean; turboActive: boolean }
+): void {
+  const forward = fromAngle(skater.facing);
+  const along = dot(skater.velocity, forward);
+  const lateralX = skater.velocity.x - forward.x * along;
+  const lateralY = skater.velocity.y - forward.y * along;
+
+  let alongDrag = config.glideDrag;
+
+  if (state.braking) {
+    alongDrag += config.brakeDrag;
+  } else if (!state.hasInput) {
+    alongDrag += config.releaseDrag;
   }
 
-  skater.position = {
-    x: skater.position.x + skater.velocity.x * dtSeconds,
-    y: skater.position.y + skater.velocity.y * dtSeconds
-  };
-  clampSkaterToRink(skater, config);
+  const grip =
+    config.lateralGrip * (state.turboActive ? config.turboGripMultiplier : 1);
+  const alongScale = expDecay(alongDrag, dt);
+  const lateralScale = expDecay(grip, dt);
+
+  skater.velocity.x = forward.x * along * alongScale + lateralX * lateralScale;
+  skater.velocity.y = forward.y * along * alongScale + lateralY * lateralScale;
+}
+
+/**
+ * Thrust never pushes past the cap, but speed already above it (e.g. turbo
+ * just released) bleeds off smoothly instead of being chopped in one tick.
+ */
+function capSpeed(
+  skater: SkaterEntity,
+  maxSpeed: number,
+  dt: number,
+  config: SkaterMovementConfig
+): void {
+  const speed = magnitude(skater.velocity);
+
+  if (speed <= maxSpeed || speed === 0) {
+    return;
+  }
+
+  const scale = Math.max(maxSpeed / speed, expDecay(config.overSpeedDrag, dt));
+  skater.velocity.x *= scale;
+  skater.velocity.y *= scale;
+}
+
+function integrateAndContain(
+  skater: SkaterEntity,
+  dt: number,
+  config: SkaterMovementConfig
+): void {
+  skater.position.x += skater.velocity.x * dt;
+  skater.position.y += skater.velocity.y * dt;
+  containCircleInRink(
+    skater.position,
+    skater.velocity,
+    config.radius,
+    config.boardRestitution,
+    config.boardTangentRetention
+  );
 }
 
 function normalizedMovement(input: InputFrame | undefined): Vec2 {
@@ -101,33 +217,14 @@ function normalizedMovement(input: InputFrame | undefined): Vec2 {
     return { x: 0, y: 0 };
   }
 
-  return normalizeOrZero({
+  const raw = {
     x: clamp(input.moveX, -1, 1),
     y: clamp(input.moveY, -1, 1)
-  });
-}
-
-function clampSkaterToRink(
-  skater: SkaterEntity,
-  config: SkaterMovementConfig
-): void {
-  const minX = config.radius;
-  const maxX = RINK_CONFIG.width - config.radius;
-  const minY = config.radius;
-  const maxY = RINK_CONFIG.height - config.radius;
-  const clampedX = clamp(skater.position.x, minX, maxX);
-  const clampedY = clamp(skater.position.y, minY, maxY);
-
-  if (clampedX !== skater.position.x) {
-    skater.velocity.x = 0;
-  }
-
-  if (clampedY !== skater.position.y) {
-    skater.velocity.y = 0;
-  }
-
-  skater.position = {
-    x: clampedX,
-    y: clampedY
   };
+
+  if (magnitude(raw) > 1) {
+    return normalizeOrZero(raw);
+  }
+
+  return raw;
 }

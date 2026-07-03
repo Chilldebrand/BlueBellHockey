@@ -71,6 +71,7 @@ export function Scene({
               isLocal={skater.id === localSlotId}
               hasPossession={currentWorld.puck.carrierSlotId === skater.id}
               velocity={renderSkater.velocity}
+              facing={renderSkater.facing}
               showVectors={debugOverlays}
               animationState={selectSkaterAnimation({
                 skater: sourceSkater,

@@ -43,6 +43,8 @@ export interface SkaterEntity {
   readonly teamId: TeamId;
   position: Vec2;
   velocity: Vec2;
+  /** Body orientation in radians on the sim plane (0 = +x). */
+  facing: number;
   contactState: "ready" | "stumbling" | "knockedDown";
   contactStateUntilMs: number;
   checkCooldownUntilMs: number;

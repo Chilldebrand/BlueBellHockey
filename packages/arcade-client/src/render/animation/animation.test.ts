@@ -10,6 +10,7 @@ function skater(overrides: Partial<SkaterEntity> = {}): SkaterEntity {
     teamId: "home",
     position: { x: 0, y: 0 },
     velocity: { x: 0, y: 0 },
+    facing: 0,
     contactState: "ready",
     contactStateUntilMs: 0,
     checkCooldownUntilMs: 0,
