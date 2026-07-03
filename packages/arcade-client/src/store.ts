@@ -41,6 +41,8 @@ export interface ArcadeClientState {
   readonly isRosterValid: boolean;
   readonly currentWorld: WorldState | null;
   readonly previousWorld: WorldState | null;
+  /** Per-slot last input sequence the server sim has applied (prediction). */
+  readonly inputAcks: Readonly<Record<string, number>>;
   readonly error: string | null;
 }
 
@@ -58,7 +60,11 @@ export interface ServerRoomState {
 export type ArcadeClientAction =
   | { readonly type: "connection.start" }
   | { readonly type: "room.state"; readonly room: ArcadeRoomConnection }
-  | { readonly type: "world.snapshot"; readonly world: WorldState }
+  | {
+      readonly type: "world.snapshot";
+      readonly world: WorldState;
+      readonly inputAcks?: Readonly<Record<string, number>>;
+    }
   | { readonly type: "connection.error"; readonly message: string }
   | { readonly type: "connection.left"; readonly message?: string };
 
@@ -75,6 +81,7 @@ export function createInitialArcadeClientState(): ArcadeClientState {
     isRosterValid: false,
     currentWorld: null,
     previousWorld: null,
+    inputAcks: {},
     error: null
   };
 }
@@ -90,7 +97,8 @@ export function reduceArcadeClientState(
       return {
         ...mapRoomState(action.room),
         currentWorld: state.currentWorld,
-        previousWorld: state.previousWorld
+        previousWorld: state.previousWorld,
+        inputAcks: state.inputAcks
       };
     case "world.snapshot":
       return {
@@ -98,7 +106,8 @@ export function reduceArcadeClientState(
         phase: action.world.phase,
         score: action.world.score,
         previousWorld: state.currentWorld,
-        currentWorld: action.world
+        currentWorld: action.world,
+        inputAcks: action.inputAcks ?? state.inputAcks
       };
     case "connection.error":
       return { ...state, connectionStatus: "error", error: action.message };
@@ -134,6 +143,7 @@ export function mapRoomState(room: ArcadeRoomConnection): ArcadeClientState {
     isRosterValid: serverState.isRosterValid ?? false,
     currentWorld: null,
     previousWorld: null,
+    inputAcks: {},
     error: null
   };
 }

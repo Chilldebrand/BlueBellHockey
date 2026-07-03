@@ -3,6 +3,7 @@ import {
   MATCH_CONFIG,
   type CharacterId,
   type InputFrame,
+  type SkaterEntity,
   type TeamId
 } from "@bbh/arcade-core";
 import { gamepadStateFromGamepad } from "./input/gamepad.js";
@@ -15,7 +16,12 @@ import {
   createKeyboardInputTracker,
   type KeyboardInputTracker
 } from "./input/keyboard.js";
-import { predictControlledSkater } from "./game/prediction.js";
+import {
+  predictLocalState,
+  pruneAcknowledgedFrames,
+  pushInputFrame,
+  smoothPredictedSkater
+} from "./game/prediction.js";
 import {
   connectQuickMatch,
   createPrivateRoom,
@@ -83,7 +89,8 @@ export function App({
   const connectionAttemptRef = useRef<ConnectionAttemptRef["current"]>(0);
   const keyboardRef = useRef<KeyboardInputTracker | null>(null);
   const inputSequenceRef = useRef(0);
-  const latestInputRef = useRef<InputFrame | null>(null);
+  const unackedFramesRef = useRef<InputFrame[]>([]);
+  const smoothedSkaterRef = useRef<SkaterEntity | null>(null);
   const [screen, setScreen] = useState<"boot" | "menu" | "lobby" | "freeskate">(
     "boot"
   );
@@ -93,7 +100,8 @@ export function App({
       onState: ({ room }) => dispatch({ type: "room.state", room }),
       onError: (message) => dispatch({ type: "connection.error", message }),
       onLeave: (message) => dispatch({ type: "connection.left", message }),
-      onWorldSnapshot: (world) => dispatch({ type: "world.snapshot", world })
+      onWorldSnapshot: (world, inputAcks) =>
+        dispatch({ type: "world.snapshot", world, inputAcks })
     });
     saveReconnectTicket(result.room, result.options);
   }, []);
@@ -193,7 +201,7 @@ export function App({
 
   useEffect(() => {
     if (!localSlotId || !state.playerSessionId) {
-      latestInputRef.current = null;
+      unackedFramesRef.current = [];
       return;
     }
 
@@ -211,7 +219,7 @@ export function App({
         sequence: (inputSequenceRef.current += 1)
       });
 
-      latestInputRef.current = frame;
+      pushInputFrame(unackedFramesRef.current, frame);
       activeRoomRef.current?.session.sendInput(frame);
     };
     const intervalId = window.setInterval(
@@ -226,11 +234,31 @@ export function App({
     };
   }, [localSlotId, state.playerSessionId]);
 
-  const predictedLocalSkater = predictControlledSkater(
+  // Input-replay prediction: drop server-acknowledged frames, then
+  // re-simulate the remainder on top of the freshest snapshot.
+  if (localSlotId) {
+    pruneAcknowledgedFrames(
+      unackedFramesRef.current,
+      state.inputAcks[localSlotId]
+    );
+  }
+
+  const predicted = predictLocalState(
     state.currentWorld,
     localSlotId,
-    latestInputRef.current
+    unackedFramesRef.current
   );
+  const predictedLocalSkater = predicted
+    ? smoothPredictedSkater(smoothedSkaterRef.current, predicted.skater)
+    : null;
+  smoothedSkaterRef.current = predictedLocalSkater;
+  const predictedPuck =
+    predicted &&
+    localSlotId &&
+    (predicted.puck.carrierSlotId === localSlotId ||
+      state.currentWorld?.puck.carrierSlotId === localSlotId)
+      ? predicted.puck
+      : null;
   const isModelPreviewRoute =
     typeof window !== "undefined" && window.location.pathname === "/model-preview";
 
@@ -264,6 +292,7 @@ export function App({
           previousWorld={state.previousWorld}
           localSlotId={localSlotId}
           predictedLocalSkater={predictedLocalSkater}
+          predictedPuck={predictedPuck}
         />
         <WinSplash winnerTeamId={state.currentWorld.winnerTeamId} />
         <Postgame
@@ -285,6 +314,7 @@ export function App({
         previousWorld={state.previousWorld}
         localSlotId={localSlotId}
         predictedLocalSkater={predictedLocalSkater}
+        predictedPuck={predictedPuck}
       />
       {state.phase === "playing" ? null : (
         <>

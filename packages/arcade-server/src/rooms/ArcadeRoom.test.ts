@@ -497,7 +497,28 @@ describe("ArcadeRoom", () => {
         mode: "arcade3v3",
         phase: "waiting",
         score: { home: 0, away: 0 }
-      })
+      }),
+      inputAcks: expect.any(Object)
     });
+  });
+
+  it("acknowledges each session's latest input sequence in snapshots", () => {
+    const room = createTestRoom();
+    const broadcast = vi
+      .spyOn(room, "broadcast")
+      .mockImplementation(() => room as never);
+
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(client("session-a") as never, { playerName: "Ack" });
+    room["handleInput"](client("session-a") as never, inputMessage(41));
+    room.tick();
+
+    const snapshotCall = broadcast.mock.calls.find(
+      ([messageType]) => messageType === "server.worldSnapshot"
+    );
+    const message = snapshotCall?.[1] as { inputAcks?: Record<string, number> };
+    const ackedSequences = Object.values(message.inputAcks ?? {});
+
+    expect(ackedSequences).toContain(41);
   });
 });

@@ -351,9 +351,22 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
       return;
     }
 
+    const inputAcks: Record<string, number> = {};
+
+    for (const slot of this.roster) {
+      if (slot.kind === "human" && slot.sessionId) {
+        const sequence = this.lastInputSequenceBySession.get(slot.sessionId);
+
+        if (sequence !== undefined) {
+          inputAcks[slot.slotId] = sequence;
+        }
+      }
+    }
+
     const message: ServerWorldSnapshotMessage = {
       type: "server.worldSnapshot",
-      world: this.world
+      world: this.world,
+      inputAcks
     };
 
     this.broadcast("server.worldSnapshot", message satisfies ArcadeServerMessage);

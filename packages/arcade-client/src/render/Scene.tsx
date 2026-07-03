@@ -1,6 +1,7 @@
 import { Canvas } from "@react-three/fiber";
 import {
   bladeBodyOffset,
+  type PuckState,
   type SkaterEntity,
   type WorldState
 } from "@bbh/arcade-core";
@@ -20,6 +21,8 @@ export interface SceneProps {
   readonly previousWorld: WorldState | null;
   readonly localSlotId: string | null;
   readonly predictedLocalSkater: SkaterEntity | null;
+  /** Fully replayed local puck (tether prediction); overrides the blade snap. */
+  readonly predictedPuck?: PuckState | null;
   /** Feel-lab overlays: velocity vectors and other sim diagnostics. */
   readonly debugOverlays?: boolean;
 }
@@ -29,6 +32,7 @@ export function Scene({
   previousWorld,
   localSlotId,
   predictedLocalSkater,
+  predictedPuck = null,
   debugOverlays = false
 }: SceneProps): JSX.Element | null {
   if (!currentWorld) {
@@ -36,10 +40,9 @@ export function Scene({
   }
 
   const skaters = interpolateSkaters(previousWorld, currentWorld, 0.75, localSlotId);
-  const renderedPuck = predictedCarriedPuck(
-    currentWorld.puck,
-    predictedLocalSkater
-  );
+  const renderedPuck =
+    predictedPuck ??
+    predictedCarriedPuck(currentWorld.puck, predictedLocalSkater);
 
   return (
     <section className="arcade-rink-shell" aria-label="Arcade rink debug view">

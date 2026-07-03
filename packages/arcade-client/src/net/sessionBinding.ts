@@ -14,7 +14,10 @@ export interface ArcadeRoomEventHandlers {
   readonly onState: (result: ArcadeConnectionResult) => void;
   readonly onError: (message: string) => void;
   readonly onLeave: (message: string) => void;
-  readonly onWorldSnapshot?: (world: WorldState) => void;
+  readonly onWorldSnapshot?: (
+    world: WorldState,
+    inputAcks?: Readonly<Record<string, number>>
+  ) => void;
 }
 
 export function attachArcadeRoom(
@@ -52,7 +55,7 @@ export function attachArcadeRoom(
     "server.worldSnapshot",
     (message) => {
       if (isCurrentRoom()) {
-        handlers.onWorldSnapshot?.(message.world);
+        handlers.onWorldSnapshot?.(message.world, message.inputAcks);
       }
     }
   );
