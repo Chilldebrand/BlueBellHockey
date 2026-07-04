@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  computeCameraTarget,
-  computeCameraPosition,
-  shouldPunchIn
-} from "./CameraRig.js";
+import { computeCameraTarget, computeCameraPosition } from "./CameraRig.js";
 
 describe("camera rig math", () => {
   it("clamps puck-follow target inside rink bounds", () => {
@@ -25,22 +21,11 @@ describe("camera rig math", () => {
     });
   });
 
-  it("punches in only within the window after a goal or knockdown", () => {
-    const goal = { id: "g1", type: "goal", atMs: 10_000 } as const;
-    const noise = [
-      { id: "s1", type: "shot", atMs: 10_400 },
-      { id: "p1", type: "poke", atMs: 10_600 },
-      { id: "n1", type: "netMesh", atMs: 10_800 },
-      { id: "s2", type: "save", atMs: 10_900 }
-    ];
+  it("keeps a fixed height and distance regardless of target", () => {
+    const nearGoal = computeCameraPosition({ x: 300, y: 300 });
+    const midIce = computeCameraPosition({ x: 1300, y: 780 });
 
-    // Inside the window — punches in even with later events piled after it.
-    expect(shouldPunchIn([goal, ...noise], 10_900)).toBe(true);
-
-    // Window elapsed — no punch, no matter what sits in the queue.
-    expect(shouldPunchIn([goal, ...noise], 11_200)).toBe(false);
-
-    // Ordinary play events never punch.
-    expect(shouldPunchIn(noise, 10_900)).toBe(false);
+    expect(nearGoal.y).toBe(midIce.y); // never zooms
+    expect(nearGoal.x - 300).toBe(midIce.x - 1300); // constant back-offset
   });
 });

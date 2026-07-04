@@ -1,4 +1,4 @@
-import { MATCH_CONFIG, SKATER_SLOTS } from "@bbh/arcade-core";
+import { MATCH_CONFIG, RINK_CONFIG, SKATER_SLOTS } from "@bbh/arcade-core";
 import { describe, expect, it, vi } from "vitest";
 import {
   ArcadeRoom,
@@ -341,8 +341,9 @@ describe("ArcadeRoom", () => {
     );
 
     expect(inputHandler).toBeTypeOf("function");
-    expect(controlled?.position.x).toBeGreaterThan(740);
-    expect(spoofed?.position.x).toBeLessThan(1260);
+    // Spawns sit 260 either side of center ice; only the owned skater moves.
+    expect(controlled?.position.x).toBeGreaterThan(RINK_CONFIG.width / 2 - 260);
+    expect(spoofed?.position.x).toBeLessThan(RINK_CONFIG.width / 2 + 260);
   });
 
   it("injects bot input frames so a solo player has five active skaters", () => {

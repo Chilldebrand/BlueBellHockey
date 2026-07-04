@@ -1,4 +1,4 @@
-import { createWorld } from "@bbh/arcade-core";
+import { RINK_CONFIG, createWorld } from "@bbh/arcade-core";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_BOT_DIFFICULTY } from "./decision.js";
 import { createBotInputFrame } from "./bot.js";
@@ -12,7 +12,10 @@ describe("bot input frames", () => {
       throw new Error("Missing bot skater");
     }
 
-    bot.position = { x: 1580, y: 500 };
+    bot.position = {
+      x: RINK_CONFIG.width - 400,
+      y: RINK_CONFIG.height / 2 - 30
+    };
     world.puck.carrierSlotId = bot.id;
 
     const frame = createBotInputFrame(bot, world, 7, {

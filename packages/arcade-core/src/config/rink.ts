@@ -13,9 +13,9 @@ export interface RinkConfig {
 }
 
 export const RINK_CONFIG: RinkConfig = {
-  width: 2000,
-  height: 1200,
-  cornerRadius: 310,
+  width: 2600,
+  height: 1560,
+  cornerRadius: 400,
   goalLineInset: 170,
   netDepth: 50,
   goalWidth: 220,

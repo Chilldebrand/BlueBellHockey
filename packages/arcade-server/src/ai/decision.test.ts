@@ -1,4 +1,4 @@
-import { createWorld, type SkaterEntity } from "@bbh/arcade-core";
+import { RINK_CONFIG, createWorld, type SkaterEntity } from "@bbh/arcade-core";
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_BOT_DIFFICULTY,
@@ -38,7 +38,11 @@ describe("bot decision helpers", () => {
   it("moves puck carriers toward the net and shoots from range", () => {
     const world = createWorld(1, "arcade3v3");
     const carrier = skater(world, "home-skater-1");
-    carrier.position = { x: 1580, y: 500 };
+    // In the slot near the attacking (away) net.
+    carrier.position = {
+      x: RINK_CONFIG.width - 400,
+      y: RINK_CONFIG.height / 2 - 30
+    };
     carrier.specialCharge = 1;
     world.puck.carrierSlotId = carrier.id;
 
@@ -104,8 +108,14 @@ describe("bot decision helpers", () => {
     const world = createWorld(1, "arcade3v3");
     const carrier = skater(world, "home-skater-1");
     const defender = skater(world, "away-skater-1");
-    carrier.position = { x: 1600, y: 500 };
-    defender.position = { x: 1540, y: 500 };
+    carrier.position = {
+      x: RINK_CONFIG.width - 400,
+      y: RINK_CONFIG.height / 2
+    };
+    defender.position = {
+      x: RINK_CONFIG.width - 460,
+      y: RINK_CONFIG.height / 2
+    };
     carrier.heldPowerupType = "speed-boost";
     defender.heldPowerupType = "instant-special";
     world.puck.carrierSlotId = carrier.id;
