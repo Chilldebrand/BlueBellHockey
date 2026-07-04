@@ -1,14 +1,20 @@
+import { Suspense } from "react";
 import { TEAM_PALETTES, type CharacterId, type TeamId } from "@bbh/arcade-core";
 import {
-  REQUIRED_ATTACHMENTS,
-  REQUIRED_GEAR_SLOTS,
-  REQUIRED_MODEL_BONES,
-  REQUIRED_SKATER_ANIMATION_CLIPS,
-  REQUIRED_UNIFORM_SLOTS,
   type CharacterModelManifest,
   validateModelManifest
 } from "./modelValidation.js";
+import { FIRST_SKATER_MODEL_MANIFEST } from "./skaterManifest.js";
 import type { SkaterAnimationState } from "./animation/clipMap.js";
+import { GltfSkaterBody } from "./gltf/GltfSkaterBody.js";
+import { ModelErrorBoundary } from "./gltf/ModelErrorBoundary.js";
+import {
+  ACTIVE_SKATER_GLTF_SOURCE,
+  type SkaterGltfSource
+} from "./gltf/skaterGltfSource.js";
+
+// Re-exported for existing importers; the source of truth is skaterManifest.ts.
+export { FIRST_SKATER_MODEL_MANIFEST };
 
 export interface CharacterModelProps {
   readonly teamId: TeamId;
@@ -16,39 +22,20 @@ export interface CharacterModelProps {
   readonly isLocal?: boolean;
   readonly animationState?: SkaterAnimationState;
   readonly manifest?: CharacterModelManifest;
+  /**
+   * Real GLB body to load. Defaults to the active project source; pass `null`
+   * to force the procedural blockout (used by previews / tests).
+   */
+  readonly gltfSource?: SkaterGltfSource | null;
 }
-
-export const FIRST_SKATER_MODEL_MANIFEST: CharacterModelManifest = {
-  id: "rook-rocket",
-  role: "skater",
-  displayName: "Rook Rocket",
-  assetPath: "/arcade/models/skaters/rook-rocket.glb",
-  proportions: {
-    headScale: 1.68,
-    bodyHeight: 68,
-    handScale: 1.18,
-    footScale: 1.22
-  },
-  bones: REQUIRED_MODEL_BONES,
-  attachments: {
-    stick_hand: "hand_r",
-    stick_blade: "attach_stick_blade",
-    puck_blade: "attach_puck_blade",
-    nameplate: "attach_nameplate"
-  },
-  materialSlots: {
-    uniform: REQUIRED_UNIFORM_SLOTS,
-    characterGear: REQUIRED_GEAR_SLOTS
-  },
-  animationClips: REQUIRED_SKATER_ANIMATION_CLIPS
-};
 
 export function CharacterModel({
   teamId,
   characterId,
   isLocal = false,
   animationState = "idle",
-  manifest = FIRST_SKATER_MODEL_MANIFEST
+  manifest = FIRST_SKATER_MODEL_MANIFEST,
+  gltfSource = ACTIVE_SKATER_GLTF_SOURCE
 }: CharacterModelProps): JSX.Element {
   const validation = validateModelManifest(manifest, "skater");
 
@@ -61,12 +48,59 @@ export function CharacterModel({
     );
   }
 
+  const blockout = (
+    <BlockoutBody
+      teamId={teamId}
+      characterId={characterId}
+      isLocal={isLocal}
+      manifestId={manifest.id}
+      animationState={animationState}
+    />
+  );
+
+  // No GLB configured -> procedural body. With a source, attempt the real
+  // model but keep the blockout as both the loading state (Suspense) and the
+  // failure state (ModelErrorBoundary) so the rink never blanks out.
+  if (!gltfSource) {
+    return blockout;
+  }
+
+  return (
+    <ModelErrorBoundary fallback={blockout}>
+      <Suspense fallback={blockout}>
+        <GltfSkaterBody
+          source={gltfSource}
+          teamId={teamId}
+          isLocal={isLocal}
+          animationState={animationState}
+        />
+      </Suspense>
+    </ModelErrorBoundary>
+  );
+}
+
+interface BlockoutBodyProps {
+  readonly teamId: TeamId;
+  readonly characterId?: CharacterId;
+  readonly isLocal: boolean;
+  readonly manifestId: string;
+  readonly animationState: SkaterAnimationState;
+}
+
+/** Procedural capsule blockout: the pre-GLB body and the universal fallback. */
+function BlockoutBody({
+  teamId,
+  characterId,
+  isLocal,
+  manifestId,
+  animationState
+}: BlockoutBodyProps): JSX.Element {
   const palette = TEAM_PALETTES[teamId].uniform;
   const pose = skaterPose(animationState);
 
   return (
     <group
-      name={`character-model:${characterId ?? manifest.id}:${animationState}`}
+      name={`character-model:${characterId ?? manifestId}:${animationState}`}
       rotation={[pose.pitch, pose.yaw, pose.roll]}
       scale={[pose.scaleX, pose.scaleY, pose.scaleZ]}
     >

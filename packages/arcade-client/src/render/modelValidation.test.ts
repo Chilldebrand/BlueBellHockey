@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FIRST_SKATER_MODEL_MANIFEST } from "./CharacterModel.js";
+import { FIRST_SKATER_MODEL_MANIFEST } from "./skaterManifest.js";
 import { FIRST_GOALIE_MODEL_MANIFEST } from "./GoalieModel.js";
 import {
   REQUIRED_SKATER_ANIMATION_CLIPS,
