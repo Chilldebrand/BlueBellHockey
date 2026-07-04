@@ -462,6 +462,8 @@ function getClientInputFrame(message: unknown): InputFrame | null {
     pass: candidate.pass === true,
     check: candidate.check === true,
     turbo: candidate.turbo === true,
-    switchTarget: candidate.switchTarget === true
+    switchTarget: candidate.switchTarget === true,
+    poke: candidate.poke === true,
+    dive: candidate.dive === true
   };
 }

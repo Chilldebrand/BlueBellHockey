@@ -11,7 +11,11 @@ import type {
 } from "./types.js";
 import { stepSkater } from "./skater.js";
 import { createInitialPuckState, stepPuck } from "./puck.js";
-import { recoverContactStates, resolveChecks } from "./actions.js";
+import {
+  recoverContactStates,
+  resolveChecks,
+  resolveDefensiveActions
+} from "./actions.js";
 import { clearPendingRelease, createGestureState, stepGesture } from "./gestures.js";
 import { resolveSkaterCollisions } from "./collision.js";
 import { createStickState, updateStick } from "./stick.js";
@@ -57,6 +61,9 @@ export function createWorld(seed: number, mode: MatchMode): WorldState {
       contactStateUntilMs: 0,
       checkCooldownUntilMs: 0,
       activeCheckUntilMs: 0,
+      pokeUntilMs: 0,
+      pokeCooldownUntilMs: 0,
+      diveCooldownUntilMs: 0,
       turboMeter: 1,
       turboCooldownUntilMs: 0,
       oneTimerUntilMs: 0,
@@ -133,6 +140,7 @@ export function stepWorld(
 
   // Deliberate checks read full closing speed, THEN body contact separates —
   // otherwise the collision impulse bleeds the force out of a big hit.
+  resolveDefensiveActions(world, latestInputBySlot, TUNING.check);
   resolveChecks(world, latestInputBySlot, TUNING.check);
   resolveSkaterCollisions(world, TUNING.collision);
   if (TUNING.flags.powerupsEnabled) {

@@ -10,13 +10,18 @@ export interface StickConfig {
   readonly lateralRange: number;
   /** How fast the blade eases toward the stick sample (per second). */
   readonly bladeLerpRate: number;
+  /** Extra forward reach while a poke-check lunge is live. */
+  readonly pokeReachBonus: number;
 }
 
+// bladeLerpRate tuned up (22 → 34) for NHL-25-style dangle fluidity: the
+// blade tracks the stick nearly one-to-one instead of trailing it.
 export const STICK_CONFIG: StickConfig = {
   restOffset: 52,
   forwardRange: 78,
   lateralRange: 72,
-  bladeLerpRate: 22
+  bladeLerpRate: 34,
+  pokeReachBonus: 58
 };
 
 export function createStickState(): SkaterEntity["stick"] {
@@ -44,13 +49,19 @@ export function updateStick(
   stick.localY += (targetY - stick.localY) * blend;
 }
 
-/** Blade offset from the body center in body space (x forward, y lateral). */
+/**
+ * Blade offset from the body center in body space (x forward, y lateral).
+ * Pass the sim time to include a live poke-check lunge in the reach.
+ */
 export function bladeBodyOffset(
   skater: SkaterEntity,
-  config: StickConfig = STICK_CONFIG
+  config: StickConfig = STICK_CONFIG,
+  nowMs = 0
 ): Vec2 {
+  const pokeBonus = skater.pokeUntilMs > nowMs ? config.pokeReachBonus : 0;
+
   return {
-    x: config.restOffset + skater.stick.localY * config.forwardRange,
+    x: config.restOffset + skater.stick.localY * config.forwardRange + pokeBonus,
     y: skater.stick.localX * config.lateralRange
   };
 }
@@ -58,9 +69,10 @@ export function bladeBodyOffset(
 /** World-space blade position: body offset rotated by facing. */
 export function bladeWorldPosition(
   skater: SkaterEntity,
-  config: StickConfig = STICK_CONFIG
+  config: StickConfig = STICK_CONFIG,
+  nowMs = 0
 ): Vec2 {
-  const offset = rotate(bladeBodyOffset(skater, config), skater.facing);
+  const offset = rotate(bladeBodyOffset(skater, config, nowMs), skater.facing);
 
   return {
     x: skater.position.x + offset.x,

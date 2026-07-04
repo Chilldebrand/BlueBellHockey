@@ -24,17 +24,19 @@ export interface GestureConfig {
   readonly releaseCooldownMs: number;
 }
 
+// NHL-25 fluidity pass: releases come off the flick a touch easier and the
+// refractory gap between moves is shorter, so dangle→shoot chains flow.
 export const GESTURE_CONFIG: GestureConfig = {
   neutralZone: 0.15,
   windupDepthMin: 0.42,
-  wristFlickSpeed: 8,
+  wristFlickSpeed: 7,
   wristMaxFlickSpeed: 26,
   wristReleaseZone: 0.5,
   slapFlickSpeed: 6,
   slapReleaseZone: 0.12,
   slapMaxChargeMs: 750,
   slapMinPower: 0.35,
-  releaseCooldownMs: 320
+  releaseCooldownMs: 260
 };
 
 export function createGestureState(): GestureState {

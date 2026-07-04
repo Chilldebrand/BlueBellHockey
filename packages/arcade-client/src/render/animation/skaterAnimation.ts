@@ -25,7 +25,7 @@ export function selectSkaterAnimation({
     return "celebrate";
   }
 
-  if (skater.contactState === "knockedDown") {
+  if (skater.contactState === "knockedDown" || skater.contactState === "diving") {
     return "down";
   }
 

@@ -88,6 +88,8 @@ export function keyboardStateFromPressedKeys(
     stickY: Number(pressed.has("KeyI")) - Number(pressed.has("KeyK")),
     pass: pressed.has("KeyF"),
     check: pressed.has("KeyG"),
+    poke: pressed.has("KeyR"),
+    dive: pressed.has("KeyV"),
     turbo: pressed.has("ShiftLeft") || pressed.has("ShiftRight"),
     switchTarget: pressed.has("KeyQ")
   };

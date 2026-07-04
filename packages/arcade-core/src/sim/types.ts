@@ -25,6 +25,10 @@ export interface InputFrame {
   readonly check: boolean;
   readonly turbo: boolean;
   readonly switchTarget: boolean;
+  /** Poke check: lunge the blade forward at the puck (defense). */
+  readonly poke?: boolean;
+  /** Block shot: dive/lay out in the facing direction (defense). */
+  readonly dive?: boolean;
   /** Deferred systems (powerups/specials) — legacy fields, not sent on the wire. */
   readonly usePowerup?: boolean;
   readonly special?: boolean;
@@ -93,10 +97,14 @@ export interface SkaterEntity {
   facing: number;
   stick: StickState;
   gesture: GestureState;
-  contactState: "ready" | "stumbling" | "knockedDown";
+  contactState: "ready" | "stumbling" | "knockedDown" | "diving";
   contactStateUntilMs: number;
   checkCooldownUntilMs: number;
   activeCheckUntilMs: number;
+  /** While set (sim time), the blade lunges forward — active poke check. */
+  pokeUntilMs: number;
+  pokeCooldownUntilMs: number;
+  diveCooldownUntilMs: number;
   turboMeter: number;
   turboCooldownUntilMs: number;
   /** Shooting before this sim time fires a bonus one-timer (fed by a pass). */

@@ -58,8 +58,9 @@ export const SKATER_MOVEMENT_CONFIG: SkaterMovementConfig = {
   releaseDrag: 1.15,
   lateralGrip: 7.5,
   brakeDrag: 5.5,
-  turnRate: 9.5,
-  highSpeedTurnRetention: 0.42,
+  // NHL-25 fluidity pass: livelier turning, especially at speed.
+  turnRate: 10.5,
+  highSpeedTurnRetention: 0.5,
   overSpeedDrag: 2.4,
   boardRestitution: 0.35,
   boardTangentRetention: 0.86,
@@ -90,7 +91,7 @@ export function stepSkater(
 ): void {
   const dt = dtMs / 1000;
 
-  if (skater.contactState === "knockedDown") {
+  if (skater.contactState === "knockedDown" || skater.contactState === "diving") {
     const slide = expDecay(config.knockdownDrag, dt);
     skater.velocity.x *= slide;
     skater.velocity.y *= slide;

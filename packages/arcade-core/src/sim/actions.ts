@@ -11,6 +11,17 @@ export interface CheckConfig {
   readonly knockdownSpeed: number;
   readonly puckStripSpeed: number;
   readonly slideSpeed: number;
+  /** Poke check: how long the blade lunge lasts and how often it can fire. */
+  readonly pokeDurationMs: number;
+  readonly pokeCooldownMs: number;
+  /** Extra forward blade reach at full poke lunge. */
+  readonly pokeReachBonus: number;
+  /** Block shot (dive): slide time, lockout, and the forward lunge speed. */
+  readonly diveDurationMs: number;
+  readonly diveCooldownMs: number;
+  readonly diveBoost: number;
+  /** Body radius a diving skater blocks the puck with. */
+  readonly diveBlockRadius: number;
 }
 
 export const CHECK_CONFIG: CheckConfig = {
@@ -22,12 +33,65 @@ export const CHECK_CONFIG: CheckConfig = {
   stumbleSpeed: 290,
   knockdownSpeed: 650,
   puckStripSpeed: 430,
-  slideSpeed: 380
+  slideSpeed: 380,
+  pokeDurationMs: 200,
+  pokeCooldownMs: 650,
+  pokeReachBonus: 58,
+  diveDurationMs: 850,
+  diveCooldownMs: 1500,
+  diveBoost: 430,
+  diveBlockRadius: 46
 };
 
 /** Body-facing unit direction — checks, passes, and pokes act along it. */
 export function facingDirection(skater: SkaterEntity): Vec2 {
   return fromAngle(skater.facing);
+}
+
+/**
+ * NHL-style defensive tools for skaters without the puck:
+ * - Poke check (RB) / stick lift (A off-puck): lunge the blade forward for a
+ *   beat — the blade-on-puck strip in the puck step does the rest.
+ * - Block shot (LB): dive in the facing direction, sliding prone; the body
+ *   deflects pucks while down, then a lockout before the next dive.
+ */
+export function resolveDefensiveActions(
+  world: WorldState,
+  inputsBySlot: ReadonlyMap<string, InputFrame>,
+  config: CheckConfig = CHECK_CONFIG
+): void {
+  const now = world.time.nowMs;
+
+  for (const skater of world.skaters) {
+    const input = inputsBySlot.get(skater.id);
+
+    if (!input || skater.contactState !== "ready") {
+      continue;
+    }
+
+    const isCarrier = world.puck.carrierSlotId === skater.id;
+    const wantsPoke = input.poke === true || (!isCarrier && input.pass);
+
+    if (wantsPoke && !isCarrier && now >= skater.pokeCooldownUntilMs) {
+      skater.pokeUntilMs = now + config.pokeDurationMs;
+      skater.pokeCooldownUntilMs = now + config.pokeCooldownMs;
+    }
+
+    if (input.dive === true && !isCarrier && now >= skater.diveCooldownUntilMs) {
+      const lunge = facingDirection(skater);
+      skater.contactState = "diving";
+      skater.contactStateUntilMs = now + config.diveDurationMs;
+      skater.diveCooldownUntilMs = now + config.diveCooldownMs;
+      skater.velocity.x += lunge.x * config.diveBoost;
+      skater.velocity.y += lunge.y * config.diveBoost;
+      world.eventQueue.push({
+        id: `dive-${world.time.tick}-${skater.id}`,
+        type: "dive",
+        atMs: now,
+        sourceSlotId: skater.id
+      });
+    }
+  }
 }
 
 export function resolveChecks(
@@ -40,7 +104,11 @@ export function resolveChecks(
   for (const hitter of world.skaters) {
     const input = inputsBySlot.get(hitter.id);
 
-    if (!input?.check || world.time.nowMs < hitter.checkCooldownUntilMs) {
+    if (
+      !input?.check ||
+      hitter.contactState !== "ready" ||
+      world.time.nowMs < hitter.checkCooldownUntilMs
+    ) {
       continue;
     }
 

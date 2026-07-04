@@ -243,7 +243,8 @@ export function FreeSkate({ onExit }: FreeSkateProps): JSX.Element {
       <div className="free-skate-help">
         WASD move · Shift turbo · right stick / mouse / IJKL = puck control
         (flick fwd = wrist, pull back + flick = slap) · Space tap/hold = simple
-        shot · F pass · G check · Q switch
+        shot · F pass/lift · G check · R poke · V dive · Q switch — Pad: A
+        pass · B/X check · RB poke · LB dive · RT switch · L3 hustle
       </div>
     </div>
   );

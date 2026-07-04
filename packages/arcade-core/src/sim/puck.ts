@@ -73,8 +73,10 @@ export const PUCK_CONFIG: PuckConfig = {
   boardTangentRetention: 0.94,
   postRadius: 10,
   postRestitution: 0.82,
-  carryStiffness: 14,
-  carryMaxAccel: 26000,
+  // NHL-25 fluidity pass: tighter tether so the puck answers the stick
+  // almost one-to-one through dangles without losing the physical lag.
+  carryStiffness: 19,
+  carryMaxAccel: 34000,
   carryBreakDistance: 96,
   pokeRadius: 34,
   pokeImpulse: 480,
@@ -303,7 +305,8 @@ function findPokingOpponent(
       continue;
     }
 
-    const blade = bladeWorldPosition(opponent);
+    // Poke lunges extend the blade — pass sim time so the reach counts.
+    const blade = bladeWorldPosition(opponent, undefined, world.time.nowMs);
     const distance = Math.hypot(
       world.puck.position.x - blade.x,
       world.puck.position.y - blade.y
@@ -352,6 +355,7 @@ function stepLoosePuck(
   puck.position.x += puck.velocity.x * dt;
   puck.position.y += puck.velocity.y * dt;
 
+  deflectOffDivingBodies(world, config);
   collideWithPosts(world, config);
 
   if (isInGoalMouth(puck, config)) {
@@ -369,6 +373,57 @@ function stepLoosePuck(
     config.boardRestitution,
     config.boardTangentRetention
   );
+}
+
+/**
+ * Shot blocking: a skater laid out on the ice (diving) is a body in the lane —
+ * a low puck running into them deflects off, deadened, and pops loose.
+ */
+function deflectOffDivingBodies(world: WorldState, config: PuckConfig): void {
+  const puck = world.puck;
+
+  if (puck.height > 42) {
+    return; // sailed over the sprawled body
+  }
+
+  for (const skater of world.skaters) {
+    if (skater.contactState !== "diving") {
+      continue;
+    }
+
+    const blockRadius = 46 + config.radius;
+    const offsetX = puck.position.x - skater.position.x;
+    const offsetY = puck.position.y - skater.position.y;
+    const distance = Math.hypot(offsetX, offsetY);
+
+    if (distance >= blockRadius || distance === 0) {
+      continue;
+    }
+
+    const normal = { x: offsetX / distance, y: offsetY / distance };
+    const into = puck.velocity.x * normal.x + puck.velocity.y * normal.y;
+
+    puck.position.x = skater.position.x + normal.x * blockRadius;
+    puck.position.y = skater.position.y + normal.y * blockRadius;
+
+    if (into < 0) {
+      // Shin-pad restitution: the block deadens the shot, no springboard.
+      puck.velocity.x -= 1.35 * into * normal.x;
+      puck.velocity.y -= 1.35 * into * normal.y;
+    }
+
+    puck.lastTouchSlotId = skater.id;
+    puck.shotBySlotId = null;
+    puck.pickupDisabledForSlotId = null;
+    puck.pickupDisabledUntilMs = world.time.nowMs + 120;
+    world.eventQueue.push({
+      id: `block-${world.time.tick}-${skater.id}`,
+      type: "block",
+      atMs: world.time.nowMs,
+      sourceSlotId: skater.id
+    });
+    return;
+  }
 }
 
 /** In front of either goal mouth: inside the mouth band and at/near the goal line. */
@@ -478,7 +533,7 @@ function tryPickupLoosePuck(
       continue;
     }
 
-    const blade = bladeWorldPosition(skater);
+    const blade = bladeWorldPosition(skater, undefined, world.time.nowMs);
     const distance = Math.hypot(
       puck.position.x - blade.x,
       puck.position.y - blade.y

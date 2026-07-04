@@ -9,10 +9,14 @@ export interface GamepadLike {
 }
 
 /**
- * NHL-style hybrid layout: left stick skates, right stick IS the puck —
- * sweep it to stickhandle, flick up for a wrist shot, pull back then flick
- * up for a slap shot. Controller up maps to stick-forward (+Y in body space).
- * The stick uses a light deadzone so slow dangles aren't eaten.
+ * EA NHL 25 Skill Stick layout (Xbox indices): left stick skates, right stick
+ * IS the puck — sweep to stickhandle, flick up = wrist shot, pull back then
+ * flick up = slap shot. Controller up maps to stick-forward in body space.
+ *
+ *   A  = pass (offense) / stick lift (defense)
+ *   B  = shoulder check      X = hip check   (both body checks here)
+ *   LB = block shot (dive)   RB = poke check
+ *   RT = switch player       L3 = skate/hustle (turbo)
  */
 export function gamepadStateFromGamepad(
   gamepad: GamepadLike | null | undefined,
@@ -30,11 +34,13 @@ export function gamepadStateFromGamepad(
     stickX: applyDeadzone(gamepad.axes[2] ?? 0, stickDeadzone),
     stickY: applyDeadzone(-(gamepad.axes[3] ?? 0), stickDeadzone),
     pass: gamepad.buttons[0]?.pressed === true, // A
-    check: gamepad.buttons[2]?.pressed === true, // X
-    turbo:
-      gamepad.buttons[5]?.pressed === true || // RB
-      gamepad.buttons[7]?.pressed === true, // RT
-    switchTarget: gamepad.buttons[4]?.pressed === true // LB
+    check:
+      gamepad.buttons[1]?.pressed === true || // B — shoulder check
+      gamepad.buttons[2]?.pressed === true, // X — hip check
+    dive: gamepad.buttons[4]?.pressed === true, // LB — block shot
+    poke: gamepad.buttons[5]?.pressed === true, // RB — poke check
+    switchTarget: gamepad.buttons[7]?.pressed === true, // RT
+    turbo: gamepad.buttons[10]?.pressed === true // L3 — hustle
   };
 }
 
