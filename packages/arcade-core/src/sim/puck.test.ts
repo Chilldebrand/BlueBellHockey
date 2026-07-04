@@ -4,6 +4,8 @@ import {
   PUCK_CONFIG,
   RINK_CONFIG,
   createWorld,
+  goalLineX,
+  netBackX,
   stepWorld,
   type InputFrame,
   type WorldState
@@ -67,7 +69,7 @@ describe("puck simulation", () => {
     const world = playingWorld();
     world.puck.position = {
       x: RINK_CONFIG.width - PUCK_CONFIG.radius / 2,
-      y: 300 // straight end wall, outside both the corner arc and the mouth
+      y: 400 // straight end wall, outside both the corner arc and the net
     };
     world.puck.velocity = { x: 900, y: 0 };
 
@@ -111,7 +113,7 @@ describe("puck simulation", () => {
   it("clangs a high puck off the crossbar instead of scoring", () => {
     const world = playingWorld();
     world.puck.position = {
-      x: RINK_CONFIG.width - PUCK_CONFIG.radius - 4,
+      x: goalLineX("away") - PUCK_CONFIG.radius - 4,
       y: RINK_CONFIG.height / 2
     };
     world.puck.velocity = { x: 900, y: 0 };
@@ -134,9 +136,9 @@ describe("puck simulation", () => {
       throw new Error("Missing away goalie");
     }
     // Goalie caught way over on the far side: cross-crease shot beats him.
-    awayGoalie.position.y = RINK_CONFIG.height / 2 + 200;
+    awayGoalie.position.y = RINK_CONFIG.height / 2 + 260;
     world.puck.position = {
-      x: RINK_CONFIG.width - PUCK_CONFIG.radius - 4,
+      x: goalLineX("away") - 15,
       y: RINK_CONFIG.height / 2 - 60
     };
     world.puck.velocity = { x: 900, y: 0 };
@@ -144,6 +146,37 @@ describe("puck simulation", () => {
     stepWorld(world, [], 32);
 
     expect(world.score.home).toBe(1);
+  });
+
+  it("lets skaters carry the puck behind the net (no goal from the corridor)", () => {
+    const world = playingWorld();
+    // Puck loose in the behind-net corridor, drifting across the mouth band.
+    world.puck.position = {
+      x: RINK_CONFIG.width - 60,
+      y: RINK_CONFIG.height / 2
+    };
+    world.puck.velocity = { x: 0, y: 200 };
+
+    stepWorld(world, [], 100);
+
+    expect(world.score.home).toBe(0);
+    expect(world.score.away).toBe(0);
+  });
+
+  it("bounces a corridor puck off the back of the net, not through it", () => {
+    const world = playingWorld();
+    world.puck.position = {
+      x: RINK_CONFIG.width - 60, // behind the away net
+      y: RINK_CONFIG.height / 2
+    };
+    world.puck.velocity = { x: -700, y: 0 }; // toward the net back
+
+    stepWorld(world, [], 100);
+
+    expect(world.puck.velocity.x).toBeGreaterThanOrEqual(0); // deflected
+    expect(world.puck.position.x).toBeGreaterThan(netBackX("away") - 1);
+    expect(world.score.away).toBe(0);
+    expect(world.score.home).toBe(0);
   });
 
   it("tethers the carried puck: it trails the blade instead of teleporting", () => {
@@ -213,7 +246,7 @@ describe("puck simulation", () => {
     const world = playingWorld();
     const postY = RINK_CONFIG.height / 2 + RINK_CONFIG.goalWidth / 2 + PUCK_CONFIG.postRadius;
     world.puck.position = {
-      x: RINK_CONFIG.width - 60,
+      x: goalLineX("away") - 46,
       y: postY
     };
     world.puck.velocity = { x: 1200, y: 0 };

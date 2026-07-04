@@ -365,8 +365,12 @@ export function directionToTarget(from: Vec2, to: Vec2): Vec2 {
 }
 
 export function attackingGoal(teamId: TeamId): Vec2 {
+  // Aim at the goal line (nets are interior cages now), not the end wall.
   return {
-    x: teamId === "home" ? RINK_CONFIG.width : 0,
+    x:
+      teamId === "home"
+        ? RINK_CONFIG.width - RINK_CONFIG.goalLineInset
+        : RINK_CONFIG.goalLineInset,
     y: RINK_CONFIG.height / 2
   };
 }

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
-import { Shape, ShapeGeometry, ExtrudeGeometry } from "three";
-import { RINK_CONFIG } from "@bbh/arcade-core";
+import { Shape, ShapeGeometry, ExtrudeGeometry, DoubleSide } from "three";
+import { RINK_CONFIG, goalLineX, netBackX } from "@bbh/arcade-core";
 
 const BOARD_THICKNESS = 36;
 const BOARD_HEIGHT = 52;
@@ -60,13 +60,19 @@ export function Rink(): JSX.Element {
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, RINK_CONFIG.height]} geometry={ice}>
         <meshStandardMaterial color="#e7f6ff" roughness={0.5} metalness={0.04} />
       </mesh>
-      <RinkLine x={RINK_CONFIG.width / 2} color="#1f8fff" />
-      <RinkLine x={RINK_CONFIG.width * 0.32} color="#ff4f5e" />
-      <RinkLine x={RINK_CONFIG.width * 0.68} color="#ff4f5e" />
-      <GoalCrease x={RINK_CONFIG.goalLineOffset} />
-      <GoalCrease x={RINK_CONFIG.width - RINK_CONFIG.goalLineOffset} />
-      <GoalFrame x={0} />
-      <GoalFrame x={RINK_CONFIG.width} />
+      <RinkLine x={RINK_CONFIG.width / 2} color="#1f8fff" width={12} />
+      <RinkLine x={RINK_CONFIG.width * 0.34} color="#1f8fff" width={10} />
+      <RinkLine x={RINK_CONFIG.width * 0.66} color="#1f8fff" width={10} />
+      <RinkLine x={goalLineX("home")} color="#ff4f5e" width={6} />
+      <RinkLine x={goalLineX("away")} color="#ff4f5e" width={6} />
+      <GoalCrease
+        x={goalLineX("home") + RINK_CONFIG.goalieDepth}
+      />
+      <GoalCrease
+        x={goalLineX("away") - RINK_CONFIG.goalieDepth}
+      />
+      <GoalCage team="home" />
+      <GoalCage team="away" />
       {/* Boards — rounded ring wall extruded upward around the sheet. */}
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
@@ -82,14 +88,16 @@ export function Rink(): JSX.Element {
 
 function RinkLine({
   x,
-  color
+  color,
+  width = 12
 }: {
   readonly x: number;
   readonly color: string;
+  readonly width?: number;
 }): JSX.Element {
   return (
     <mesh position={[x, 2, RINK_CONFIG.height / 2]} rotation={[-Math.PI / 2, 0, 0]}>
-      <planeGeometry args={[12, RINK_CONFIG.height]} />
+      <planeGeometry args={[width, RINK_CONFIG.height]} />
       <meshStandardMaterial color={color} />
     </mesh>
   );
@@ -104,27 +112,64 @@ function GoalCrease({ x }: { readonly x: number }): JSX.Element {
   );
 }
 
-/** Simple post-and-crossbar frame so shots visibly have a target. */
-function GoalFrame({ x }: { readonly x: number }): JSX.Element {
-  const half = RINK_CONFIG.goalWidth / 2;
+/**
+ * Full goal cage matching the sim's net box: red frame (posts + crossbar) on
+ * the goal line, and translucent netting on the back, sides, and top. The
+ * mouth is open; everything else is solid in the sim.
+ */
+function GoalCage({ team }: { readonly team: "home" | "away" }): JSX.Element {
+  const lineX = goalLineX(team);
+  const backX = netBackX(team);
   const centerY = RINK_CONFIG.height / 2;
-  const barHeight = 95; // GOAL_HEIGHT in the sim
+  const half = RINK_CONFIG.goalWidth / 2;
+  const barHeight = 95; // GOAL_HEIGHT / NET_TOP_HEIGHT in the sim
+  const depth = Math.abs(backX - lineX);
+  const midX = (lineX + backX) / 2;
 
   return (
-    <group name={`goal-frame-${x}`}>
-      <mesh position={[x, barHeight / 2, centerY - half]}>
+    <group name={`goal-cage-${team}`}>
+      {/* posts + crossbar */}
+      <mesh position={[lineX, barHeight / 2, centerY - half]}>
         <cylinderGeometry args={[8, 8, barHeight, 10]} />
         <meshStandardMaterial color="#ff4f5e" />
       </mesh>
-      <mesh position={[x, barHeight / 2, centerY + half]}>
+      <mesh position={[lineX, barHeight / 2, centerY + half]}>
         <cylinderGeometry args={[8, 8, barHeight, 10]} />
         <meshStandardMaterial color="#ff4f5e" />
       </mesh>
-      <mesh position={[x, barHeight, centerY]} rotation={[Math.PI / 2, 0, 0]}>
+      <mesh position={[lineX, barHeight, centerY]} rotation={[Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[8, 8, RINK_CONFIG.goalWidth + 16, 10]} />
         <meshStandardMaterial color="#ff4f5e" />
       </mesh>
+      {/* netting: back, two sides, top */}
+      <mesh position={[backX, barHeight / 2, centerY]} rotation={[0, Math.PI / 2, 0]}>
+        <planeGeometry args={[RINK_CONFIG.goalWidth + 16, barHeight]} />
+        <NetMaterial />
+      </mesh>
+      <mesh position={[midX, barHeight / 2, centerY - half - 8]}>
+        <planeGeometry args={[depth, barHeight]} />
+        <NetMaterial />
+      </mesh>
+      <mesh position={[midX, barHeight / 2, centerY + half + 8]}>
+        <planeGeometry args={[depth, barHeight]} />
+        <NetMaterial />
+      </mesh>
+      <mesh position={[midX, barHeight, centerY]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[depth, RINK_CONFIG.goalWidth + 16]} />
+        <NetMaterial />
+      </mesh>
     </group>
+  );
+}
+
+function NetMaterial(): JSX.Element {
+  return (
+    <meshStandardMaterial
+      color="#ffffff"
+      transparent
+      opacity={0.32}
+      side={DoubleSide}
+    />
   );
 }
 

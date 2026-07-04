@@ -15,8 +15,8 @@ describe("camera rig math", () => {
     const target = { x: 1000, y: 500 };
 
     expect(computeCameraPosition(target)).toEqual({
-      x: 570,
-      y: 660,
+      x: 480,
+      y: 860,
       z: 500
     });
   });

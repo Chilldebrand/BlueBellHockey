@@ -37,8 +37,10 @@ function skaterSpawn(index: number, teamSide: -1 | 1): Vec2 {
 }
 
 function goalieSpawn(teamSide: -1 | 1): Vec2 {
+  const inset = RINK_CONFIG.goalLineInset + RINK_CONFIG.goalieDepth;
+
   return {
-    x: teamSide === -1 ? RINK_CONFIG.goalLineOffset : RINK_CONFIG.width - RINK_CONFIG.goalLineOffset,
+    x: teamSide === -1 ? inset : RINK_CONFIG.width - inset,
     y: RINK_CONFIG.height / 2
   };
 }

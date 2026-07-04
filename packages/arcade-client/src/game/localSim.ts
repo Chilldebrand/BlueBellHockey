@@ -15,6 +15,8 @@ const MAX_FRAME_MS = 250;
 export interface LocalSimOptions {
   readonly seed?: number;
   readonly slotId?: string;
+  /** Practice: strip the world down to the local skater and one goalie. */
+  readonly practice?: boolean;
 }
 
 export interface LocalSimFrame {
@@ -40,9 +42,20 @@ export interface LocalSim {
   getTick(): number;
 }
 
-function createFreeSkateWorld(seed: number): WorldState {
+function createFreeSkateWorld(
+  seed: number,
+  slotId: string,
+  practice: boolean
+): WorldState {
   const world = createWorld(seed, MATCH_CONFIG.mode);
   world.phase = "playing";
+
+  if (practice) {
+    // Just you and the goalie you shoot on (home attacks the away net).
+    world.skaters = world.skaters.filter((skater) => skater.id === slotId);
+    world.goalies = world.goalies.filter((goalie) => goalie.teamId === "away");
+  }
+
   return world;
 }
 
@@ -53,9 +66,10 @@ function createFreeSkateWorld(seed: number): WorldState {
  */
 export function createLocalSim({
   seed = 1,
-  slotId = FREE_SKATE_SLOT_ID
+  slotId = FREE_SKATE_SLOT_ID,
+  practice = false
 }: LocalSimOptions = {}): LocalSim {
-  let world = createFreeSkateWorld(seed);
+  let world = createFreeSkateWorld(seed, slotId, practice);
   let accumulatorMs = 0;
 
   return {
@@ -81,7 +95,7 @@ export function createLocalSim({
       return { currentWorld: world, previousWorld, ticksAdvanced };
     },
     reset() {
-      world = createFreeSkateWorld(seed);
+      world = createFreeSkateWorld(seed, slotId, practice);
       accumulatorMs = 0;
     },
     getWorld() {

@@ -35,8 +35,8 @@ export function computeCameraPosition(
   const scale = punchIn ? 0.84 : 1;
 
   return {
-    x: Math.round(target.x - 430 * scale),
-    y: Math.round(660 * scale),
+    x: Math.round(target.x - 520 * scale),
+    y: Math.round(860 * scale),
     z: Math.round(target.y)
   };
 }

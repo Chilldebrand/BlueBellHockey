@@ -3,14 +3,31 @@ import {
   MATCH_CONFIG,
   RINK_CONFIG,
   createWorld,
-  stepWorld
+  goalLineX,
+  stepWorld,
+  type WorldState
 } from "../index";
 
+/** Playing world with the away goalie dragged out of the shot lane. */
+function worldWithOpenAwayNet(): WorldState {
+  const world = createWorld(1, "arcade3v3");
+  world.phase = "playing";
+  const awayGoalie = world.goalies.find((goalie) => goalie.teamId === "away");
+
+  if (awayGoalie) {
+    awayGoalie.position.y = RINK_CONFIG.height / 2 + 260;
+  }
+
+  return world;
+}
+
 describe("goal scoring and match loop", () => {
-  it("scores only when the puck enters through the goal mouth", () => {
-    const world = createWorld(1, "arcade3v3");
-    world.phase = "playing";
-    world.puck.position = { x: RINK_CONFIG.width - 4, y: RINK_CONFIG.height / 2 };
+  it("scores when the puck crosses the goal line through the mouth", () => {
+    const world = worldWithOpenAwayNet();
+    world.puck.position = {
+      x: goalLineX("away") - 10,
+      y: RINK_CONFIG.height / 2
+    };
     world.puck.velocity = { x: 1000, y: 0 };
     world.puck.shotBySlotId = "home-skater-1";
     world.puck.lastTouchSlotId = "home-skater-1";
@@ -28,10 +45,9 @@ describe("goal scoring and match loop", () => {
     );
   });
 
-  it("rejects side net clips as non-goals", () => {
-    const world = createWorld(1, "arcade3v3");
-    world.phase = "playing";
-    world.puck.position = { x: RINK_CONFIG.width - 4, y: 10 };
+  it("rejects pucks outside the mouth band as non-goals", () => {
+    const world = worldWithOpenAwayNet();
+    world.puck.position = { x: goalLineX("away") - 10, y: 10 };
     world.puck.velocity = { x: 1000, y: 0 };
 
     stepWorld(world, [], 16);
@@ -41,10 +57,12 @@ describe("goal scoring and match loop", () => {
   });
 
   it("ends the match when the target score is reached", () => {
-    const world = createWorld(1, "arcade3v3");
-    world.phase = "playing";
+    const world = worldWithOpenAwayNet();
     world.score.home = MATCH_CONFIG.targetScore - 1;
-    world.puck.position = { x: RINK_CONFIG.width - 4, y: RINK_CONFIG.height / 2 };
+    world.puck.position = {
+      x: goalLineX("away") - 10,
+      y: RINK_CONFIG.height / 2
+    };
     world.puck.velocity = { x: 1000, y: 0 };
 
     stepWorld(world, [], 16);

@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   COLLISION_CONFIG,
+  RINK_CONFIG,
   createWorld,
+  goalLineX,
+  netBackX,
+  netBoxFor,
   resolveSkaterCollisions,
   type WorldState
 } from "../index";
@@ -96,6 +100,33 @@ describe("skater body contact", () => {
     resolveSkaterCollisions(world);
 
     expect(world.puck.carrierSlotId).toBe(carrier.id);
+  });
+
+  it("keeps skaters out of the net cage but lets them skate behind it", () => {
+    const world = playingWorld();
+    const skater = world.skaters[0];
+    const box = netBoxFor("away");
+
+    // Dropped inside the cage: ejected clear of it.
+    skater.position = {
+      x: (goalLineX("away") + netBackX("away")) / 2,
+      y: RINK_CONFIG.height / 2
+    };
+    resolveSkaterCollisions(world);
+
+    const inflate = COLLISION_CONFIG.skaterRadius - 1;
+    const stillInside =
+      skater.position.x > box.minX - inflate &&
+      skater.position.x < box.maxX + inflate &&
+      skater.position.y > box.minY - inflate &&
+      skater.position.y < box.maxY + inflate;
+    expect(stillInside).toBe(false);
+
+    // The corridor behind the net is open ice.
+    skater.position = { x: RINK_CONFIG.width - 70, y: RINK_CONFIG.height / 2 };
+    const before = { ...skater.position };
+    resolveSkaterCollisions(world);
+    expect(skater.position).toEqual(before);
   });
 
   it("keeps skaters out of the goalie's body", () => {

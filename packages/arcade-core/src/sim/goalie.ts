@@ -1,4 +1,4 @@
-import { RINK_CONFIG } from "../config/rink.js";
+import { RINK_CONFIG, goalLineX } from "../config/rink.js";
 import type { TeamId } from "../config/teams.js";
 import type { GoalieEntity, WorldState } from "./types.js";
 import { clamp } from "./physics.js";
@@ -25,8 +25,9 @@ export interface GoalieConfig {
 }
 
 export const GOALIE_CONFIG: GoalieConfig = {
-  homeX: RINK_CONFIG.goalLineOffset,
-  awayX: RINK_CONFIG.width - RINK_CONFIG.goalLineOffset,
+  // Goalies stand just in front of their (now interior) goal line.
+  homeX: goalLineX("home") + RINK_CONFIG.goalieDepth,
+  awayX: goalLineX("away") - RINK_CONFIG.goalieDepth,
   creaseHalfHeight: RINK_CONFIG.goalWidth / 2,
   lateralSpeed: 560,
   saveReach: 74,
@@ -94,7 +95,7 @@ function resolveGoalieSave(
     return;
   }
 
-  const defendedLine = goalie.teamId === "home" ? 0 : RINK_CONFIG.width;
+  const defendedLine = goalLineX(goalie.teamId);
 
   if (Math.abs(puck.position.x - defendedLine) > config.saveZoneDepth) {
     return;

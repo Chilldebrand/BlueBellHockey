@@ -1,4 +1,5 @@
 import type { SkaterEntity, WorldState } from "./types.js";
+import { pushSkaterOutOfNets } from "./net.js";
 
 export interface CollisionConfig {
   readonly skaterRadius: number;
@@ -42,6 +43,9 @@ export function resolveSkaterCollisions(
     for (const goalie of world.goalies) {
       pushOutOfGoalie(skater, goalie.position, config);
     }
+
+    // The net cage is solid: go around it, never through it.
+    pushSkaterOutOfNets(skater, config.skaterRadius);
   }
 }
 

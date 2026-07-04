@@ -36,7 +36,11 @@ export interface FreeSkateProps {
  */
 export function FreeSkate({ onExit }: FreeSkateProps): JSX.Element {
   const simRef = useRef(
-    createLocalSim({ seed: FREE_SKATE_SEED, slotId: FREE_SKATE_SLOT_ID })
+    createLocalSim({
+      seed: FREE_SKATE_SEED,
+      slotId: FREE_SKATE_SLOT_ID,
+      practice: true // just you and a goalie to shoot on
+    })
   );
   const recorderRef = useRef(createInputRecorder());
   const replayRef = useRef<ReplayState | null>(null);

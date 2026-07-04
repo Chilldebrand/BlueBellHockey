@@ -1,6 +1,7 @@
-import { RINK_CONFIG } from "../config/rink.js";
+import { RINK_CONFIG, goalLineX } from "../config/rink.js";
 import type { InputFrame, PuckState, SkaterEntity, Vec2, WorldState } from "./types.js";
 import { containCircleInRink } from "./boards.js";
+import { collidePuckWithNets, NET_BOXES } from "./net.js";
 import { expDecay, magnitude, normalizeOrZero, rotate } from "./physics.js";
 import { passDirectionWithAssist } from "./actions.js";
 import { clearPendingRelease } from "./gestures.js";
@@ -357,15 +358,10 @@ function stepLoosePuck(
 
   deflectOffDivingBodies(world, config);
   collideWithPosts(world, config);
+  collideWithCrossbars(world, config);
+  collidePuckWithNets(puck, config.radius);
 
-  if (isInGoalMouth(puck, config)) {
-    if (puck.height + config.radius >= GOAL_HEIGHT) {
-      collideWithCrossbar(world, config);
-    }
-    // Below the bar in the mouth: let it cross the line — resolveGoals scores it.
-    return;
-  }
-
+  // Goals are interior cages now, so the boards always contain the puck.
   containCircleInRink(
     puck.position,
     puck.velocity,
@@ -426,43 +422,44 @@ function deflectOffDivingBodies(world: WorldState, config: PuckConfig): void {
   }
 }
 
-/** In front of either goal mouth: inside the mouth band and at/near the goal line. */
-function isInGoalMouth(puck: PuckState, config: PuckConfig): boolean {
+/**
+ * A puck arriving at a goal mouth at bar height clangs off the crossbar and
+ * stays out; clearly higher sails over the whole cage into behind-net space.
+ */
+function collideWithCrossbars(world: WorldState, config: PuckConfig): void {
+  const puck = world.puck;
+  const atBarHeight =
+    puck.height + config.radius >= GOAL_HEIGHT &&
+    puck.height < GOAL_HEIGHT + 32;
+
+  if (!atBarHeight) {
+    return;
+  }
+
   const inBand =
     Math.abs(puck.position.y - RINK_CONFIG.height / 2) <=
-    RINK_CONFIG.goalWidth / 2 - config.radius * 0.5;
+    RINK_CONFIG.goalWidth / 2;
 
   if (!inBand) {
-    return false;
+    return;
   }
 
-  return (
-    puck.position.x <= config.radius ||
-    puck.position.x >= RINK_CONFIG.width - config.radius
-  );
-}
+  for (const net of NET_BOXES) {
+    const nearLine = Math.abs(puck.position.x - net.lineX) <= config.radius + 8;
+    const movingIn = Math.sign(puck.velocity.x) === -net.mouthDirection;
 
-/** A high puck in the mouth clangs off the bar and stays in play. */
-function collideWithCrossbar(world: WorldState, config: PuckConfig): void {
-  const puck = world.puck;
-  const intoLeftGoal = puck.position.x <= config.radius;
-  const inward = intoLeftGoal ? 1 : -1;
-
-  puck.position.x = intoLeftGoal
-    ? config.radius
-    : RINK_CONFIG.width - config.radius;
-
-  if (Math.sign(puck.velocity.x) === -inward) {
-    puck.velocity.x = -puck.velocity.x * config.postRestitution;
+    if (nearLine && movingIn) {
+      puck.position.x = net.lineX + net.mouthDirection * (config.radius + 8);
+      puck.velocity.x = -puck.velocity.x * config.postRestitution;
+      puck.verticalVelocity = Math.min(puck.verticalVelocity, -60);
+      world.eventQueue.push({
+        id: `post-${world.time.tick}-bar`,
+        type: "post",
+        atMs: world.time.nowMs
+      });
+      return;
+    }
   }
-
-  // The bar knocks it down out of the air.
-  puck.verticalVelocity = Math.min(puck.verticalVelocity, -60);
-  world.eventQueue.push({
-    id: `post-${world.time.tick}-bar`,
-    type: "post",
-    atMs: world.time.nowMs
-  });
 }
 
 function collideWithPosts(world: WorldState, config: PuckConfig): void {
@@ -473,7 +470,7 @@ function collideWithPosts(world: WorldState, config: PuckConfig): void {
     return;
   }
 
-  for (const goalX of [0, RINK_CONFIG.width]) {
+  for (const goalX of [goalLineX("home"), goalLineX("away")]) {
     for (const side of [-1, 1]) {
       const postY =
         RINK_CONFIG.height / 2 + side * (RINK_CONFIG.goalWidth / 2 + config.postRadius);
