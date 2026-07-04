@@ -66,7 +66,15 @@ export function CharacterModel({
   }
 
   return (
-    <ModelErrorBoundary fallback={blockout}>
+    <ModelErrorBoundary
+      fallback={blockout}
+      onError={(error) => {
+        console.error(
+          `[CharacterModel] GLB body "${gltfSource.assetPath}" failed; using blockout.`,
+          error
+        );
+      }}
+    >
       <Suspense fallback={blockout}>
         <GltfSkaterBody
           source={gltfSource}

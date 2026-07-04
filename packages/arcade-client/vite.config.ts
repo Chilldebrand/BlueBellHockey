@@ -8,7 +8,16 @@ export default defineConfig({
   server: {
     port: process.env.PORT ? Number(process.env.PORT) : 5173
   },
+  // drei's hooks (useGLTF/useAnimations) read the react-three-fiber Canvas
+  // context. If Vite pre-bundles drei with its own inlined copy of fiber/three,
+  // that context won't match the app's <Canvas>, and every drei hook throws
+  // "Hooks can only be used within the Canvas component!". Pre-bundling them
+  // together + deduping keeps a single fiber/three instance.
+  optimizeDeps: {
+    include: ["@react-three/fiber", "@react-three/drei", "three"]
+  },
   resolve: {
+    dedupe: ["@react-three/fiber", "three", "react", "react-dom"],
     alias: {
       "@bbh/arcade-core": resolve(__dirname, "../arcade-core/src/index.ts")
     }
