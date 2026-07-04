@@ -55,7 +55,11 @@ export function Scene({
           far: 3000
         }}
       >
-        <CameraRig puck={renderedPuck.position} events={currentWorld.eventQueue} />
+        <CameraRig
+          puck={renderedPuck.position}
+          events={currentWorld.eventQueue}
+          nowMs={currentWorld.time.nowMs}
+        />
         <ambientLight intensity={0.95} />
         <directionalLight position={[320, 900, 460]} intensity={1.25} castShadow />
         <Rink />
