@@ -2,7 +2,7 @@ import { RINK_CONFIG, goalLineX } from "../config/rink.js";
 import type { InputFrame, PuckState, SkaterEntity, Vec2, WorldState } from "./types.js";
 import { containCircleInRink } from "./boards.js";
 import { collidePuckWithNets, NET_BOXES } from "./net.js";
-import { expDecay, magnitude, normalizeOrZero, rotate } from "./physics.js";
+import { expDecay, magnitude, normalizeOrZero } from "./physics.js";
 import { passDirectionWithAssist } from "./actions.js";
 import { clearPendingRelease } from "./gestures.js";
 import { bladeWorldPosition, bladeWorldVelocity } from "./stick.js";
@@ -55,8 +55,8 @@ export interface PuckConfig {
   readonly wristLiftSpeed: number;
   /** Vertical launch speed a full-power slap adds (rising slapper). */
   readonly slapLiftSpeed: number;
-  /** How much the lateral stick position bends a shot off the facing line. */
-  readonly shotSideBlend: number;
+  /** Aim placement keeps this far inside the posts at full stick deflection. */
+  readonly shotPlacementMargin: number;
   readonly releasePickupCooldownMs: number;
 }
 
@@ -88,7 +88,7 @@ export const PUCK_CONFIG: PuckConfig = {
   oneTimerPowerMultiplier: 1.22,
   wristLiftSpeed: 170,
   slapLiftSpeed: 330,
-  shotSideBlend: 0.55,
+  shotPlacementMargin: 30,
   releasePickupCooldownMs: 220
 };
 
@@ -147,7 +147,7 @@ function stepCarriedPuck(
 
   // Releases decided this tick beat the tether: shot gesture, then pass.
   if (carrier.gesture.pendingReleaseType !== "none") {
-    releaseGestureShot(world, carrier, config);
+    releaseGestureShot(world, carrier, input, config);
     return;
   }
 
@@ -239,9 +239,17 @@ function stepCarriedPuck(
   );
 }
 
+/**
+ * NHL-style shot aiming: shots always drive at the attacking net, and the
+ * LEFT stick at release places them inside it — neutral = dead center,
+ * screen-left/right picks the side, screen-up lifts it toward the bar,
+ * screen-down keeps it along the ice. (Movement input arrives in world
+ * space: screen-right = +y across the mouth, screen-up = +x.)
+ */
 function releaseGestureShot(
   world: WorldState,
   carrier: SkaterEntity,
+  input: InputFrame | undefined,
   config: PuckConfig
 ): void {
   const gesture = carrier.gesture;
@@ -254,17 +262,30 @@ function releaseGestureShot(
       ? config.wristShotSpeed +
         (config.maxChargedShotSpeed - config.wristShotSpeed) * power
       : config.wristShotSpeed * (0.78 + 0.22 * power)) * oneTimerBoost;
+
+  // Placement from the left stick at release (world space, clamped).
+  const lateralAim = Math.max(-1, Math.min(1, input?.moveY ?? 0));
+  const heightAim = Math.max(-1, Math.min(1, input?.moveX ?? 0));
+  const attackedNet = carrier.teamId === "home" ? "away" : "home";
+  const target = {
+    x: goalLineX(attackedNet),
+    y:
+      RINK_CONFIG.height / 2 +
+      lateralAim * (RINK_CONFIG.goalWidth / 2 - config.shotPlacementMargin)
+  };
+  const blade = bladeWorldPosition(carrier, undefined, world.time.nowMs);
+  const direction = normalizeOrZero({
+    x: target.x - blade.x,
+    y: target.y - blade.y
+  });
+
+  // Height: base lift by shot type/power, pushed up or held down by aim.
+  const heightScale = 0.55 + 0.45 * heightAim; // -1 → along the ice, +1 → top shelf
   const lift =
     (isSlap ? config.slapLiftSpeed : config.wristLiftSpeed) *
     power *
+    Math.max(0.1, heightScale) *
     (isOneTimer ? 1.15 : 1);
-  const direction = rotate(
-    normalizeOrZero({
-      x: 1,
-      y: gesture.pendingReleaseSide * config.shotSideBlend
-    }),
-    carrier.facing
-  );
 
   releasePuck(world, carrier, direction, {
     speed,

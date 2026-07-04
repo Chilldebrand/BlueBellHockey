@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  RINK_CONFIG,
   bladeWorldPosition,
   createWorld,
+  goalLineX,
   magnitude,
   stepWorld,
   type InputFrame,
@@ -144,16 +146,65 @@ describe("skill-stick gestures", () => {
     expect(world.puck.carrierSlotId).toBe("home-skater-1");
   });
 
-  it("bends the shot toward the lateral stick position", () => {
+  it("defaults shots to the middle of the attacking net", () => {
     const world = carrierWorld();
 
     playStick(world, [
       [0, 0],
-      [0.8, 1]
+      [0, 1] // neutral left stick at release
     ]);
 
     expect(world.puck.carrierSlotId).toBeNull();
-    expect(world.puck.velocity.y).toBeGreaterThan(50); // pulled to the stick side
+    expect(world.puck.velocity.x).toBeGreaterThan(500); // at the away net
+
+    // Project the shot to the goal line: it should arrive at net center
+    // even though the shooter is off-center.
+    const puck = world.puck;
+    const ticksToLine = (goalLineX("away") - puck.position.x) / puck.velocity.x;
+    const arrivalY = puck.position.y + puck.velocity.y * ticksToLine;
+    expect(arrivalY).toBeCloseTo(RINK_CONFIG.height / 2, 0);
+  });
+
+  it("places the shot in the net with the left stick (NHL aiming)", () => {
+    const world = carrierWorld();
+
+    stepWorld(world, [frame("home-skater-1", 1)], TICK);
+    // Flick + left stick held screen-right (world +y): far-side placement.
+    stepWorld(
+      world,
+      [frame("home-skater-1", 2, { stickY: 1, moveY: 0.9 })],
+      TICK
+    );
+
+    expect(world.puck.carrierSlotId).toBeNull();
+    expect(world.puck.velocity.y).toBeGreaterThan(40); // toward the +y post
+
+    const high = carrierWorld();
+    stepWorld(high, [frame("home-skater-1", 1)], TICK);
+    stepWorld(high, [frame("home-skater-1", 2, { stickY: 1, moveX: 1 })], TICK);
+
+    const low = carrierWorld();
+    stepWorld(low, [frame("home-skater-1", 1)], TICK);
+    stepWorld(low, [frame("home-skater-1", 2, { stickY: 1, moveX: -1 })], TICK);
+
+    // Screen-up aim lifts it toward the bar; screen-down keeps it on the ice.
+    expect(high.puck.verticalVelocity).toBeGreaterThan(
+      low.puck.verticalVelocity + 50
+    );
+  });
+
+  it("aims the away team at the opposite (home) net", () => {
+    const world = createWorld(1, "arcade3v3");
+    world.phase = "playing";
+    world.puck.carrierSlotId = "away-skater-1";
+    world.puck.lastTouchSlotId = "away-skater-1";
+    world.puck.position = bladeWorldPosition(world.skaters[3]);
+
+    stepWorld(world, [frame("away-skater-1", 1)], TICK);
+    stepWorld(world, [frame("away-skater-1", 2, { stickY: 1 })], TICK);
+
+    expect(world.puck.carrierSlotId).toBeNull();
+    expect(world.puck.velocity.x).toBeLessThan(-500); // toward the home net
   });
 
   it("arms and fires a one-timer off a teammate's pass", () => {

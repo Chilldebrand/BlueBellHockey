@@ -4,6 +4,8 @@ import { RINK_CONFIG, goalLineX, netBackX } from "@bbh/arcade-core";
 
 const BOARD_THICKNESS = 36;
 const BOARD_HEIGHT = 52;
+const GLASS_THICKNESS = 10;
+const GLASS_HEIGHT = 120;
 
 /**
  * Rounded-rect outline matching the sim's board geometry (boards.ts): straight
@@ -50,9 +52,24 @@ function useBoardsGeometry(): ExtrudeGeometry {
   }, []);
 }
 
+function useGlassGeometry(): ExtrudeGeometry {
+  return useMemo(() => {
+    // Thin ring sitting on top of the boards, hugging their inner face.
+    const outer = roundedRinkShape(GLASS_THICKNESS);
+    outer.holes.push(roundedRinkShape());
+
+    return new ExtrudeGeometry(outer, {
+      depth: GLASS_HEIGHT,
+      bevelEnabled: false,
+      curveSegments: 24
+    });
+  }, []);
+}
+
 export function Rink(): JSX.Element {
   const ice = useIceGeometry();
   const boards = useBoardsGeometry();
+  const glass = useGlassGeometry();
 
   return (
     <group name="arcade-rink">
@@ -80,6 +97,22 @@ export function Rink(): JSX.Element {
         geometry={boards}
       >
         <meshStandardMaterial color="#f8fbff" emissive="#77cfff" emissiveIntensity={0.08} />
+      </mesh>
+      {/* Glass — a taller, thinner translucent ring on top of the boards. */}
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, BOARD_HEIGHT, RINK_CONFIG.height]}
+        geometry={glass}
+      >
+        <meshPhysicalMaterial
+          color="#dff3ff"
+          transparent
+          opacity={0.16}
+          roughness={0.08}
+          metalness={0}
+          side={DoubleSide}
+          depthWrite={false}
+        />
       </mesh>
       <CenterLogo />
     </group>
