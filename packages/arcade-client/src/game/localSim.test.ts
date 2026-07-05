@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MATCH_CONFIG, type InputFrame } from "@bbh/arcade-core";
+import { MATCH_CONFIG, RINK_CONFIG, type InputFrame } from "@bbh/arcade-core";
 import { createLocalSim, FREE_SKATE_SLOT_ID } from "./localSim.js";
 import {
   createInputRecorder,
@@ -46,6 +46,32 @@ describe("local sim", () => {
 
     expect(sim.getWorld().phase).toBe("playing");
     expect(sim.getWorld().remainingMs).toBeGreaterThan(0);
+  });
+
+  it("keeps a stationary opposing dummy in practice mode to hit", () => {
+    const sim = createLocalSim({ seed: 5, practice: true });
+    const world = sim.getWorld();
+
+    const dummy = world.skaters.find((skater) => skater.teamId === "away");
+    expect(dummy).toBeDefined();
+    expect(world.skaters.some((skater) => skater.id === FREE_SKATE_SLOT_ID)).toBe(
+      true
+    );
+    expect(dummy?.position).toEqual({
+      x: RINK_CONFIG.width / 2 + 220,
+      y: RINK_CONFIG.height / 2
+    });
+
+    // With no input fed for it, it should stay put across many ticks.
+    const startY = dummy!.position.y;
+    for (let index = 0; index < 60; index += 1) {
+      sim.advance(MATCH_CONFIG.fixedTickMs, () => null);
+    }
+    const after = sim
+      .getWorld()
+      .skaters.find((skater) => skater.teamId === "away");
+    expect(after?.position.x).toBeCloseTo(RINK_CONFIG.width / 2 + 220, 1);
+    expect(after?.position.y).toBeCloseTo(startY, 1);
   });
 
   it("replays a recorded input script to an identical world", () => {

@@ -1,5 +1,6 @@
 import {
   MATCH_CONFIG,
+  RINK_CONFIG,
   createWorld,
   stepWorld,
   type InputFrame,
@@ -7,6 +8,9 @@ import {
 } from "@bbh/arcade-core";
 
 export const FREE_SKATE_SLOT_ID = "home-skater-1";
+
+/** Stationary opposing dummy kept in practice so hits can be tested. */
+const FREE_SKATE_DUMMY_ID = "away-skater-1";
 
 // Cap how much wall-clock time one advance() call may simulate so a
 // backgrounded tab doesn't spiral through thousands of catch-up ticks.
@@ -51,9 +55,24 @@ function createFreeSkateWorld(
   world.phase = "playing";
 
   if (practice) {
-    // Just you and the goalie you shoot on (home attacks the away net).
-    world.skaters = world.skaters.filter((skater) => skater.id === slotId);
+    // You, the goalie you shoot on (home attacks the away net), and one
+    // stationary opposing dummy to practice hitting into.
+    world.skaters = world.skaters.filter(
+      (skater) => skater.id === slotId || skater.id === FREE_SKATE_DUMMY_ID
+    );
     world.goalies = world.goalies.filter((goalie) => goalie.teamId === "away");
+
+    const dummy = world.skaters.find((skater) => skater.id === FREE_SKATE_DUMMY_ID);
+    if (dummy) {
+      // Parked in open ice up-ice of the player's spawn, facing back toward
+      // them. It gets no input, so it just stands there until it's checked.
+      dummy.position = {
+        x: RINK_CONFIG.width / 2 + 220,
+        y: RINK_CONFIG.height / 2
+      };
+      dummy.velocity = { x: 0, y: 0 };
+      dummy.facing = Math.PI;
+    }
   }
 
   return world;
