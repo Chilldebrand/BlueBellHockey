@@ -4,6 +4,7 @@ import {
   MATCH_CONFIG,
   resolveManualSwitchTarget,
   resolveReceptionSwitch,
+  resolveTeamPossessionSwitch,
   stepWorld,
   type ArcadeServerMessage,
   type ClientInputMessage,
@@ -431,14 +432,19 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
         target = resolveManualSwitchTarget(this.world, slot.slotId);
       }
 
-      // Reception switch wins when a pass was actually gathered this step.
-      const reception = resolveReceptionSwitch(
-        this.world,
-        slot.slotId,
-        prevCarrierSlotId
-      );
-      if (reception) {
-        target = reception;
+      // A solo player (only human on their team) gets "control follows the
+      // puck" on any teammate pickup; a shared team keeps the pass-only rule so
+      // a pickup can't yank a body from a co-op teammate.
+      const teamIsSolo =
+        this.roster.filter(
+          (candidate) =>
+            candidate.kind === "human" && candidate.teamId === slot.teamId
+        ).length <= 1;
+      const possession = teamIsSolo
+        ? resolveTeamPossessionSwitch(this.world, slot.slotId, prevCarrierSlotId)
+        : resolveReceptionSwitch(this.world, slot.slotId, prevCarrierSlotId);
+      if (possession) {
+        target = possession;
       }
 
       if (!target || target === slot.slotId) {

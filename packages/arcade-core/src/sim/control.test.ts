@@ -3,7 +3,8 @@ import { createWorld } from "../index";
 import {
   nearestTeammateToPuck,
   resolveManualSwitchTarget,
-  resolveReceptionSwitch
+  resolveReceptionSwitch,
+  resolveTeamPossessionSwitch
 } from "./control.js";
 
 describe("resolveReceptionSwitch", () => {
@@ -63,6 +64,64 @@ describe("resolveReceptionSwitch", () => {
 
     expect(
       resolveReceptionSwitch(world, "home-skater-1", "home-skater-1")
+    ).toBeNull();
+  });
+});
+
+describe("resolveTeamPossessionSwitch", () => {
+  it("switches to a teammate who picks up a loose puck (not just a pass)", () => {
+    const world = createWorld(1, "arcade3v3");
+    // The human controlled home-skater-1 and held nothing (puck was loose);
+    // a teammate has just gathered it.
+    world.puck.carrierSlotId = "home-skater-2";
+
+    expect(
+      resolveTeamPossessionSwitch(world, "home-skater-1", null)
+    ).toBe("home-skater-2");
+  });
+
+  it("switches even when a different teammate was the previous carrier", () => {
+    const world = createWorld(1, "arcade3v3");
+    world.puck.carrierSlotId = "home-skater-3";
+
+    expect(
+      resolveTeamPossessionSwitch(world, "home-skater-1", "home-skater-2")
+    ).toBe("home-skater-3");
+  });
+
+  it("does not fire while the same teammate keeps carrying", () => {
+    const world = createWorld(1, "arcade3v3");
+    world.puck.carrierSlotId = "home-skater-2";
+
+    expect(
+      resolveTeamPossessionSwitch(world, "home-skater-1", "home-skater-2")
+    ).toBeNull();
+  });
+
+  it("ignores a pickup by the opponent", () => {
+    const world = createWorld(1, "arcade3v3");
+    world.puck.carrierSlotId = "away-skater-1";
+
+    expect(
+      resolveTeamPossessionSwitch(world, "home-skater-1", null)
+    ).toBeNull();
+  });
+
+  it("ignores the controlled skater gathering the puck itself", () => {
+    const world = createWorld(1, "arcade3v3");
+    world.puck.carrierSlotId = "home-skater-1";
+
+    expect(
+      resolveTeamPossessionSwitch(world, "home-skater-1", null)
+    ).toBeNull();
+  });
+
+  it("does not fire while the puck is loose", () => {
+    const world = createWorld(1, "arcade3v3");
+    world.puck.carrierSlotId = null;
+
+    expect(
+      resolveTeamPossessionSwitch(world, "home-skater-1", "home-skater-2")
     ).toBeNull();
   });
 });

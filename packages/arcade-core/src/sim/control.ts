@@ -58,6 +58,47 @@ export function resolveReceptionSwitch(
 }
 
 /**
+ * Solo "control follows the puck": returns the same-team skater who just GAINED
+ * possession this step — a loose-puck pickup, rebound, interception, OR a
+ * gathered pass — so control snaps to whoever on your team now holds the puck,
+ * not only when you were the passer. Fires exactly once, on the tick the carrier
+ * changes to a teammate (guarded by comparing the pre-step carrier), and stays
+ * put while that teammate keeps carrying.
+ *
+ * This is the broad rule for single-human play; multi-human rooms keep
+ * `resolveReceptionSwitch` so a pickup can't yank a body from another human.
+ *
+ * @param world post-step world
+ * @param controlledSlotId the slot the human currently drives
+ * @param prevCarrierSlotId `world.puck.carrierSlotId` captured BEFORE the step
+ * @returns the new carrier's slot id, or null when no switch should happen
+ */
+export function resolveTeamPossessionSwitch(
+  world: WorldState,
+  controlledSlotId: string,
+  prevCarrierSlotId: string | null
+): string | null {
+  const newCarrier = world.puck.carrierSlotId;
+
+  if (
+    !newCarrier ||
+    newCarrier === controlledSlotId || // already driving the carrier
+    newCarrier === prevCarrierSlotId // possession did not change this step
+  ) {
+    return null;
+  }
+
+  const controlled = findSkater(world, controlledSlotId);
+  const carrier = findSkater(world, newCarrier);
+
+  if (!controlled || !carrier || carrier.teamId !== controlled.teamId) {
+    return null;
+  }
+
+  return carrier.id;
+}
+
+/**
  * Nearest same-team, non-goalie skater to the puck, excluding the currently
  * controlled slot. Used for the manual (pass-button-as-switch) defensive swap.
  * Returns null when there is no other eligible teammate.

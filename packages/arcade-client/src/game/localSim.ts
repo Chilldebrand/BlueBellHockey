@@ -3,7 +3,7 @@ import {
   createBotInputFrame,
   createWorld,
   resolveManualSwitchTarget,
-  resolveReceptionSwitch,
+  resolveTeamPossessionSwitch,
   stepWorld,
   type InputFrame,
   type WorldState
@@ -131,13 +131,15 @@ export function createLocalSim({
             controlledSlotId = manual;
           }
         }
-        const reception = resolveReceptionSwitch(
+        // Solo: control follows the puck to any teammate who gains possession,
+        // not only on a pass you threw.
+        const possession = resolveTeamPossessionSwitch(
           world,
           controlledSlotId,
           prevCarrierSlotId
         );
-        if (reception) {
-          controlledSlotId = reception;
+        if (possession) {
+          controlledSlotId = possession;
         }
 
         world.remainingMs = MATCH_CONFIG.periodMs; // endless session
