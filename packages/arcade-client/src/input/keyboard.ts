@@ -90,7 +90,6 @@ export function keyboardStateFromPressedKeys(
     check: pressed.has("KeyG"),
     poke: pressed.has("KeyR"),
     dive: pressed.has("KeyV"),
-    turbo: pressed.has("ShiftLeft") || pressed.has("ShiftRight"),
-    switchTarget: pressed.has("KeyQ")
+    turbo: pressed.has("ShiftLeft") || pressed.has("ShiftRight")
   };
 }

@@ -13,10 +13,11 @@ export interface GamepadLike {
  * IS the puck — sweep to stickhandle, flick up = wrist shot, pull back then
  * flick up = slap shot. Controller up maps to stick-forward in body space.
  *
- *   A  = pass (offense) / stick lift (defense)
+ *   A / RT (R2) = pass (offense) / stick lift (defense); hold to charge
  *   B  = shoulder check      X = hip check   (both body checks here)
  *   LB = block shot (dive)   RB = poke check
- *   RT = switch player       L3 = skate/hustle (turbo)
+ *   L3 = skate/hustle (turbo)
+ * Passing is aimed with the left stick — there is no target-cycle button.
  */
 export function gamepadStateFromGamepad(
   gamepad: GamepadLike | null | undefined,
@@ -33,13 +34,14 @@ export function gamepadStateFromGamepad(
     moveY: applyDeadzone(gamepad.axes[1] ?? 0, moveDeadzone),
     stickX: applyDeadzone(gamepad.axes[2] ?? 0, stickDeadzone),
     stickY: applyDeadzone(-(gamepad.axes[3] ?? 0), stickDeadzone),
-    pass: gamepad.buttons[0]?.pressed === true, // A
+    pass:
+      gamepad.buttons[0]?.pressed === true || // A
+      gamepad.buttons[7]?.pressed === true, // RT / R2 (standard mapping)
     check:
       gamepad.buttons[1]?.pressed === true || // B — shoulder check
       gamepad.buttons[2]?.pressed === true, // X — hip check
     dive: gamepad.buttons[4]?.pressed === true, // LB — block shot
     poke: gamepad.buttons[5]?.pressed === true, // RB — poke check
-    switchTarget: gamepad.buttons[7]?.pressed === true, // RT
     turbo: gamepad.buttons[10]?.pressed === true // L3 — hustle
   };
 }
