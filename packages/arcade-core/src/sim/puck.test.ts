@@ -3,6 +3,7 @@ import {
   GOAL_HEIGHT,
   PUCK_CONFIG,
   RINK_CONFIG,
+  bladeWorldPosition,
   createWorld,
   goalLineX,
   netBackX,
@@ -42,10 +43,8 @@ describe("puck simulation", () => {
   it("allows a skater to gather a loose puck near the blade", () => {
     const world = playingWorld();
     const skater = world.skaters[0]; // faces +x, blade rests ahead
-    world.puck.position = {
-      x: skater.position.x + 60,
-      y: skater.position.y
-    };
+    // Drop the loose puck right on the blade so it gathers.
+    world.puck.position = { ...bladeWorldPosition(skater) };
 
     stepWorld(world, [inputFrame(skater.id, 1)], 16);
 
@@ -221,15 +220,17 @@ describe("puck simulation", () => {
     const carrier = world.skaters[0];
     const defender = world.skaters[3]; // away team
     world.puck.carrierSlotId = carrier.id;
-    // Puck riding at the carrier's blade; defender's blade right on it.
-    world.puck.position = {
-      x: carrier.position.x + 52,
-      y: carrier.position.y
-    };
+    // Puck riding at the carrier's blade; place the defender so its resting
+    // blade sits right on it (independent of the stick rest tuning).
+    world.puck.position = { ...bladeWorldPosition(carrier) };
     defender.facing = Math.PI; // blade points -x, toward the puck
+    const defenderBladeOffset = bladeWorldPosition({
+      ...defender,
+      position: { x: 0, y: 0 }
+    });
     defender.position = {
-      x: world.puck.position.x + 52,
-      y: world.puck.position.y
+      x: world.puck.position.x - defenderBladeOffset.x,
+      y: world.puck.position.y - defenderBladeOffset.y
     };
 
     stepWorld(world, [inputFrame(carrier.id, 1)], 16);

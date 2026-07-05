@@ -3,7 +3,7 @@ import type { InputFrame, PuckState, SkaterEntity, Vec2, WorldState } from "./ty
 import { containCircleInRink } from "./boards.js";
 import { collidePuckWithNets, NET_BOXES } from "./net.js";
 import { expDecay, magnitude, normalizeOrZero } from "./physics.js";
-import { passDirectionWithAssist } from "./actions.js";
+import { passAimDirection, passDirectionWithAssist } from "./actions.js";
 import { clearPendingRelease } from "./gestures.js";
 import { bladeWorldPosition, bladeWorldVelocity } from "./stick.js";
 
@@ -58,6 +58,10 @@ export interface PuckConfig {
   /** Aim placement keeps this far inside the posts at full stick deflection. */
   readonly shotPlacementMargin: number;
   readonly releasePickupCooldownMs: number;
+  /** Holding the pass button this long charges a pass to full strength. */
+  readonly passChargeMaxMs: number;
+  /** Extra pass speed added at full charge (on top of passSpeed). */
+  readonly passChargeSpeedBonus: number;
 }
 
 export const PUCK_CONFIG: PuckConfig = {
@@ -83,13 +87,15 @@ export const PUCK_CONFIG: PuckConfig = {
   pokeImpulse: 480,
   passSpeed: 820,
   wristShotSpeed: 1040,
-  maxChargedShotSpeed: 1460,
+  maxChargedShotSpeed: 1650,
   oneTimerWindowMs: 550,
   oneTimerPowerMultiplier: 1.22,
-  wristLiftSpeed: 170,
-  slapLiftSpeed: 330,
+  wristLiftSpeed: 260,
+  slapLiftSpeed: 430,
   shotPlacementMargin: 30,
-  releasePickupCooldownMs: 220
+  releasePickupCooldownMs: 220,
+  passChargeMaxMs: 600,
+  passChargeSpeedBonus: 380
 };
 
 /** Height of the goal frame — a puck at or above this hits the crossbar. */
@@ -152,14 +158,24 @@ function stepCarriedPuck(
   }
 
   if (input?.pass) {
-    releasePuck(world, carrier, passDirectionWithAssist(world, carrier), {
-      speed: config.passSpeed,
+    // Hold to charge: accumulate while the pass button is held and fire the
+    // (stronger) pass on release. A quick tap fires next tick at base speed.
+    carrier.passChargeMs = Math.min(
+      carrier.passChargeMs + dtMs,
+      config.passChargeMaxMs
+    );
+  } else if (carrier.passChargeMs > 0) {
+    const charge = Math.min(carrier.passChargeMs / config.passChargeMaxMs, 1);
+    const aim = passAimDirection(input, carrier);
+    releasePuck(world, carrier, passDirectionWithAssist(world, carrier, aim), {
+      speed: config.passSpeed + config.passChargeSpeedBonus * charge,
       lift: 0,
       shotPower: 0,
       isChargedShot: false,
       shotBySlotId: null,
       pickupCooldownMs: config.releasePickupCooldownMs
     });
+    carrier.passChargeMs = 0;
     // A teammate gathering this in-flight pass gets a one-timer window.
     puck.passedFromSlotId = carrier.id;
     puck.passedAtMs = world.time.nowMs;
@@ -279,8 +295,10 @@ function releaseGestureShot(
     y: target.y - blade.y
   });
 
-  // Height: base lift by shot type/power, pushed up or held down by aim.
-  const heightScale = 0.55 + 0.45 * heightAim; // -1 → along the ice, +1 → top shelf
+  // Height: base lift by shot type/power, pushed up or held down by aim. The
+  // base is high enough that a neutral shot leaves the ice most of the time;
+  // aiming down keeps it low, up sends it top-shelf.
+  const heightScale = 0.72 + 0.28 * heightAim; // -1 → low, 0 → lifts, +1 → top shelf
   const lift =
     (isSlap ? config.slapLiftSpeed : config.wristLiftSpeed) *
     power *
@@ -583,6 +601,9 @@ function tryPickupLoosePuck(
     puck.pickupDisabledUntilMs = 0;
     puck.height = 0;
     puck.verticalVelocity = 0;
+    // Fresh possession starts with no pass charge (clears any stale charge from
+    // a previous carry that ended in a strip rather than a pass).
+    skater.passChargeMs = 0;
 
     // Catch-and-release: taking a teammate's fresh pass arms a one-timer.
     if (

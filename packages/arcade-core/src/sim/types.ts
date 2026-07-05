@@ -109,6 +109,8 @@ export interface SkaterEntity {
   turboCooldownUntilMs: number;
   /** Shooting before this sim time fires a bonus one-timer (fed by a pass). */
   oneTimerUntilMs: number;
+  /** Accumulated pass-button hold time (ms) — charges a stronger pass. */
+  passChargeMs: number;
   selectedTargetSlotId: string | null;
   heldPowerupType: PowerupType | null;
   specialCharge: number;

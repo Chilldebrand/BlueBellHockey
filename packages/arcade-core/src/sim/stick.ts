@@ -4,6 +4,12 @@ import { clamp, rotate } from "./physics.js";
 export interface StickConfig {
   /** Blade rest distance ahead of the body when the stick is neutral. */
   readonly restOffset: number;
+  /**
+   * Lateral rest offset of the blade (right of facing) when the stick is
+   * neutral: a right-handed forehand carry sits the puck off to the right
+   * rather than dead centre. The whole lateral range shifts with it.
+   */
+  readonly restLateral: number;
   /** Extra forward reach at full stick deflection (negative pulls behind). */
   readonly forwardRange: number;
   /** Lateral reach at full stick deflection. */
@@ -17,7 +23,10 @@ export interface StickConfig {
 // bladeLerpRate tuned up (22 → 34) for NHL-25-style dangle fluidity: the
 // blade tracks the stick nearly one-to-one instead of trailing it.
 export const STICK_CONFIG: StickConfig = {
-  restOffset: 52,
+  // Playtested carry: blade sits closer in and further to the right (a strong
+  // right-handed forehand cradle) rather than dead ahead.
+  restOffset: 22,
+  restLateral: 44.5,
   forwardRange: 78,
   lateralRange: 72,
   bladeLerpRate: 34,
@@ -62,7 +71,7 @@ export function bladeBodyOffset(
 
   return {
     x: config.restOffset + skater.stick.localY * config.forwardRange + pokeBonus,
-    y: skater.stick.localX * config.lateralRange
+    y: config.restLateral + skater.stick.localX * config.lateralRange
   };
 }
 

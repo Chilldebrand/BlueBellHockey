@@ -123,6 +123,25 @@ describe("goalie simulation", () => {
     expect(world.puck.velocity.x).toBeGreaterThan(0);
   });
 
+  it("reacts with latency so a fast cross-crease puck opens the far side", () => {
+    const world = playingWorld();
+    // Puck level with the goalie but ripping laterally toward the +y post.
+    world.puck.position = {
+      x: homeGoalieOf(world).position.x + 260,
+      y: RINK_CONFIG.height / 2
+    };
+    world.puck.velocity = { x: -120, y: 800 };
+    world.puck.shotBySlotId = "away-skater-1";
+    world.puck.lastTouchSlotId = "away-skater-1";
+
+    stepWorld(world, [], 16);
+
+    // With reaction lag the goalie aims where the puck *was* (back toward center
+    // / -y), so he trails the +y motion instead of pinning the puck the way the
+    // old frame-perfect tracker did.
+    expect(homeGoalieOf(world).position.y).toBeLessThan(RINK_CONFIG.height / 2);
+  });
+
   it("ignores a teammate's dump-in (no phantom saves)", () => {
     const world = playingWorld();
     const goalie = homeGoalieOf(world);

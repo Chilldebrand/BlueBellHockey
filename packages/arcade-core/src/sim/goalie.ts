@@ -22,6 +22,13 @@ export interface GoalieConfig {
   readonly reboundSpeedFactor: number;
   /** ...but never leave slower than this (live scramble, not a dead puck). */
   readonly reboundMinSpeed: number;
+  /**
+   * Human-like reaction lag (ms). The goalie slides toward where the puck *was*
+   * this long ago, so a fast shot or cross-crease pass leaves him a beat behind
+   * and opens the far side; slow stickhandling barely lags. 0 = the old
+   * frame-perfect wall.
+   */
+  readonly reactionDelayMs: number;
 }
 
 export const GOALIE_CONFIG: GoalieConfig = {
@@ -29,13 +36,16 @@ export const GOALIE_CONFIG: GoalieConfig = {
   homeX: goalLineX("home") + RINK_CONFIG.goalieDepth,
   awayX: goalLineX("away") - RINK_CONFIG.goalieDepth,
   creaseHalfHeight: RINK_CONFIG.goalWidth / 2,
-  lateralSpeed: 560,
-  saveReach: 74,
+  // Playtested feel: a touch slower across and a hair less reach so placed
+  // shots and (with reaction lag) quick plays can beat him.
+  lateralSpeed: 520,
+  saveReach: 70,
   saveZoneDepth: 340,
   coverMaxSpeed: 520,
   coverMaxOffset: 46,
   reboundSpeedFactor: 0.45,
-  reboundMinSpeed: 320
+  reboundMinSpeed: 320,
+  reactionDelayMs: 150
 };
 
 export type GoalieSaveType = "pad" | "body" | "glove" | "blocker" | "cover";
@@ -46,7 +56,13 @@ export function stepGoalies(
   config: GoalieConfig = GOALIE_CONFIG
 ): void {
   for (const goalie of world.goalies) {
-    trackPuckInCrease(goalie, world.puck.position.y, dtMs, config);
+    trackPuckInCrease(
+      goalie,
+      world.puck.position.y,
+      world.puck.velocity.y,
+      dtMs,
+      config
+    );
     resolveGoalieSave(world, goalie, dtMs, config);
   }
 }
@@ -54,11 +70,17 @@ export function stepGoalies(
 function trackPuckInCrease(
   goalie: GoalieEntity,
   puckY: number,
+  puckVelY: number,
   dtMs: number,
   config: GoalieConfig
 ): void {
+  // React with human latency: aim where the puck was reactionDelayMs ago,
+  // estimated from its current lateral velocity. A hot shot or cross-crease
+  // pass leaves him a beat behind (far side opens); slow puck movement barely
+  // lags, so he keeps his angle.
+  const laggedY = puckY - puckVelY * (config.reactionDelayMs / 1000);
   const targetY = clamp(
-    puckY,
+    laggedY,
     RINK_CONFIG.height / 2 - config.creaseHalfHeight,
     RINK_CONFIG.height / 2 + config.creaseHalfHeight
   );

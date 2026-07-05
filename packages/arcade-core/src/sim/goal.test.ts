@@ -45,6 +45,28 @@ describe("goal scoring and match loop", () => {
     );
   });
 
+  it("returns skaters and goalies to their faceoff spots after a goal", () => {
+    const world = worldWithOpenAwayNet();
+    const scorer = world.skaters.find((s) => s.id === "home-skater-1")!;
+    // Drive the scorer deep and moving, like they just crashed the net.
+    scorer.position = { x: goalLineX("away") - 40, y: RINK_CONFIG.height / 2 + 80 };
+    scorer.velocity = { x: 600, y: 0 };
+
+    world.puck.position = { x: goalLineX("away") - 10, y: RINK_CONFIG.height / 2 };
+    world.puck.velocity = { x: 1000, y: 0 };
+    world.puck.shotBySlotId = "home-skater-1";
+    world.puck.lastTouchSlotId = "home-skater-1";
+
+    stepWorld(world, [], 16);
+
+    expect(world.score.home).toBe(1);
+    // Scorer is recentered near the faceoff, not stranded down by the net.
+    expect(scorer.position.x).toBeLessThan(RINK_CONFIG.width / 2);
+    expect(scorer.velocity).toEqual({ x: 0, y: 0 });
+    const awayGoalie = world.goalies.find((g) => g.teamId === "away")!;
+    expect(awayGoalie.position.y).toBe(RINK_CONFIG.height / 2);
+  });
+
   it("rejects pucks outside the mouth band as non-goals", () => {
     const world = worldWithOpenAwayNet();
     world.puck.position = { x: goalLineX("away") - 10, y: 10 };

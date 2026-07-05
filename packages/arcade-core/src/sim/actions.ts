@@ -236,32 +236,31 @@ function checkForce(hitter: SkaterEntity, target: SkaterEntity): number {
   return magnitude(hitter.velocity) * (0.75 + alignment * 0.5);
 }
 
+/**
+ * Pass aim, like shot aiming: the LEFT stick's world-space direction when it's
+ * pushed, otherwise the carrier's facing so a coasting pass still goes forward.
+ */
+export function passAimDirection(
+  input: InputFrame | undefined,
+  carrier: SkaterEntity
+): Vec2 {
+  const aim = { x: input?.moveX ?? 0, y: input?.moveY ?? 0 };
+  if (magnitude(aim) > 0.3) {
+    return normalizeOrZero(aim);
+  }
+  return facingDirection(carrier);
+}
+
+/**
+ * Given an aim direction (see passAimDirection), pass to the best-aligned
+ * teammate within the assist cone, or straight along the aim if none is there.
+ */
 export function passDirectionWithAssist(
   world: WorldState,
   carrier: SkaterEntity,
+  aim: Vec2,
   assistCosine = 0.65
 ): Vec2 {
-  const aim = facingDirection(carrier);
-  const selectedTarget = world.skaters.find(
-    (skater) =>
-      skater.id === carrier.selectedTargetSlotId &&
-      skater.teamId === carrier.teamId &&
-      skater.id !== carrier.id
-  );
-
-  if (selectedTarget) {
-    const selectedDirection = normalizeOrZero({
-      x: selectedTarget.position.x - carrier.position.x,
-      y: selectedTarget.position.y - carrier.position.y
-    });
-    const selectedScore =
-      aim.x * selectedDirection.x + aim.y * selectedDirection.y;
-
-    if (selectedScore >= 0.15) {
-      return selectedDirection;
-    }
-  }
-
   let bestTeammate: SkaterEntity | null = null;
   let bestScore = assistCosine;
 

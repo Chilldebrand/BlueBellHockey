@@ -60,13 +60,18 @@ describe("poke check", () => {
     const carrier = world.skaters[0];
     const defender = world.skaters[3];
     world.puck.carrierSlotId = carrier.id;
-    world.puck.position = { x: carrier.position.x + 52, y: carrier.position.y };
+    world.puck.position = { ...bladeWorldPosition(carrier) };
     defender.facing = Math.PI; // blade toward the puck
-    // Park the defender so the resting blade sits ~75 units short of the
-    // puck (outside the 52-unit strip range) and only the +58 lunge closes it.
+    // Park the defender so its resting blade sits ~78 units up-ice of the puck
+    // (outside the strip range) and only the +pokeReachBonus lunge closes it —
+    // anchored to the real blade so it survives stick rest tuning.
+    const defenderBladeOffset = bladeWorldPosition({
+      ...defender,
+      position: { x: 0, y: 0 }
+    });
     defender.position = {
-      x: world.puck.position.x + 52 + 75,
-      y: world.puck.position.y
+      x: world.puck.position.x + 78 - defenderBladeOffset.x,
+      y: world.puck.position.y - defenderBladeOffset.y
     };
 
     // Without the poke: still carried.

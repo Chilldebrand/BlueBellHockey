@@ -24,25 +24,10 @@ import { resolveSpecials } from "./specials.js";
 import { createInitialStats } from "./stats.js";
 import { stepGoalies } from "./goalie.js";
 import { resolveGoals } from "./goal.js";
+import { goalieSpawn, skaterSpawn, spawnFacing } from "./spawns.js";
 
 function zeroVector(): Vec2 {
   return { x: 0, y: 0 };
-}
-
-function skaterSpawn(index: number, teamSide: -1 | 1): Vec2 {
-  return {
-    x: RINK_CONFIG.width / 2 + teamSide * 260,
-    y: RINK_CONFIG.height / 2 + (index - 1) * 140
-  };
-}
-
-function goalieSpawn(teamSide: -1 | 1): Vec2 {
-  const inset = RINK_CONFIG.goalLineInset + RINK_CONFIG.goalieDepth;
-
-  return {
-    x: teamSide === -1 ? inset : RINK_CONFIG.width - inset,
-    y: RINK_CONFIG.height / 2
-  };
 }
 
 export function createWorld(seed: number, mode: MatchMode): WorldState {
@@ -55,8 +40,7 @@ export function createWorld(seed: number, mode: MatchMode): WorldState {
       teamId: slot.teamId,
       position: skaterSpawn(slot.index, teamSide),
       velocity: zeroVector(),
-      // Face the attacking direction: home spawns on -x and attacks +x.
-      facing: teamSide === -1 ? 0 : Math.PI,
+      facing: spawnFacing(teamSide),
       stick: createStickState(),
       gesture: createGestureState(),
       contactState: "ready",
@@ -69,6 +53,7 @@ export function createWorld(seed: number, mode: MatchMode): WorldState {
       turboMeter: 1,
       turboCooldownUntilMs: 0,
       oneTimerUntilMs: 0,
+      passChargeMs: 0,
       selectedTargetSlotId: null,
       heldPowerupType: null,
       specialCharge: 0,

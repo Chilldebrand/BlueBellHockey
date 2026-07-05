@@ -193,6 +193,17 @@ describe("skill-stick gestures", () => {
     );
   });
 
+  it("lifts a neutral-aim shot off the ice", () => {
+    const world = carrierWorld();
+
+    stepWorld(world, [frame("home-skater-1", 1)], TICK);
+    // Neutral left stick (no up/down aim) — most shots should still lift.
+    stepWorld(world, [frame("home-skater-1", 2, { stickY: 1 })], TICK);
+
+    expect(world.puck.carrierSlotId).toBeNull();
+    expect(world.puck.verticalVelocity).toBeGreaterThan(120);
+  });
+
   it("aims the away team at the opposite (home) net", () => {
     const world = createWorld(1, "arcade3v3");
     world.phase = "playing";
@@ -214,8 +225,9 @@ describe("skill-stick gestures", () => {
     receiver.position = { x: passer.position.x + 260, y: passer.position.y };
     receiver.facing = 0;
 
-    // Pass, then let the puck travel to the receiver.
+    // Pass (charge on hold, fire on release), then let the puck travel.
     stepWorld(world, [frame(passer.id, 1, { pass: true })], TICK);
+    stepWorld(world, [frame(passer.id, 2, { pass: false })], TICK);
 
     for (let tick = 0; tick < 40 && world.puck.carrierSlotId === null; tick += 1) {
       stepWorld(world, [], TICK);

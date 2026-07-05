@@ -2,6 +2,7 @@ import { MATCH_CONFIG } from "../config/match.js";
 import { RINK_CONFIG } from "../config/rink.js";
 import type { TeamId } from "../config/teams.js";
 import { puckInsideGoal } from "./net.js";
+import { goalieSpawn, skaterSpawn, spawnFacing } from "./spawns.js";
 import type { WorldState } from "./types.js";
 
 export function resolveGoals(world: WorldState): void {
@@ -52,6 +53,21 @@ export function resetForFaceoff(world: WorldState): void {
   world.puck.passedAtMs = 0;
   world.puck.pickupDisabledForSlotId = null;
   world.puck.pickupDisabledUntilMs = 0;
+
+  // Reset the players too, not just the puck — otherwise a scorer is left
+  // stranded by the net while the camera snaps to the center-ice faceoff,
+  // leaving the player unable to find their character.
+  for (const skater of world.skaters) {
+    const teamSide = skater.teamId === "home" ? -1 : 1;
+    skater.position = skaterSpawn(skater.slot.index, teamSide);
+    skater.velocity = { x: 0, y: 0 };
+    skater.facing = spawnFacing(teamSide);
+  }
+  for (const goalie of world.goalies) {
+    const teamSide = goalie.teamId === "home" ? -1 : 1;
+    goalie.position = goalieSpawn(teamSide);
+    goalie.velocity = { x: 0, y: 0 };
+  }
 }
 
 function scoringTeamForPuck(world: WorldState): TeamId | null {

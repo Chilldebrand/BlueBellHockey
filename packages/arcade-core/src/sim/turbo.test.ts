@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { createWorld, stepWorld } from "./world.js";
-import { passDirectionWithAssist } from "./actions.js";
 import type { InputFrame, WorldState } from "./types.js";
 
 function input(
@@ -59,19 +58,16 @@ describe("turbo and assist targeting", () => {
     );
   });
 
-  it("cycles selected offensive targets and biases pass direction", () => {
+  it("cycles selected offensive targets while carrying the puck", () => {
     const world = playingWorld();
     const carrier = world.skaters[0];
     world.puck.carrierSlotId = carrier.id;
 
     stepWorld(world, [input(carrier.id, { switchTarget: true })], 16);
 
+    // switchTarget still cycles the target indicator; passing itself now aims
+    // with the left stick (see actions.test.ts), not this selection.
     expect(carrier.selectedTargetSlotId).toBe("home-skater-2");
-    expect(passDirectionWithAssist(world, carrier)).toEqual(
-      expect.objectContaining({
-        y: expect.any(Number)
-      })
-    );
   });
 
   it("selects opponents on defense without changing owned skater", () => {
