@@ -88,18 +88,13 @@ export function SkaterDebug({
             teamId={teamId}
             isLocal={isLocal}
             animationState={animationState}
+            bladeOffset={bladeOffset}
           />
         </group>
         {showVectors ? (
           <mesh position={[34, 22, 0]}>
             <boxGeometry args={[36, 2.5, 2.5]} />
             <meshBasicMaterial color="#ffdf6e" />
-          </mesh>
-        ) : null}
-        {showVectors && bladeOffset ? (
-          <mesh position={[bladeOffset.x, 8, bladeOffset.y]}>
-            <sphereGeometry args={[8, 10, 8]} />
-            <meshBasicMaterial color="#7df1ff" />
           </mesh>
         ) : null}
       </group>

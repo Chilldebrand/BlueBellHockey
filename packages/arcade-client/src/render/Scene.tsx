@@ -1,6 +1,7 @@
 import { Canvas } from "@react-three/fiber";
 import {
   bladeBodyOffset,
+  TUNING,
   type PuckState,
   type SkaterEntity,
   type WorldState
@@ -10,7 +11,7 @@ import { selectGoalieAnimation } from "./animation/goalieAnimation.js";
 import { selectSkaterAnimation } from "./animation/skaterAnimation.js";
 import { CameraRig } from "./CameraRig.js";
 import { GoalieModel } from "./GoalieModel.js";
-import { Puck, predictedCarriedPuck } from "./Puck.js";
+import { Puck, pocketCarriedPuck, predictedCarriedPuck } from "./Puck.js";
 import { Powerups } from "./Powerups.js";
 import { Rink } from "./Rink.js";
 import { SkaterDebug } from "./SkaterDebug.js";
@@ -40,9 +41,21 @@ export function Scene({
   }
 
   const skaters = interpolateSkaters(previousWorld, currentWorld, 0.75, localSlotId);
-  const renderedPuck =
+  // Prefer the reconciled local skater when it's the carrier (no net lag),
+  // otherwise the authoritative carrier — so the blade pocket works in Free
+  // Skate (no predicted local skater) as well as online.
+  const puckCarrier =
+    predictedLocalSkater &&
+    predictedLocalSkater.id === currentWorld.puck.carrierSlotId
+      ? predictedLocalSkater
+      : currentWorld.skaters.find(
+          (skater) => skater.id === currentWorld.puck.carrierSlotId
+        ) ?? null;
+  const renderedPuck = pocketCarriedPuck(
     predictedPuck ??
-    predictedCarriedPuck(currentWorld.puck, predictedLocalSkater);
+      predictedCarriedPuck(currentWorld.puck, predictedLocalSkater),
+    puckCarrier
+  );
 
   return (
     <section className="arcade-rink-shell" aria-label="Arcade rink debug view">
@@ -79,7 +92,11 @@ export function Scene({
               hasPossession={currentWorld.puck.carrierSlotId === skater.id}
               velocity={renderSkater.velocity}
               facing={renderSkater.facing}
-              bladeOffset={bladeBodyOffset(sourceSkater)}
+              bladeOffset={bladeBodyOffset(
+                sourceSkater,
+                TUNING.stick,
+                currentWorld.time.nowMs
+              )}
               showVectors={debugOverlays}
               animationState={selectSkaterAnimation({
                 skater: sourceSkater,
@@ -95,6 +112,10 @@ export function Scene({
             key={goalie.id}
             name={goalie.id}
             position={[goalie.position.x, 10, goalie.position.y]}
+            // The goalie model faces +Z locally, but goalies face center ice
+            // down the X goal-axis: home defends the -X end (faces +X), away
+            // defends the +X end (faces -X). So each turns 90 deg toward center.
+            rotation={[0, goalie.teamId === "home" ? Math.PI / 2 : -Math.PI / 2, 0]}
             scale={1.5}
           >
             <GoalieModel

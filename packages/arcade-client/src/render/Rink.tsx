@@ -1,11 +1,12 @@
 import { useMemo } from "react";
-import { Shape, ShapeGeometry, ExtrudeGeometry, DoubleSide } from "three";
+import { CanvasTexture, Shape, ShapeGeometry, ExtrudeGeometry, DoubleSide } from "three";
 import { RINK_CONFIG, goalLineX, netBackX } from "@bbh/arcade-core";
 
 const BOARD_THICKNESS = 36;
 const BOARD_HEIGHT = 52;
 const GLASS_THICKNESS = 10;
 const GLASS_HEIGHT = 120;
+const CENTER_CIRCLE_RADIUS = 200;
 
 /**
  * Rounded-rect outline matching the sim's board geometry (boards.ts): straight
@@ -77,11 +78,15 @@ export function Rink(): JSX.Element {
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, RINK_CONFIG.height]} geometry={ice}>
         <meshStandardMaterial color="#e7f6ff" roughness={0.5} metalness={0.04} />
       </mesh>
-      <RinkLine x={RINK_CONFIG.width / 2} color="#1f8fff" width={12} />
-      <RinkLine x={RINK_CONFIG.width * 0.34} color="#1f8fff" width={10} />
-      <RinkLine x={RINK_CONFIG.width * 0.66} color="#1f8fff" width={10} />
+      {/* NHL zone markings: a thick red center line flanked by two blue lines.
+          The center line is split so it stops at the center circle. */}
+      <CenterLine />
+      <RinkLine x={RINK_CONFIG.width * 0.375} color="#2b7fff" width={14} />
+      <RinkLine x={RINK_CONFIG.width * 0.625} color="#2b7fff" width={14} />
       <RinkLine x={goalLineX("home")} color="#ff4f5e" width={6} />
       <RinkLine x={goalLineX("away")} color="#ff4f5e" width={6} />
+      <FaceoffMarkings />
+      <CenterIceLogo />
       <GoalCrease
         x={goalLineX("home") + RINK_CONFIG.goalieDepth}
       />
@@ -114,7 +119,6 @@ export function Rink(): JSX.Element {
           depthWrite={false}
         />
       </mesh>
-      <CenterLogo />
     </group>
   );
 }
@@ -133,6 +137,31 @@ function RinkLine({
       <planeGeometry args={[width, RINK_CONFIG.height]} />
       <meshStandardMaterial color={color} />
     </mesh>
+  );
+}
+
+/**
+ * Red center line, split into two segments so it stops at the edge of the
+ * center faceoff circle instead of running straight through the logo.
+ */
+function CenterLine(): JSX.Element {
+  const x = RINK_CONFIG.width / 2;
+  const segLen = RINK_CONFIG.height / 2 - CENTER_CIRCLE_RADIUS;
+
+  return (
+    <group name="center-line">
+      <mesh position={[x, 2, segLen / 2]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[16, segLen]} />
+        <meshStandardMaterial color="#e2384a" />
+      </mesh>
+      <mesh
+        position={[x, 2, RINK_CONFIG.height - segLen / 2]}
+        rotation={[-Math.PI / 2, 0, 0]}
+      >
+        <planeGeometry args={[16, segLen]} />
+        <meshStandardMaterial color="#e2384a" />
+      </mesh>
+    </group>
   );
 }
 
@@ -206,17 +235,129 @@ function NetMaterial(): JSX.Element {
   );
 }
 
-function CenterLogo(): JSX.Element {
+/**
+ * A blue Liberty-Bell painted at center ice. Drawn to an offscreen canvas (no
+ * external asset) and mapped onto a flat plane inside the center circle.
+ */
+function CenterIceLogo(): JSX.Element {
+  const texture = useMemo(() => {
+    const size = 512;
+    const cx = size / 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.clearRect(0, 0, size, size);
+      const blue = "#1f5fd0";
+      ctx.fillStyle = blue;
+
+      // Yoke (headstock beam) and the hanger loop under it.
+      ctx.fillRect(cx - 78, 150, 156, 14);
+      ctx.fillRect(cx - 7, 162, 14, 18);
+
+      // Bell body: domed shoulders flaring out to a lipped skirt.
+      ctx.beginPath();
+      ctx.moveTo(cx - 30, 196);
+      ctx.bezierCurveTo(cx - 30, 176, cx + 30, 176, cx + 30, 196);
+      ctx.bezierCurveTo(cx + 46, 246, cx + 74, 300, cx + 90, 338);
+      ctx.lineTo(cx + 116, 360);
+      ctx.lineTo(cx + 116, 380);
+      ctx.lineTo(cx - 116, 380);
+      ctx.lineTo(cx - 116, 360);
+      ctx.lineTo(cx - 90, 338);
+      ctx.bezierCurveTo(cx - 74, 300, cx - 46, 246, cx - 30, 196);
+      ctx.closePath();
+      ctx.fill();
+
+      // Clapper.
+      ctx.beginPath();
+      ctx.arc(cx, 396, 11, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Signature crack, drawn transparent so the ice shows through the split.
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = 7;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(cx + 30, 202);
+      ctx.lineTo(cx + 15, 240);
+      ctx.lineTo(cx + 34, 276);
+      ctx.lineTo(cx + 17, 314);
+      ctx.lineTo(cx + 30, 352);
+      ctx.lineTo(cx + 22, 382);
+      ctx.stroke();
+      ctx.globalCompositeOperation = "source-over";
+    }
+    const tex = new CanvasTexture(canvas);
+    tex.anisotropy = 8;
+    return tex;
+  }, []);
+
   return (
-    <group name="center-ice-bbh-mark" position={[RINK_CONFIG.width / 2, 5, RINK_CONFIG.height / 2]}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[96, 40]} />
-        <meshStandardMaterial color="#101820" />
-      </mesh>
+    <mesh
+      position={[RINK_CONFIG.width / 2, 6, RINK_CONFIG.height / 2]}
+      rotation={[-Math.PI / 2, 0, -Math.PI / 2]}
+    >
+      <planeGeometry args={[360, 360]} />
+      <meshStandardMaterial map={texture} transparent />
+    </mesh>
+  );
+}
+
+/** NHL faceoff spot: an optional circle ring plus its center dot. */
+function FaceoffSpot({
+  x,
+  z,
+  color,
+  circleRadius
+}: {
+  readonly x: number;
+  readonly z: number;
+  readonly color: string;
+  readonly circleRadius?: number;
+}): JSX.Element {
+  return (
+    <group position={[x, 0, z]}>
+      {circleRadius !== undefined ? (
+        <mesh position={[0, 4, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[circleRadius - 8, circleRadius, 48]} />
+          <meshStandardMaterial color={color} />
+        </mesh>
+      ) : null}
       <mesh position={[0, 3, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[64, 78, 40]} />
-        <meshStandardMaterial color="#ffdf6e" />
+        <circleGeometry args={[15, 24]} />
+        <meshStandardMaterial color={color} />
       </mesh>
+    </group>
+  );
+}
+
+/**
+ * Standard NHL faceoff layout: a blue center circle + dot and four red end-zone
+ * circles. Positions are in the three (x, z) plane; z is the sim-plane y,
+ * symmetric about center.
+ */
+function FaceoffMarkings(): JSX.Element {
+  const cx = RINK_CONFIG.width / 2;
+  const cz = RINK_CONFIG.height / 2;
+  // End-zone circles pushed out toward the side boards: 25% closer to them than
+  // the old 290 offset (gap to the board 490 -> ~367).
+  const zOff = 412;
+  const zoneInset = 300;
+  const homeZoneX = goalLineX("home") + zoneInset;
+  const awayZoneX = goalLineX("away") - zoneInset;
+  const red = "#e2384a";
+
+  return (
+    <group name="faceoff-markings">
+      <FaceoffSpot x={cx} z={cz} color={red} circleRadius={CENTER_CIRCLE_RADIUS} />
+      <FaceoffSpot x={homeZoneX} z={cz - zOff} color={red} circleRadius={165} />
+      <FaceoffSpot x={homeZoneX} z={cz + zOff} color={red} circleRadius={165} />
+      <FaceoffSpot x={awayZoneX} z={cz - zOff} color={red} circleRadius={165} />
+      <FaceoffSpot x={awayZoneX} z={cz + zOff} color={red} circleRadius={165} />
     </group>
   );
 }

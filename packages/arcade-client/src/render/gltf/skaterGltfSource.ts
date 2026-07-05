@@ -34,13 +34,21 @@ export interface SkaterGltfSource {
   readonly rootRotation: readonly [number, number, number];
   readonly rootScale: number;
   readonly yOffset: number;
+  /**
+   * When a state has to hold a static pose (see `shouldAdvanceClip`), freeze the
+   * fallback clip at this fraction (0..1) of its duration instead of frame 0.
+   * A walk cycle's frame 0 is a legs-apart contact pose; ~0.25 lands on the
+   * legs-together passing pose, which reads better as a stand. Defaults to 0.
+   */
+  readonly idlePoseFraction?: number;
 }
 
 /**
- * Master switch for the GLB body path. Flip to `false` to force every skater
- * back to the procedural capsule blockout (e.g. if an asset regresses).
+ * Master switch for the GLB body path. `false` forces every skater back to the
+ * procedural capsule blockout (which matches the goalie blockout style). The
+ * CesiumMan test wiring below stays intact — flip to `true` to bring it back.
  */
-export const GLTF_SKATER_BODIES_ENABLED = true;
+export const GLTF_SKATER_BODIES_ENABLED = false;
 
 /**
  * TEMPORARY test asset. CesiumMan is a rigged, walk-animated humanoid used
@@ -84,12 +92,16 @@ export const TEST_CESIUM_SOURCE: SkaterGltfSource = {
     idle_ready: null
   },
   baseClip: null,
-  // CesiumMan bakes its own Z-up->Y-up correction via the root node, so no
-  // extra rotation is needed; it is authored in metres (~1.8u tall) and our
-  // blockout body is ~68u, so scale up to match. Tune in Free Skate.
-  rootRotation: [0, 0, 0],
+  // CesiumMan's mesh faces +Z, but our skaters travel along local +X (the
+  // blockout's forward), so it looked like it skated sideways. Turn it 90 deg
+  // left about the vertical axis to face the direction of travel. It is
+  // authored in metres (~1.8u tall) vs our ~68u blockout, so scale up to match.
+  rootRotation: [0, Math.PI / 2, 0],
   rootScale: 38,
-  yOffset: 0
+  yOffset: 0,
+  // Freeze the idle stand on the walk's legs-together passing pose. Tune in
+  // Free Skate if the frozen stance still looks mid-stride.
+  idlePoseFraction: 0.25
 };
 
 /** The source used for in-game skaters today. */
@@ -134,6 +146,50 @@ export function pickPlayableClip(
     return source.baseClip;
   }
   return availableClipNames.length > 0 ? availableClipNames[0] : null;
+}
+
+/**
+ * States that read as "the skater is moving its feet". Only these should loop a
+ * generic locomotion clip when a rig lacks a dedicated animation — otherwise a
+ * walk-only asset (like the CesiumMan placeholder) marches in place while idle.
+ */
+export const LOCOMOTION_STATES: ReadonlySet<SkaterAnimationState> = new Set([
+  "skate",
+  "turbo",
+  "hardTurn",
+  "juke"
+]);
+
+/**
+ * True when the GLB has a clip authored specifically for this state (an exact
+ * map hit or a real base clip), as opposed to only the first-available
+ * fallback. A dedicated clip is always safe to advance.
+ */
+export function isDedicatedClip(
+  source: SkaterGltfSource,
+  manifestClip: string,
+  availableClipNames: readonly string[]
+): boolean {
+  const wanted = resolveGltfClipName(source, manifestClip);
+  return wanted !== null && availableClipNames.includes(wanted);
+}
+
+/**
+ * Whether the playing clip's time should advance for this state. Advance when
+ * there's a dedicated clip (play it as authored) or the skater is actually
+ * moving; otherwise hold a static pose so a locomotion-only rig doesn't walk in
+ * place while standing still.
+ */
+export function shouldAdvanceClip(
+  source: SkaterGltfSource,
+  manifestClip: string,
+  animationState: SkaterAnimationState,
+  availableClipNames: readonly string[]
+): boolean {
+  return (
+    isDedicatedClip(source, manifestClip, availableClipNames) ||
+    LOCOMOTION_STATES.has(animationState)
+  );
 }
 
 /** Map a live skater animation-state clip request through to a GLB track. */

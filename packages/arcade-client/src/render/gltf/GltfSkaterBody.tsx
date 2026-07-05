@@ -6,6 +6,7 @@ import { TEAM_PALETTES, type TeamId } from "@bbh/arcade-core";
 import { clipForSkaterState, type SkaterAnimationState } from "../animation/clipMap.js";
 import {
   pickPlayableClip,
+  shouldAdvanceClip,
   type SkaterGltfSource
 } from "./skaterGltfSource.js";
 
@@ -68,7 +69,16 @@ export function GltfSkaterBody({
     if (!next) {
       return;
     }
-    next.reset().fadeIn(CROSSFADE_SECONDS).play();
+    const action = next.reset().fadeIn(CROSSFADE_SECONDS).play();
+    // Hold a static pose when the state has no real clip and the skater isn't
+    // moving, so a locomotion-only rig doesn't walk in place while idle. Freeze
+    // on the configured pose fraction (e.g. a walk's legs-together frame) rather
+    // than frame 0's legs-apart contact pose.
+    const advance = shouldAdvanceClip(source, manifestClip, animationState, names);
+    action.paused = !advance;
+    if (!advance) {
+      action.time = next.getClip().duration * (source.idlePoseFraction ?? 0);
+    }
     return () => {
       next.fadeOut(CROSSFADE_SECONDS);
     };

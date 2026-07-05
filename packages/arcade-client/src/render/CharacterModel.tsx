@@ -1,5 +1,11 @@
 import { Suspense } from "react";
-import { TEAM_PALETTES, type CharacterId, type TeamId } from "@bbh/arcade-core";
+import { DoubleSide, Euler, Quaternion, Vector3 } from "three";
+import {
+  TEAM_PALETTES,
+  type CharacterId,
+  type TeamId,
+  type Vec2
+} from "@bbh/arcade-core";
 import {
   type CharacterModelManifest,
   validateModelManifest
@@ -27,6 +33,12 @@ export interface CharacterModelProps {
    * to force the procedural blockout (used by previews / tests).
    */
   readonly gltfSource?: SkaterGltfSource | null;
+  /**
+   * Sim blade offset in body space (x forward, y lateral-right, unscaled). The
+   * blockout stick's flat head tracks this so the carried puck (drawn by the
+   * sim at the same offset) rides on the blade. Defaults to the rest offset.
+   */
+  readonly bladeOffset?: Vec2;
 }
 
 export function CharacterModel({
@@ -35,7 +47,8 @@ export function CharacterModel({
   isLocal = false,
   animationState = "idle",
   manifest = FIRST_SKATER_MODEL_MANIFEST,
-  gltfSource = ACTIVE_SKATER_GLTF_SOURCE
+  gltfSource = ACTIVE_SKATER_GLTF_SOURCE,
+  bladeOffset
 }: CharacterModelProps): JSX.Element {
   const validation = validateModelManifest(manifest, "skater");
 
@@ -55,6 +68,7 @@ export function CharacterModel({
       isLocal={isLocal}
       manifestId={manifest.id}
       animationState={animationState}
+      bladeOffset={bladeOffset}
     />
   );
 
@@ -93,7 +107,24 @@ interface BlockoutBodyProps {
   readonly isLocal: boolean;
   readonly manifestId: string;
   readonly animationState: SkaterAnimationState;
+  readonly bladeOffset?: Vec2;
 }
+
+// The capsule body was authored facing +Z; skaters travel along local +X, so an
+// outer +90 deg turn re-aims it forward (same fix the goalie + GLB needed).
+const FORWARD_CORRECTION_Y = Math.PI / 2;
+
+// Must match SkaterDebug.SKATER_MODEL_SCALE: sim offsets are unscaled, the model
+// is drawn this much bigger, so convert sim units -> model-local by dividing.
+const SKATER_RENDER_SCALE = 1.6;
+
+// Sim rest blade offset (STICK_CONFIG.restOffset / restLateral) as a fallback
+// when no live offset is threaded in (e.g. the model preview).
+const REST_BLADE_OFFSET: Vec2 = { x: 22, y: 44.5 };
+
+// Root-frame height (pre-1.6 scale) that lands the blade just under the carried
+// puck. Puck renders at world y=22; 6 * 1.6 + 10 (group base) = ~20.
+const BLADE_LOCAL_Y = 6;
 
 /** Procedural capsule blockout: the pre-GLB body and the universal fallback. */
 function BlockoutBody({
@@ -101,51 +132,236 @@ function BlockoutBody({
   characterId,
   isLocal,
   manifestId,
-  animationState
+  animationState,
+  bladeOffset
 }: BlockoutBodyProps): JSX.Element {
   const palette = TEAM_PALETTES[teamId].uniform;
   const pose = skaterPose(animationState);
 
+  // Blade in root-frame local coords (x forward, z lateral-right), tracking the
+  // sim blade so the carried puck sits on the flat head as it stickhandles.
+  const blade = bladeOffset ?? REST_BLADE_OFFSET;
+  const bladeLocal: [number, number, number] = [
+    blade.x / SKATER_RENDER_SCALE,
+    BLADE_LOCAL_Y,
+    blade.y / SKATER_RENDER_SCALE
+  ];
+
   return (
-    <group
-      name={`character-model:${characterId ?? manifestId}:${animationState}`}
-      rotation={[pose.pitch, pose.yaw, pose.roll]}
-      scale={[pose.scaleX, pose.scaleY, pose.scaleZ]}
-    >
-      <mesh position={[0, 24, 0]} castShadow>
-        <capsuleGeometry args={[9, 24, 8, 14]} />
-        <meshStandardMaterial color={palette.jersey} roughness={0.58} />
-      </mesh>
-      <mesh position={[0, 46, 0]} castShadow>
-        <sphereGeometry args={[14, 18, 14]} />
-        <meshStandardMaterial color="#f2c9a2" roughness={0.62} />
-      </mesh>
-      <mesh position={[0, 54, -1]} castShadow>
-        <sphereGeometry args={[15, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.58]} />
-        <meshStandardMaterial color={isLocal ? "#ffffff" : "#111827"} />
-      </mesh>
-      <mesh position={[-13, 26, 0]} castShadow>
-        <capsuleGeometry args={[3, 22, 5, 8]} />
+    <group name={`character-model:${characterId ?? manifestId}:${animationState}`}>
+      {/* Body: authored +Z, turned to face +X, then posed. */}
+      <group rotation={[0, FORWARD_CORRECTION_Y, 0]}>
+        <group
+          rotation={[pose.pitch, pose.yaw, pose.roll]}
+          scale={[pose.scaleX, pose.scaleY, pose.scaleZ]}
+        >
+          <mesh position={[0, 24, 0]} castShadow>
+            <capsuleGeometry args={[9, 24, 8, 14]} />
+            <meshStandardMaterial color={palette.jersey} roughness={0.58} />
+          </mesh>
+          {/* Head (face looks toward +Z, the authored forward). */}
+          <mesh position={[0, 46, 0]} castShadow>
+            <sphereGeometry args={[14, 18, 14]} />
+            <meshStandardMaterial color="#f2c9a2" roughness={0.62} />
+          </mesh>
+          {/* Glossy black CCM-style helmet shell coming down over the head. */}
+          <mesh position={[0, 52.5, -1]} castShadow>
+            <sphereGeometry
+              args={[15.6, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.62]}
+            />
+            <meshPhysicalMaterial
+              color="#0a0a0d"
+              roughness={0.12}
+              metalness={0.15}
+              clearcoat={1}
+              clearcoatRoughness={0.06}
+            />
+          </mesh>
+          {/* Ear guards on each side. */}
+          <mesh position={[-13.6, 43, 0.5]} castShadow>
+            <boxGeometry args={[4, 11, 13]} />
+            <meshPhysicalMaterial
+              color="#0a0a0d"
+              roughness={0.15}
+              metalness={0.15}
+              clearcoat={1}
+              clearcoatRoughness={0.1}
+            />
+          </mesh>
+          <mesh position={[13.6, 43, 0.5]} castShadow>
+            <boxGeometry args={[4, 11, 13]} />
+            <meshPhysicalMaterial
+              color="#0a0a0d"
+              roughness={0.15}
+              metalness={0.15}
+              clearcoat={1}
+              clearcoatRoughness={0.1}
+            />
+          </mesh>
+          {/* Eyes (dark, sitting behind the clear shield). */}
+          <mesh position={[-4.6, 48.4, 11.9]}>
+            <sphereGeometry args={[1.8, 10, 8]} />
+            <meshStandardMaterial color="#15181f" />
+          </mesh>
+          <mesh position={[4.6, 48.4, 11.9]}>
+            <sphereGeometry args={[1.8, 10, 8]} />
+            <meshStandardMaterial color="#15181f" />
+          </mesh>
+          {/* Mouth, on the skin below the shield. */}
+          <mesh position={[0, 42, 12.7]}>
+            <boxGeometry args={[6.5, 1.8, 1.2]} />
+            <meshStandardMaterial color="#5a2f2a" />
+          </mesh>
+          {/* Clear curved visor: a front slice of a sphere hugging the face. */}
+          <mesh position={[0, 46, 0]}>
+            <sphereGeometry
+              args={[15.2, 24, 12, Math.PI / 2 - 0.95, 1.9, Math.PI * 0.38, Math.PI * 0.2]}
+            />
+            <meshPhysicalMaterial
+              color="#dcecff"
+              transparent
+              opacity={0.24}
+              roughness={0.04}
+              metalness={0}
+              clearcoat={1}
+              clearcoatRoughness={0.04}
+              side={DoubleSide}
+              depthWrite={false}
+            />
+          </mesh>
+          {/* Arms are drawn by StickAssembly as shoulder->grip segments so they
+              reach down to the stick instead of hanging at the sides. */}
+          <mesh position={[-6, 7, 0]} castShadow>
+            <boxGeometry args={[8, 7, 18]} />
+            <meshStandardMaterial color={palette.pants} />
+          </mesh>
+          <mesh position={[8, 7, 0]} castShadow>
+            <boxGeometry args={[8, 7, 18]} />
+            <meshStandardMaterial color={palette.pants} />
+          </mesh>
+        </group>
+      </group>
+      {/* Stick lives in the root (+X forward) frame so its flat head can sit on
+          the sim-driven puck without fighting the body's pose transforms. */}
+      <StickAssembly bladeLocal={bladeLocal} />
+    </group>
+  );
+}
+
+// Root frame: +X forward, +Y up, +Z lateral-right (so -Z is left). The butt sits
+// near the chest, slightly left; the shaft crosses down-forward to the blade, so
+// the blade end reads to the right of the butt. Shoulders anchor the arms.
+const STICK_BUTT: [number, number, number] = [2, 22, -3];
+const SHOULDER_L: [number, number, number] = [0, 34, -8];
+const SHOULDER_R: [number, number, number] = [0, 34, 8];
+// Where the two hands grip the shaft, as fractions from butt to blade.
+const TOP_HAND_T = 0.16;
+const LOW_HAND_T = 0.42;
+
+/**
+ * Two-handed stick: shoulders reach down to hands gripping a shaft that crosses
+ * the body to a flat blade. The blade sits at `bladeLocal` (tracking the sim
+ * blade) so the carried puck rides on it.
+ */
+function StickAssembly({
+  bladeLocal
+}: {
+  readonly bladeLocal: [number, number, number];
+}): JSX.Element {
+  const topHand = lerp3(STICK_BUTT, bladeLocal, TOP_HAND_T);
+  const lowHand = lerp3(STICK_BUTT, bladeLocal, LOW_HAND_T);
+  const shaft = segmentBetween(STICK_BUTT, bladeLocal);
+  const leftArm = segmentBetween(SHOULDER_L, topHand);
+  const rightArm = segmentBetween(SHOULDER_R, lowHand);
+  // Blade sweeps out to ONE side from the heel (where the shaft lands) and lies
+  // flat — long axis lateral so it reads horizontal. A rounded heel blends the
+  // shaft into the blade so they read as one continuous piece.
+  const heel = bladeLocal;
+  const toe: [number, number, number] = [heel[0] + 2, heel[1], heel[2] + 16];
+  const blade = segmentBetween(heel, toe);
+
+  return (
+    <group name="stick">
+      {/* Arms angling down from the shoulders to the two hands */}
+      <mesh position={leftArm.position} rotation={leftArm.rotation} castShadow>
+        <boxGeometry args={[5, leftArm.length, 5]} />
         <meshStandardMaterial color="#f2c9a2" />
       </mesh>
-      <mesh position={[13, 26, 0]} castShadow>
-        <capsuleGeometry args={[3, 22, 5, 8]} />
+      <mesh position={rightArm.position} rotation={rightArm.rotation} castShadow>
+        <boxGeometry args={[5, rightArm.length, 5]} />
         <meshStandardMaterial color="#f2c9a2" />
       </mesh>
-      <mesh position={[16, 20, 12]} rotation={[0.4, 0.2, -0.45]} castShadow>
-        <boxGeometry args={[4, 5, 48]} />
-        <meshStandardMaterial color="#4b5563" />
+      {/* Shaft */}
+      <mesh position={shaft.position} rotation={shaft.rotation} castShadow>
+        <boxGeometry args={[2.6, shaft.length, 2.6]} />
+        <meshStandardMaterial color="#3a3f47" roughness={0.5} />
       </mesh>
-      <mesh position={[-6, 7, 0]} castShadow>
-        <boxGeometry args={[8, 7, 18]} />
-        <meshStandardMaterial color={palette.pants} />
+      {/* Gloves at both grips */}
+      <mesh position={topHand} castShadow>
+        <sphereGeometry args={[4.6, 10, 8]} />
+        <meshStandardMaterial color="#20242b" />
       </mesh>
-      <mesh position={[8, 7, 0]} castShadow>
-        <boxGeometry args={[8, 7, 18]} />
-        <meshStandardMaterial color={palette.pants} />
+      <mesh position={lowHand} castShadow>
+        <sphereGeometry args={[4.4, 10, 8]} />
+        <meshStandardMaterial color="#20242b" />
+      </mesh>
+      {/* Rounded heel where the shaft becomes the blade — smooths the corner. */}
+      <mesh position={heel} castShadow>
+        <sphereGeometry args={[2.8, 10, 8]} />
+        <meshStandardMaterial color="#6b7280" roughness={0.45} />
+      </mesh>
+      {/* Flat blade swept to one side from the heel: thin front-to-back, its
+          long axis lateral (horizontal). The puck rides at the heel end. */}
+      <mesh position={blade.position} rotation={blade.rotation} castShadow>
+        <boxGeometry args={[1.75, blade.length, 3.4]} />
+        <meshStandardMaterial color="#6b7280" roughness={0.45} />
       </mesh>
     </group>
   );
+}
+
+const SEGMENT_UP = new Vector3(0, 1, 0);
+
+/**
+ * Transform for a box that spans `from`->`to`: box height axis (Y) is rotated
+ * onto the segment direction and centred at the midpoint. Returns the length so
+ * the caller can size the box.
+ */
+function segmentBetween(
+  from: readonly [number, number, number],
+  to: readonly [number, number, number]
+): {
+  readonly position: [number, number, number];
+  readonly rotation: [number, number, number];
+  readonly length: number;
+} {
+  const a = new Vector3(from[0], from[1], from[2]);
+  const b = new Vector3(to[0], to[1], to[2]);
+  const dir = new Vector3().subVectors(b, a);
+  const length = dir.length() || 0.0001;
+  const mid = new Vector3().addVectors(a, b).multiplyScalar(0.5);
+  const quat = new Quaternion().setFromUnitVectors(
+    SEGMENT_UP,
+    dir.clone().normalize()
+  );
+  const euler = new Euler().setFromQuaternion(quat);
+  return {
+    position: [mid.x, mid.y, mid.z],
+    rotation: [euler.x, euler.y, euler.z],
+    length
+  };
+}
+
+function lerp3(
+  a: readonly [number, number, number],
+  b: readonly [number, number, number],
+  t: number
+): [number, number, number] {
+  return [
+    a[0] + (b[0] - a[0]) * t,
+    a[1] + (b[1] - a[1]) * t,
+    a[2] + (b[2] - a[2]) * t
+  ];
 }
 
 function skaterPose(state: SkaterAnimationState): {

@@ -35,8 +35,8 @@ export function computeCameraPosition(target: Vec2): {
   readonly z: number;
 } {
   return {
-    x: Math.round(target.x - 520),
-    y: 860,
+    x: Math.round(target.x - 760),
+    y: 940,
     z: Math.round(target.y)
   };
 }

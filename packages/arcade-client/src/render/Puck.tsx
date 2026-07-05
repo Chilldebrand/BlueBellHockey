@@ -14,12 +14,8 @@ export function Puck({ puck }: PuckProps): JSX.Element {
       ]}
       name="puck"
     >
-      <sphereGeometry args={[18, 16, 10]} />
-      <meshStandardMaterial
-        color={puck.carrierSlotId ? "#171717" : "#2b2f36"}
-        emissive={puck.isChargedShot ? "#ffdf6e" : "#000000"}
-        emissiveIntensity={puck.isChargedShot ? 0.45 : 0}
-      />
+      <sphereGeometry args={[9, 16, 10]} />
+      <meshStandardMaterial color={puck.carrierSlotId ? "#171717" : "#2b2f36"} />
     </mesh>
   );
 }
@@ -37,5 +33,31 @@ export function predictedCarriedPuck(
   return {
     ...puck,
     position: bladeWorldPosition(predictedCarrier)
+  };
+}
+
+// Ride a carried puck a little way along the blade toward its middle (body
+// space: +forward, +right-of-facing) so it sits in the pocket rather than at
+// the heel by the shaft. Visual only, applied on top of whatever base position
+// (Free Skate sim tether or the online blade snap).
+const POCKET_FORWARD = 1.5;
+const POCKET_RIGHT = 13;
+
+export function pocketCarriedPuck(
+  puck: PuckState,
+  carrier: SkaterEntity | null
+): PuckState {
+  if (!carrier || puck.carrierSlotId !== carrier.id) {
+    return puck;
+  }
+
+  const cos = Math.cos(carrier.facing);
+  const sin = Math.sin(carrier.facing);
+  return {
+    ...puck,
+    position: {
+      x: puck.position.x + POCKET_FORWARD * cos - POCKET_RIGHT * sin,
+      y: puck.position.y + POCKET_FORWARD * sin + POCKET_RIGHT * cos
+    }
   };
 }

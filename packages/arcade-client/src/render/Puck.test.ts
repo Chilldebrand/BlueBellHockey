@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { bladeWorldPosition, createWorld } from "@bbh/arcade-core";
-import { predictedCarriedPuck } from "./Puck.js";
+import { pocketCarriedPuck, predictedCarriedPuck } from "./Puck.js";
 
 describe("predictedCarriedPuck", () => {
   it("snaps a carried puck to the predicted local carrier's blade", () => {
@@ -26,5 +26,26 @@ describe("predictedCarriedPuck", () => {
     const puck = predictedCarriedPuck(world.puck, world.skaters[0]);
 
     expect(puck).toBe(world.puck);
+  });
+});
+
+describe("pocketCarriedPuck", () => {
+  it("nudges a carried puck along the blade (right of facing)", () => {
+    const world = createWorld(1, "arcade3v3");
+    const carrier = world.skaters[0]; // faces +x, so right-of-facing is +y
+    world.puck.carrierSlotId = carrier.id;
+    const before = { ...world.puck.position };
+
+    const puck = pocketCarriedPuck(world.puck, carrier);
+
+    expect(puck.position.y).toBeGreaterThan(before.y);
+    expect(puck.position.x).toBeCloseTo(before.x + 1.5, 1); // +forward
+  });
+
+  it("leaves a loose or opponent-carried puck untouched", () => {
+    const world = createWorld(1, "arcade3v3");
+    world.puck.carrierSlotId = "away-skater-1";
+
+    expect(pocketCarriedPuck(world.puck, world.skaters[0])).toBe(world.puck);
   });
 });
