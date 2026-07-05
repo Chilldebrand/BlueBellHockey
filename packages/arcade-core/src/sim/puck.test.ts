@@ -80,6 +80,55 @@ describe("puck simulation", () => {
     expect(world.puck.velocity.x).toBeLessThan(0);
   });
 
+  it("lifts a wrist shot clearly off the ice", () => {
+    const world = playingWorld();
+    const shooter = world.skaters.find((s) => s.id === "home-skater-1")!;
+    // Shoot from the home end so the puck has open ice (home attacks +x) and
+    // won't reach the far net/goalie during the measured flight.
+    shooter.position = { x: RINK_CONFIG.width * 0.35, y: RINK_CONFIG.height / 2 };
+    world.puck.carrierSlotId = shooter.id;
+    world.puck.position = { ...bladeWorldPosition(shooter) };
+    // Latch a neutral-aim wrist shot at a solid (not full) power.
+    shooter.gesture.pendingReleaseType = "wrist";
+    shooter.gesture.pendingReleasePower = 0.8;
+
+    // Release tick: the shot leaves the blade.
+    stepWorld(world, [inputFrame(shooter.id, 1)], 16);
+    expect(world.puck.carrierSlotId).toBeNull();
+
+    let peakHeight = world.puck.height;
+    for (let tick = 0; tick < 10; tick += 1) {
+      stepWorld(world, [], 16);
+      peakHeight = Math.max(peakHeight, world.puck.height);
+    }
+
+    // A grounded skim would peak within a puck radius; a real lift clears it.
+    expect(peakHeight).toBeGreaterThan(20);
+  });
+
+  it("keeps a downward-aimed shot low along the ice", () => {
+    const world = playingWorld();
+    const shooter = world.skaters.find((s) => s.id === "home-skater-1")!;
+    shooter.position = { x: RINK_CONFIG.width * 0.35, y: RINK_CONFIG.height / 2 };
+    world.puck.carrierSlotId = shooter.id;
+    world.puck.position = { ...bladeWorldPosition(shooter) };
+    shooter.gesture.pendingReleaseType = "wrist";
+    shooter.gesture.pendingReleasePower = 0.8;
+
+    // moveX is the height aim in world space; negative keeps the shot low.
+    stepWorld(world, [inputFrame(shooter.id, 1, { moveX: -1 })], 16);
+    expect(world.puck.carrierSlotId).toBeNull();
+
+    let peakHeight = world.puck.height;
+    for (let tick = 0; tick < 10; tick += 1) {
+      stepWorld(world, [], 16);
+      peakHeight = Math.max(peakHeight, world.puck.height);
+    }
+
+    // A low shot stays much lower than a neutral/top-shelf one.
+    expect(peakHeight).toBeLessThan(15);
+  });
+
   it("keeps pace in the air and scrubs it on the ice", () => {
     const airborne = playingWorld();
     const grounded = playingWorld();
