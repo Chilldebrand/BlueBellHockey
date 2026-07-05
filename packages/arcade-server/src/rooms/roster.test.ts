@@ -7,7 +7,8 @@ import {
   InvalidCharacterSelectionError,
   releaseHuman,
   RosterFullError,
-  selectCharacterForSession
+  selectCharacterForSession,
+  switchHumanControl
 } from "./roster.js";
 
 describe("room roster lifecycle", () => {
@@ -110,6 +111,63 @@ describe("room roster lifecycle", () => {
       kind: "human",
       sessionId: "session-b"
     });
+  });
+
+  it("switches a human's control to a same-team bot slot, keeping each skin", () => {
+    const roster = createRoster();
+    assignHumanToOpenSlot(roster, { sessionId: "session-a", playerName: "Ada" });
+    fillRosterWithBots(roster);
+
+    const from = roster.find((slot) => slot.slotId === "home-skater-1")!;
+    const to = roster.find((slot) => slot.slotId === "home-skater-2")!;
+    const fromCharacter = from.characterId;
+    const toCharacter = to.characterId;
+
+    const moved = switchHumanControl(roster, "session-a", "home-skater-2");
+
+    expect(moved?.slotId).toBe("home-skater-2");
+    expect(to).toMatchObject({
+      kind: "human",
+      sessionId: "session-a",
+      playerName: "Ada",
+      botId: null,
+      characterId: toCharacter // keeps its own skin — no character carried over
+    });
+    expect(from).toMatchObject({
+      kind: "bot",
+      sessionId: null,
+      playerName: null,
+      botId: "bot-home-skater-1",
+      characterId: fromCharacter
+    });
+  });
+
+  it("refuses to switch control onto another human or the other team", () => {
+    const roster = createRoster();
+    assignHumanToOpenSlot(roster, { sessionId: "session-a", playerName: "Ada" });
+    assignHumanToOpenSlot(roster, { sessionId: "session-b", playerName: "Bo" });
+    fillRosterWithBots(roster);
+
+    // Target occupied by another human — no-op, session-a keeps its slot.
+    switchHumanControl(roster, "session-a", "home-skater-2");
+    expect(roster.find((slot) => slot.slotId === "home-skater-1")).toMatchObject({
+      kind: "human",
+      sessionId: "session-a"
+    });
+    expect(roster.find((slot) => slot.slotId === "home-skater-2")).toMatchObject({
+      kind: "human",
+      sessionId: "session-b"
+    });
+
+    // Target on the other team — no-op as well (home player can't grab away bot).
+    switchHumanControl(roster, "session-a", "away-skater-1");
+    expect(roster.find((slot) => slot.slotId === "home-skater-1")).toMatchObject({
+      kind: "human",
+      sessionId: "session-a"
+    });
+    expect(roster.find((slot) => slot.slotId === "away-skater-1")?.kind).toBe(
+      "bot"
+    );
   });
 
   it("selects valid characters only for the owning human session", () => {

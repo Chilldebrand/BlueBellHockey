@@ -1,12 +1,8 @@
-import {
-  CHECK_CONFIG,
-  POWERUP_PICKUP_RADIUS,
-  RINK_CONFIG,
-  type SkaterEntity,
-  type TeamId,
-  type Vec2,
-  type WorldState
-} from "@bbh/arcade-core";
+import { POWERUP_PICKUP_RADIUS } from "../../config/powerups.js";
+import { RINK_CONFIG } from "../../config/rink.js";
+import type { TeamId } from "../../config/teams.js";
+import { CHECK_CONFIG } from "../actions.js";
+import type { SkaterEntity, Vec2, WorldState } from "../types.js";
 
 export type BotRole = "carrier" | "support" | "defender";
 

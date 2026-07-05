@@ -91,6 +91,7 @@ export function App({
   const inputSequenceRef = useRef(0);
   const unackedFramesRef = useRef<InputFrame[]>([]);
   const smoothedSkaterRef = useRef<SkaterEntity | null>(null);
+  const predictedSlotIdRef = useRef<string | null>(null);
   const [screen, setScreen] = useState<"boot" | "menu" | "lobby" | "freeskate">(
     "boot"
   );
@@ -233,6 +234,17 @@ export function App({
       window.clearInterval(intervalId);
     };
   }, [localSlotId, state.playerSessionId]);
+
+  // Madden-style control switching reassigns which skater we own mid-play. The
+  // buffered unacked frames are tagged with the OLD slot; replaying them after a
+  // switch would drive the now-AI skater and starve the new one. Drop them (and
+  // the follow smoothing) so we fall back to the authoritative snapshot for the
+  // ~1 RTT until fresh, correctly-tagged frames refill the buffer.
+  if (localSlotId !== predictedSlotIdRef.current) {
+    unackedFramesRef.current = [];
+    smoothedSkaterRef.current = null;
+    predictedSlotIdRef.current = localSlotId;
+  }
 
   // Input-replay prediction: drop server-acknowledged frames, then
   // re-simulate the remainder on top of the freshest snapshot.

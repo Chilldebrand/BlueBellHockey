@@ -1,6 +1,9 @@
 import {
+  createBotInputFrame,
   createWorld,
   MATCH_CONFIG,
+  resolveManualSwitchTarget,
+  resolveReceptionSwitch,
   stepWorld,
   type ArcadeServerMessage,
   type ClientInputMessage,
@@ -23,9 +26,9 @@ import {
   InvalidCharacterSelectionError,
   releaseHuman,
   selectCharacterForSession,
+  switchHumanControl,
   type RoomRosterSlot
 } from "./roster.js";
-import { createBotInputFrame } from "../ai/bot.js";
 
 export interface ArcadeRoomOptions {
   readonly privateCode?: string;
@@ -83,6 +86,8 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
   private readonly latestInputBySession = new Map<string, InputFrame>();
   private readonly lastInputSequenceBySession = new Map<string, number>();
   private readonly lastSwitchTargetBySession = new Map<string, boolean>();
+  private readonly lastPassBySession = new Map<string, boolean>();
+  private readonly pendingManualSwitchBySession = new Map<string, boolean>();
   private accumulatedTickMs = 0;
   private botInputSequence = 0;
   private world: WorldState | null = null;
@@ -165,6 +170,8 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     this.latestInputBySession.delete(client.sessionId);
     this.lastInputSequenceBySession.delete(client.sessionId);
     this.lastSwitchTargetBySession.delete(client.sessionId);
+    this.lastPassBySession.delete(client.sessionId);
+    this.pendingManualSwitchBySession.delete(client.sessionId);
     fillRosterWithBots(this.roster);
     this.syncRosterState();
   }
@@ -181,6 +188,7 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
       this.accumulatedTickMs >= MATCH_CONFIG.fixedTickMs &&
       steps < MAX_SIMULATION_STEPS_PER_TICK
     ) {
+      const prevCarrierSlotId = this.world.puck.carrierSlotId;
       this.world = stepWorld(
         this.world,
         [
@@ -189,6 +197,7 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
         ],
         MATCH_CONFIG.fixedTickMs
       );
+      this.applyControlSwitches(prevCarrierSlotId);
       this.accumulatedTickMs -= MATCH_CONFIG.fixedTickMs;
       steps += 1;
     }
@@ -337,6 +346,17 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
       this.lastSwitchTargetBySession.get(client.sessionId) ?? false;
     const switchTarget = frame.switchTarget && !previousSwitch;
     this.lastSwitchTargetBySession.set(client.sessionId, frame.switchTarget);
+
+    // The pass button doubles as the manual "switch to nearest teammate" control
+    // when the player isn't carrying. Latch a fresh press (rising edge) here and
+    // consume it once inside the tick loop — the wire `pass` field is left
+    // untouched so charge-and-release passing still reads it every tick.
+    const previousPass = this.lastPassBySession.get(client.sessionId) ?? false;
+    if (frame.pass && !previousPass) {
+      this.pendingManualSwitchBySession.set(client.sessionId, true);
+    }
+    this.lastPassBySession.set(client.sessionId, frame.pass);
+
     this.lastInputSequenceBySession.set(client.sessionId, frame.sequence);
     this.latestInputBySession.set(client.sessionId, {
       ...frame,
@@ -370,6 +390,88 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     };
 
     this.broadcast("server.worldSnapshot", message satisfies ArcadeServerMessage);
+  }
+
+  /**
+   * Madden-style control switching. Run after each sim sub-step: if a human's
+   * skater passed to a teammate who just gathered it, control snaps to that
+   * teammate; if a human pressed the pass button while not carrying, control
+   * snaps to the same-team skater nearest the puck. The abandoned slot becomes a
+   * bot (handled by `switchHumanControl`) so `createBotInputFrames` drives it on
+   * the very next sub-step.
+   */
+  private applyControlSwitches(prevCarrierSlotId: string | null): void {
+    if (!this.world) {
+      return;
+    }
+
+    let rosterChanged = false;
+
+    // Snapshot the sessions up front so a switch (which flips roster `kind`s)
+    // can't cause a session to be processed twice in one pass.
+    const humanSessions = this.roster
+      .filter((slot) => slot.kind === "human" && slot.sessionId)
+      .map((slot) => slot.sessionId as string);
+
+    for (const sessionId of humanSessions) {
+      const slot = this.roster.find(
+        (candidate) =>
+          candidate.kind === "human" && candidate.sessionId === sessionId
+      );
+      if (!slot) {
+        continue;
+      }
+
+      let target: string | null = null;
+
+      // Manual switch (pass pressed while not carrying) — consume the latch once
+      // so a single press can't fire across every sub-step of this tick.
+      if (this.pendingManualSwitchBySession.get(sessionId)) {
+        this.pendingManualSwitchBySession.set(sessionId, false);
+        target = resolveManualSwitchTarget(this.world, slot.slotId);
+      }
+
+      // Reception switch wins when a pass was actually gathered this step.
+      const reception = resolveReceptionSwitch(
+        this.world,
+        slot.slotId,
+        prevCarrierSlotId
+      );
+      if (reception) {
+        target = reception;
+      }
+
+      if (!target || target === slot.slotId) {
+        continue;
+      }
+
+      const targetSlot = this.roster.find(
+        (candidate) => candidate.slotId === target
+      );
+      // Never steal a second human's skater on the same team.
+      if (!targetSlot || targetSlot.kind !== "bot") {
+        continue;
+      }
+
+      const moved = switchHumanControl(this.roster, sessionId, target);
+      if (moved && moved.slotId === target) {
+        // Re-point the buffered input so the rest of this tick (and any ticks
+        // before the next input message) drives the new body, and so
+        // createBotInputFrames stops generating for it.
+        const stored = this.latestInputBySession.get(sessionId);
+        if (stored) {
+          this.latestInputBySession.set(sessionId, {
+            ...stored,
+            slotId: target
+          });
+        }
+        rosterChanged = true;
+      }
+    }
+
+    if (rosterChanged) {
+      this.syncRosterState();
+    }
   }
 
   private createBotInputFrames(world: WorldState): InputFrame[] {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MATCH_CONFIG, RINK_CONFIG, type InputFrame } from "@bbh/arcade-core";
+import { MATCH_CONFIG, type InputFrame } from "@bbh/arcade-core";
 import { createLocalSim, FREE_SKATE_SLOT_ID } from "./localSim.js";
 import {
   createInputRecorder,
@@ -48,30 +48,33 @@ describe("local sim", () => {
     expect(sim.getWorld().remainingMs).toBeGreaterThan(0);
   });
 
-  it("keeps a stationary opposing dummy in practice mode to hit", () => {
+  it("runs a full 3v3 of AI teammates and opponents around the controlled skater", () => {
     const sim = createLocalSim({ seed: 5, practice: true });
     const world = sim.getWorld();
 
-    const dummy = world.skaters.find((skater) => skater.teamId === "away");
-    expect(dummy).toBeDefined();
+    // Full rosters present, both goalies tending net.
+    expect(world.skaters).toHaveLength(6);
     expect(world.skaters.some((skater) => skater.id === FREE_SKATE_SLOT_ID)).toBe(
       true
     );
-    expect(dummy?.position).toEqual({
-      x: RINK_CONFIG.width / 2 + 220,
-      y: RINK_CONFIG.height / 2
-    });
 
-    // With no input fed for it, it should stay put across many ticks.
-    const startY = dummy!.position.y;
+    // With no human input, the five non-controlled skaters are AI-driven and
+    // should move, while the un-driven controlled skater stays put.
     for (let index = 0; index < 60; index += 1) {
       sim.advance(MATCH_CONFIG.fixedTickMs, () => null);
     }
-    const after = sim
-      .getWorld()
-      .skaters.find((skater) => skater.teamId === "away");
-    expect(after?.position.x).toBeCloseTo(RINK_CONFIG.width / 2 + 220, 1);
-    expect(after?.position.y).toBeCloseTo(startY, 1);
+
+    const after = sim.getWorld();
+    const others = after.skaters.filter(
+      (skater) => skater.id !== sim.getControlledSlotId()
+    );
+
+    // The five AI skaters chase the puck / take up lanes, so several move.
+    expect(
+      others.filter(
+        (skater) => Math.hypot(skater.velocity.x, skater.velocity.y) > 0
+      ).length
+    ).toBeGreaterThan(0);
   });
 
   it("replays a recorded input script to an identical world", () => {

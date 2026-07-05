@@ -74,7 +74,8 @@ export function FreeSkate({ onExit }: FreeSkateProps): JSX.Element {
           gamepadStateFromGamepad(navigator.getGamepads?.()[0] ?? null)
         ),
         playerId: "free-skate",
-        slotId: FREE_SKATE_SLOT_ID,
+        // Drive whichever skater the human currently controls (moves on a pass).
+        slotId: simRef.current.getControlledSlotId(),
         sequence: (sequenceRef.current += 1)
       });
 
@@ -203,13 +204,14 @@ export function FreeSkate({ onExit }: FreeSkateProps): JSX.Element {
   );
 
   const world = simRef.current.getWorld();
+  const localSlotId = simRef.current.getControlledSlotId();
 
   return (
     <div className="free-skate-screen">
       <Scene
         currentWorld={world}
         previousWorld={previousWorldRef.current}
-        localSlotId={FREE_SKATE_SLOT_ID}
+        localSlotId={localSlotId}
         predictedLocalSkater={null}
         debugOverlays
       />
@@ -247,8 +249,9 @@ export function FreeSkate({ onExit }: FreeSkateProps): JSX.Element {
       <div className="free-skate-help">
         WASD move · Shift turbo · right stick / mouse / IJKL = puck control
         (flick fwd = wrist, pull back + flick = slap) · Space tap/hold = simple
-        shot · F pass/lift · G check · R poke · V dive · Q switch — Pad: A
-        pass · B/X check · RB poke · LB dive · RT switch · L3 hustle
+        shot · F / A / RT = pass (with the puck) or switch to the nearest
+        teammate (without it) · G check · R poke · V dive — Pad: B/X check ·
+        RB poke · LB dive · L3 hustle
       </div>
     </div>
   );

@@ -1,9 +1,5 @@
-import {
-  normalizeOrZero,
-  type InputFrame,
-  type SkaterEntity,
-  type WorldState
-} from "@bbh/arcade-core";
+import { normalizeOrZero } from "../physics.js";
+import type { InputFrame, SkaterEntity, WorldState } from "../types.js";
 import {
   DEFAULT_BOT_DIFFICULTY,
   selectBotDecision,

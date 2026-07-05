@@ -1,5 +1,5 @@
-import { RINK_CONFIG, createWorld, type SkaterEntity } from "@bbh/arcade-core";
 import { describe, expect, it } from "vitest";
+import { RINK_CONFIG, createWorld, type SkaterEntity } from "../../index";
 import {
   DEFAULT_BOT_DIFFICULTY,
   chooseBotRole,

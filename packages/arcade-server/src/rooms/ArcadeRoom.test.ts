@@ -503,6 +503,94 @@ describe("ArcadeRoom", () => {
     });
   });
 
+  it("snaps control to the teammate who gathers the human's pass (once)", () => {
+    const room = createTestRoom();
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(client("session-a") as never, { playerName: "Ada" });
+
+    // Post-step state: the human (home-skater-1) passed and a bot teammate
+    // (home-skater-2) just gathered it.
+    room["world"]!.puck.carrierSlotId = "home-skater-2";
+    room["applyControlSwitches"]("home-skater-1");
+
+    const slotsAfter = () => [
+      ...room.state.teams.home.slots,
+      ...room.state.teams.away.slots
+    ];
+    expect(
+      slotsAfter().find((slot) => slot.slotId === "home-skater-2")
+    ).toMatchObject({ kind: "human", sessionId: "session-a" });
+    expect(
+      slotsAfter().find((slot) => slot.slotId === "home-skater-1")
+    ).toMatchObject({ kind: "bot", sessionId: null });
+
+    // A second sub-step in the same tick must NOT ping the control back —
+    // prevCarrier is now the receiver and matches the controlled slot.
+    room["applyControlSwitches"]("home-skater-2");
+    expect(
+      slotsAfter().find((slot) => slot.slotId === "home-skater-2")
+    ).toMatchObject({ kind: "human", sessionId: "session-a" });
+    expect(
+      slotsAfter().filter((slot) => slot.kind === "human")
+    ).toHaveLength(1);
+  });
+
+  it("does not switch control on an opponent interception", () => {
+    const room = createTestRoom();
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(client("session-a") as never, { playerName: "Ada" });
+
+    room["world"]!.puck.carrierSlotId = "away-skater-1";
+    room["applyControlSwitches"]("home-skater-1");
+
+    expect(room.state.teams.home.slots[0]).toMatchObject({
+      slotId: "home-skater-1",
+      kind: "human",
+      sessionId: "session-a"
+    });
+  });
+
+  it("uses the pass button as a manual switch to the nearest teammate on defense", () => {
+    const room = createTestRoom();
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(client("session-a") as never, { playerName: "Ada" });
+
+    const world = room["world"]!;
+    world.puck.carrierSlotId = null;
+    world.puck.position = { x: 1000, y: 500 };
+    world.skaters.find((s) => s.id === "home-skater-2")!.position = {
+      x: 1010,
+      y: 505
+    };
+    world.skaters.find((s) => s.id === "home-skater-3")!.position = {
+      x: 200,
+      y: 200
+    };
+
+    // A fresh pass-button press while not carrying arms the manual switch.
+    room["handleInput"](client("session-a") as never, {
+      type: "client.input",
+      frame: {
+        playerId: "session-a",
+        slotId: "home-skater-1",
+        sequence: 1,
+        moveX: 0,
+        moveY: 0,
+        stickX: 0,
+        stickY: 0,
+        pass: true,
+        check: false,
+        turbo: false,
+        switchTarget: false
+      }
+    });
+    room["applyControlSwitches"](null);
+
+    expect(
+      room.state.teams.home.slots.find((slot) => slot.kind === "human")?.slotId
+    ).toBe("home-skater-2");
+  });
+
   it("acknowledges each session's latest input sequence in snapshots", () => {
     const room = createTestRoom();
     const broadcast = vi

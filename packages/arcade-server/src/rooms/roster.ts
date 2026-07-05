@@ -162,6 +162,48 @@ export function moveHumanToTeam(
   return target;
 }
 
+/**
+ * Madden-style control switch: move a human's control to another slot on the
+ * SAME team (the slot they just passed to, or the nearest teammate on defense).
+ * The vacated slot becomes a bot and the target must currently be a bot — we
+ * never steal a second human's skater. Unlike `moveHumanToTeam`, each slot keeps
+ * its OWN `characterId`: the human is changing which body they drive, not
+ * carrying their skin across.
+ */
+export function switchHumanControl(
+  roster: RoomRosterSlot[],
+  sessionId: string,
+  newSlotId: string
+): RoomRosterSlot | null {
+  const current = roster.find(
+    (candidate) =>
+      candidate.kind === "human" && candidate.sessionId === sessionId
+  );
+
+  if (!current || current.slotId === newSlotId) {
+    return current ?? null;
+  }
+
+  const target = roster.find((candidate) => candidate.slotId === newSlotId);
+
+  if (!target || target.teamId !== current.teamId || target.kind !== "bot") {
+    return current;
+  }
+
+  const playerName = current.playerName;
+  current.kind = "bot";
+  current.sessionId = null;
+  current.playerName = null;
+  current.botId = botIdForSlot(current.slotId);
+
+  target.kind = "human";
+  target.sessionId = sessionId;
+  target.playerName = playerName;
+  target.botId = null;
+
+  return target;
+}
+
 export function selectCharacterForSession(
   roster: RoomRosterSlot[],
   sessionId: string,
