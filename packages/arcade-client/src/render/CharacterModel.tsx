@@ -155,8 +155,11 @@ function BlockoutBody({
           rotation={[pose.pitch, pose.yaw, pose.roll]}
           scale={[pose.scaleX, pose.scaleY, pose.scaleZ]}
         >
-          <mesh position={[0, 24, 0]} castShadow>
-            <capsuleGeometry args={[9, 24, 8, 14]} />
+          {/* Shorter torso: raised + trimmed from the bottom so the top stays at
+              the shoulders but the hips clear the legs (was a long capsule that
+              swallowed them). */}
+          <mesh position={[0, 30, 0]} castShadow>
+            <capsuleGeometry args={[9, 10, 8, 14]} />
             <meshStandardMaterial color={palette.jersey} roughness={0.58} />
           </mesh>
           {/* Head (face looks toward +Z, the authored forward). */}
@@ -164,38 +167,38 @@ function BlockoutBody({
             <sphereGeometry args={[14, 18, 14]} />
             <meshStandardMaterial color="#f2c9a2" roughness={0.62} />
           </mesh>
-          {/* Glossy black CCM-style helmet shell coming down over the head. */}
+          {/* Glossy white CCM-style helmet shell coming down over the head. */}
           <mesh position={[0, 52.5, -1]} castShadow>
             <sphereGeometry
               args={[15.6, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.62]}
             />
             <meshPhysicalMaterial
-              color="#0a0a0d"
-              roughness={0.12}
-              metalness={0.15}
+              color="#eef1f5"
+              roughness={0.14}
+              metalness={0.05}
               clearcoat={1}
-              clearcoatRoughness={0.06}
+              clearcoatRoughness={0.08}
             />
           </mesh>
-          {/* Ear guards on each side. */}
+          {/* Ear guards on each side (match the white shell). */}
           <mesh position={[-13.6, 43, 0.5]} castShadow>
             <boxGeometry args={[4, 11, 13]} />
             <meshPhysicalMaterial
-              color="#0a0a0d"
-              roughness={0.15}
-              metalness={0.15}
+              color="#e6e9ee"
+              roughness={0.18}
+              metalness={0.05}
               clearcoat={1}
-              clearcoatRoughness={0.1}
+              clearcoatRoughness={0.12}
             />
           </mesh>
           <mesh position={[13.6, 43, 0.5]} castShadow>
             <boxGeometry args={[4, 11, 13]} />
             <meshPhysicalMaterial
-              color="#0a0a0d"
-              roughness={0.15}
-              metalness={0.15}
+              color="#e6e9ee"
+              roughness={0.18}
+              metalness={0.05}
               clearcoat={1}
-              clearcoatRoughness={0.1}
+              clearcoatRoughness={0.12}
             />
           </mesh>
           {/* Eyes (dark, sitting behind the clear shield). */}
@@ -212,39 +215,33 @@ function BlockoutBody({
             <boxGeometry args={[6.5, 1.8, 1.2]} />
             <meshStandardMaterial color="#5a2f2a" />
           </mesh>
-          {/* Clear curved visor: a front slice of a sphere hugging the face. */}
+          {/* Black smoked curved visor: a front slice of a sphere hugging the
+              face, dark and glossy against the white shell. */}
           <mesh position={[0, 46, 0]}>
             <sphereGeometry
               args={[15.2, 24, 12, Math.PI / 2 - 0.95, 1.9, Math.PI * 0.38, Math.PI * 0.2]}
             />
             <meshPhysicalMaterial
-              color="#dcecff"
+              color="#0a0a0d"
               transparent
-              opacity={0.24}
-              roughness={0.04}
-              metalness={0}
+              opacity={0.9}
+              roughness={0.06}
+              metalness={0.1}
               clearcoat={1}
-              clearcoatRoughness={0.04}
+              clearcoatRoughness={0.05}
               side={DoubleSide}
               depthWrite={false}
             />
           </mesh>
           {/* Arms are drawn by StickAssembly as shoulder->grip segments so they
               reach down to the stick instead of hanging at the sides. */}
-          {/* Legs dropping from the hips into the skates (one nudged forward for
-              a slight stride stagger). */}
-          <mesh position={[-2, 12, -6.5]} castShadow>
-            <boxGeometry args={[7, 16, 5.5]} />
-            <meshStandardMaterial color={palette.pants} />
-          </mesh>
-          <mesh position={[2, 12, 6.5]} castShadow>
-            <boxGeometry args={[7, 16, 5.5]} />
-            <meshStandardMaterial color={palette.pants} />
-          </mesh>
-          <Skate position={[-1, 0, -6.5]} />
-          <Skate position={[3, 0, 6.5]} />
         </group>
       </group>
+      {/* Legs + skates live in the root (+X forward, +Z right) frame like the
+          stick — NOT inside the authored-forward rotation, which would turn the
+          boots sideways. One foot is staggered forward for a skating stance. */}
+      <LowerLimb z={-6.5} forward={-1} pants={palette.pants} socks={palette.jersey} />
+      <LowerLimb z={6.5} forward={2.5} pants={palette.pants} socks={palette.jersey} />
       {/* Stick lives in the root (+X forward) frame so its flat head can sit on
           the sim-driven puck without fighting the body's pose transforms. */}
       <StickAssembly bladeLocal={bladeLocal} />
@@ -332,6 +329,38 @@ function Skate({
         <boxGeometry args={[3, 5.6, 4.2]} />
         <meshStandardMaterial color="#f4f6f9" roughness={0.5} />
       </mesh>
+    </group>
+  );
+}
+
+/**
+ * One leg: a padded-pants thigh over a team-sock shin (nudged forward for a bent
+ * knee so it reads as a leg, not a tube), ending in a skate. Root frame.
+ */
+function LowerLimb({
+  z,
+  forward,
+  pants,
+  socks
+}: {
+  readonly z: number;
+  readonly forward: number;
+  readonly pants: string;
+  readonly socks: string;
+}): JSX.Element {
+  return (
+    <group position={[forward, 0, z]}>
+      {/* Thigh — bulky hockey pants. */}
+      <mesh position={[-1.5, 17, 0]} castShadow>
+        <boxGeometry args={[8.5, 12, 6.5]} />
+        <meshStandardMaterial color={pants} roughness={0.7} />
+      </mesh>
+      {/* Shin in team socks, forward of the thigh for a knee bend. */}
+      <mesh position={[1.5, 8.5, 0]} castShadow>
+        <boxGeometry args={[6, 11, 5.2]} />
+        <meshStandardMaterial color={socks} roughness={0.75} />
+      </mesh>
+      <Skate position={[1, 0, 0]} />
     </group>
   );
 }
