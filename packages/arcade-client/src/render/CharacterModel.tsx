@@ -231,19 +231,107 @@ function BlockoutBody({
           </mesh>
           {/* Arms are drawn by StickAssembly as shoulder->grip segments so they
               reach down to the stick instead of hanging at the sides. */}
-          <mesh position={[-6, 7, 0]} castShadow>
-            <boxGeometry args={[8, 7, 18]} />
+          {/* Legs dropping from the hips into the skates (one nudged forward for
+              a slight stride stagger). */}
+          <mesh position={[-2, 12, -6.5]} castShadow>
+            <boxGeometry args={[7, 16, 5.5]} />
             <meshStandardMaterial color={palette.pants} />
           </mesh>
-          <mesh position={[8, 7, 0]} castShadow>
-            <boxGeometry args={[8, 7, 18]} />
+          <mesh position={[2, 12, 6.5]} castShadow>
+            <boxGeometry args={[7, 16, 5.5]} />
             <meshStandardMaterial color={palette.pants} />
           </mesh>
+          <Skate position={[-1, 0, -6.5]} />
+          <Skate position={[3, 0, 6.5]} />
         </group>
       </group>
       {/* Stick lives in the root (+X forward) frame so its flat head can sit on
           the sim-driven puck without fighting the body's pose transforms. */}
       <StickAssembly bladeLocal={bladeLocal} />
+    </group>
+  );
+}
+
+// Glossy black boot shell, shared by the boot pieces (matches the CCM helmet).
+function BootMaterial(): JSX.Element {
+  return (
+    <meshPhysicalMaterial
+      color="#0b0b0e"
+      roughness={0.16}
+      metalness={0.1}
+      clearcoat={1}
+      clearcoatRoughness={0.12}
+    />
+  );
+}
+
+// Bright steel for the runner and light plastic for the holder.
+const STEEL_COLOR = "#cbd0d8";
+const HOLDER_COLOR = "#eef1f5";
+
+/**
+ * A stylized hockey skate in the body root frame (+X forward, +Z lateral-right),
+ * origin at the ice: a steel runner with up-swept heel/toe, a white Bauer-style
+ * holder (two pillars + a bridge), a glossy black boot that rises from a low toe
+ * to a tall ankle, and a white laced tongue.
+ */
+function Skate({
+  position
+}: {
+  readonly position: [number, number, number];
+}): JSX.Element {
+  return (
+    <group position={position}>
+      {/* Steel runner on the ice. */}
+      <mesh position={[0, 0.8, 0]} castShadow>
+        <boxGeometry args={[16, 1.1, 1]} />
+        <meshStandardMaterial color={STEEL_COLOR} metalness={0.9} roughness={0.28} />
+      </mesh>
+      {/* Up-swept toe and heel tips. */}
+      <mesh position={[8, 1.4, 0]} rotation={[0, 0, 0.42]} castShadow>
+        <boxGeometry args={[2.6, 1.1, 1]} />
+        <meshStandardMaterial color={STEEL_COLOR} metalness={0.9} roughness={0.28} />
+      </mesh>
+      <mesh position={[-8, 1.4, 0]} rotation={[0, 0, -0.42]} castShadow>
+        <boxGeometry args={[2.6, 1.1, 1]} />
+        <meshStandardMaterial color={STEEL_COLOR} metalness={0.9} roughness={0.28} />
+      </mesh>
+      {/* White holder: two pillars bridged under the boot. */}
+      <mesh position={[5, 2.7, 0]} castShadow>
+        <boxGeometry args={[2.6, 3, 1.7]} />
+        <meshStandardMaterial color={HOLDER_COLOR} roughness={0.4} />
+      </mesh>
+      <mesh position={[-5, 2.7, 0]} castShadow>
+        <boxGeometry args={[2.6, 3, 1.7]} />
+        <meshStandardMaterial color={HOLDER_COLOR} roughness={0.4} />
+      </mesh>
+      <mesh position={[0, 4, 0]} castShadow>
+        <boxGeometry args={[13.5, 1.4, 2]} />
+        <meshStandardMaterial color={HOLDER_COLOR} roughness={0.4} />
+      </mesh>
+      {/* Glossy black boot: low toe rising to a tall heel/ankle. */}
+      <mesh position={[4.5, 6, 0]} castShadow>
+        <boxGeometry args={[7.5, 3.8, 5]} />
+        <BootMaterial />
+      </mesh>
+      <mesh position={[-0.5, 6.8, 0]} castShadow>
+        <boxGeometry args={[6.5, 5, 5.2]} />
+        <BootMaterial />
+      </mesh>
+      <mesh position={[-4.8, 8.2, 0]} castShadow>
+        <boxGeometry args={[5, 7.4, 5]} />
+        <BootMaterial />
+      </mesh>
+      {/* Ankle cuff at the top-back. */}
+      <mesh position={[-4.8, 12, 0]} castShadow>
+        <boxGeometry args={[4.6, 2.8, 5.3]} />
+        <BootMaterial />
+      </mesh>
+      {/* White laced tongue at the front of the ankle. */}
+      <mesh position={[0.6, 9.6, 0]} rotation={[0, 0, -0.22]} castShadow>
+        <boxGeometry args={[3, 5.6, 4.2]} />
+        <meshStandardMaterial color="#f4f6f9" roughness={0.5} />
+      </mesh>
     </group>
   );
 }
