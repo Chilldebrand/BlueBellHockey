@@ -1,6 +1,6 @@
 # 3v3 Arcade Hockey — Session Handoff
 
-Paste this into a new chat to continue. Captures full state as of the end of the last session.
+Paste this into a new chat to continue. Captures full state as of the end of the last session (2026-07-05).
 
 ## What this project is
 A **grounded 3v3 online multiplayer arcade hockey game** (NHL-Threes feel, NOT NHL-Street) with
@@ -17,115 +17,116 @@ react-three-fiber client, authoritative Colyseus server, deterministic shared si
 ```
 cd "C:\Users\hilde\OneDrive\Desktop\3V3 Hockey Files\BBellHockey"
 npm run dev      # arcade server (ws://localhost:2568) + client (http://localhost:5173)
-npm test         # 195 tests (98 arcade-core / 35 arcade-server / 62 arcade-client)
+npm test         # 218 tests (124 arcade-core / 32 arcade-server / 62 arcade-client)
 npm run typecheck
 npm run smoke --workspace @bbh/arcade-server   # 2-client websocket end-to-end
 ```
-Open http://localhost:5173 → Press Start → **Free Skate** (solo practice + a goalie + a stationary
-opponent dummy). Free Skate = client-only sim with the **Feel Lab** live-tuning panel (Copy JSON exports).
+Open http://localhost:5173 → Press Start → **Free Skate** now runs a FULL 3v3 of AI (you + 2 AI
+teammates vs 3 AI opponents + goalie) with the **Feel Lab** live-tuning panel (Copy JSON exports).
 
 > NOTE: the assistant can't render WebGL headlessly (the preview browser suspends requestAnimationFrame),
 > so all VISUAL changes must be eyeballed by the user in their own browser. Logic is verified by tests +
 > the 2-client smoke. When iterating, the assistant edits source and Vite HMR hot-reloads localhost:5173.
 
-## ⚠️ GIT STATE — READ FIRST
-- **2 local commits are UNPUSHED** on `main` (`d8c0d52` GLB wiring, `b9ea6c0` fiber-dedupe fix).
-- **The ENTIRE rest of this session is UNCOMMITTED** — ~30 modified files + 1 new file
-  (`packages/arcade-core/src/sim/spawns.ts`). Nothing below "This session's work" is committed.
-- Everything is green: `npm test` (195), `npm run typecheck`, and the smoke all pass.
-- **First decision for next session: commit + push this work** (the user kept iterating and never asked to
-  commit). Suggest grouped commits by feature. On `main`, so branch first if desired.
+> ⚠️ **Port gotcha:** `.claude/launch.json` (assistant preview tooling) starts the server with PORT=2567,
+> but the client's default WS URL is `ws://localhost:2568` (`packages/arcade-client/src/net/client.ts`).
+> `npm run dev` uses 2568 everywhere and is fine. If online mode can't connect while using the preview
+> tools, that mismatch is why — align launch.json to 2568 or set `VITE_ARCADE_WS_URL`.
 
-## This session's work (all uncommitted unless noted)
+## GIT STATE
+**Everything is committed AND pushed** — clean tree, `main` in sync with origin. All green:
+`npm test` (218), `npm run typecheck`, smoke.
 
-### Gameplay / sim (packages/arcade-core)
-- **Goalies made beatable.** New reaction-latency lever in `sim/goalie.ts`: `reactionDelayMs` (default 150) —
-  the goalie tracks where the puck *was* that long ago (velocity-extrapolated), so quick shots / one-timers
-  beat it. Also tuned `lateralSpeed` 560→520, `saveReach` 74→70. All live in the Feel Lab "Goalie" section.
-- **Faceoff reposition fix.** `resetForFaceoff` (`sim/goal.ts`) now returns all skaters + goalies to spawn
-  positions, not just the puck — fixes "can't find my character after a goal" (was: puck+camera snapped to
-  center, player stranded by the net). Spawn math extracted to new `sim/spawns.ts` (shared by `world.ts` +
-  `goal.ts`, no circular import).
-- **Slap shots hit harder** (`sim/puck.ts` PUCK_CONFIG): `maxChargedShotSpeed` 1460→1650, `slapLiftSpeed` 330→430.
-- **Shots lift off most of the time.** Lift base formula `0.55+0.45*aim` → `0.72+0.28*aim`; `wristLiftSpeed` 170→260.
-- **Left-stick-aimed passing.** `passDirectionWithAssist(world, carrier, aim)` now takes an aim vector; new
-  `passAimDirection(input, carrier)` uses the LEFT stick's world direction (falls back to facing), assists to
-  the best-aligned teammate, else goes straight. Dropped the old cycled-target dependency for passes.
-- **Charged pass (hold to charge, fire on release).** New `SkaterEntity.passChargeMs` (init in `world.ts`,
-  reset on pickup in `puck.ts`). PUCK_CONFIG `passChargeMaxMs` 600, `passChargeSpeedBonus` 380 (820→1200 at
-  full). A quick tap = normal pass. Deterministic; no InputFrame/netcode change.
-- **Stick rest tuning locked in** (`sim/stick.ts`): `restOffset` 52→22, `restLateral` 22→44.5 (blade closer
-  in, further right — right-handed forehand cradle).
+## This session's work (5 commits, all pushed)
 
-### Controls (packages/arcade-client/src/input)
-- **RT (Xbox) / R2 (PS) now pass**, same as A: `gamepad.ts` `pass = buttons[0] || buttons[7]`.
-- **Target-cycling REMOVED from controls** (user request) — dropped Y (gamepad `buttons[3]`) and Q (keyboard).
-  `switchTarget` is now always false; the sim's `selectedTarget`/`updateAssistTargets` code is dormant (left
-  in place; passing no longer uses it). Could be fully ripped out later if desired.
+### 1. Madden-style control switching (`df97e07`) — THE big feature
+You control the highlighted skater; control now moves like a sports game.
+- **Architecture (load-bearing):** control-switch is a ROUTING concern, never a sim concern. The
+  deterministic world has no idea who is "controlled" — every slot always receives exactly one
+  InputFrame per tick (human or bot), so the shared sim can't desync. Controlled-slot state lives in
+  the **server roster** (online) and the **localSim closure** (Free Skate).
+- `packages/arcade-core/src/sim/control.ts`: `resolveReceptionSwitch` (pass gathered by teammate →
+  switch; keyed on pre/post-step `puck.carrierSlotId` transition — do NOT key on `passedFromSlotId`,
+  it's nulled at pickup), `resolveManualSwitchTarget` / `nearestTeammateToPuck` (pass button while NOT
+  carrying = switch to teammate nearest the puck), and (commit 3) `resolveTeamPossessionSwitch`.
+- **Bot AI relocated** from `arcade-server/src/ai/` → `arcade-core/src/sim/ai/` (bot.ts, decision.ts)
+  so the client-only Free Skate sim can drive AI. (`arcade-server/src/ai/goalie.ts` stayed — it's dead
+  code; the real goalie AI is `stepGoalies` inside the sim.)
+- Server: `switchHumanControl` in `roster.ts` (same-team, only into a `bot` slot, characterIds stay
+  with their slots); `applyControlSwitches` in `ArcadeRoom.tick` after each stepWorld sub-step;
+  rising-edge pass latch per session (consumed once per tick, so no multi-sub-step double-fire).
+- Client: `localSlotId` is reactive off the roster schema, so highlight/camera/input all follow a
+  server-side switch automatically. `App.tsx` flushes the prediction buffer (`unackedFramesRef`) +
+  smoothing ref when `localSlotId` changes — without that, stale frames tagged with the old slot cause
+  a brief rubber-band. Free Skate: `localSim.ts` tracks `controlledSlotId` in its closure, bot frames
+  are generated inside `advance()` with sequence = `world.time.tick` (keeps recordings replay-identical).
 
-### Visuals (packages/arcade-client/src/render)
-- **Camera:** zoomed out ~20% then given a slight down-ice tilt (`CameraRig.tsx`: back-offset 520→760,
-  height 860→940). Still fixed/no-zoom-punch.
-- **Rink = standard NHL markings** (`Rink.tsx`): red center line (split so it stops at the center circle),
-  two blue lines, blue center faceoff circle (now **red** per user) + a painted **blue Liberty Bell** logo at
-  center ice (canvas texture, `CenterIceLogo`), 4 red end-zone faceoff circles (moved 25% closer to the side
-  boards, `zOff` 412). Removed the 4 neutral-zone dots. Bell plane rotation was flipped 180° to sit upright.
-- **Skater helmets → glossy black CCM style** (`CharacterModel.tsx`): clearcoat black shell, ear guards, a
-  **clear** curved visor (sphere-slice), dark eyes + mouth.
-- **Stick blade reworked** (`CharacterModel.tsx` `StickAssembly`): long axis now lateral/horizontal, ~75%
-  skinnier (box `[1.75, 3.4, 18]`), swept to ONE side from a rounded heel via `segmentBetween` so shaft→blade
-  reads as one curved piece.
-- **Puck:** 50% smaller render (radius 18→9), removed the yellow charged-shot glow.
-- **Puck rides in the blade pocket** (`Puck.tsx` + `Scene.tsx`): new `pocketCarriedPuck` offsets the carried
-  puck along the blade toward the middle (`POCKET_RIGHT` = 13, `POCKET_FORWARD` = 1.5). Applied in `Scene.tsx`
-  for ANY carrier (Free Skate has no predicted local skater, so it must run there too — that was a real bug).
-  **These are code constants, NOT Feel Lab sliders.**
-- **Removed a stray cyan debug blade marker** from `SkaterDebug.tsx` (it sat at the sim blade point and
-  showed as a "blue highlight" at the heel once the puck moved into the pocket).
-- **Free Skate has a stationary opponent dummy** (`game/localSim.ts`) to practice hitting; the yellow
-  facing-arrow debug overlay is still on in Free Skate (user may want it gone).
+### 2. Shots actually lift now (`af253ab`)
+The lift logic was always there; the numbers were ~5× too weak for gravity 2300 (a full-power wrist
+shot peaked at 15 units vs the 95-unit net). `wristLiftSpeed 260→660`, `slapLiftSpeed 430→860`.
+Now: hard wrist aimed up ≈ crossbar; neutral ≈ mid-net; aim-down stays low (~12); full slap aimed up
+sails OVER the bar (~160) — ease off top aim on slappers. Regression tests pin this. Peak height
+math: `lift²/(2·gravity)`. Wrist power is clamped to [0.55, 1] in gestures.ts, so power was never
+the culprit.
 
-### GLB skater models — parked (flag OFF)
-- Real GLB body loading is wired (`render/gltf/`: `GltfSkaterBody.tsx`, `skaterGltfSource.ts`,
-  `ModelErrorBoundary.tsx`) with a load-time approach + graceful fallback to the capsule blockout.
-  `@react-three/drei` added; a **duplicate-react-three-fiber Vite bug** was found & fixed (dedupe +
-  optimizeDeps in `vite.config.ts`) — drei hooks threw "Hooks can only be used within the Canvas component".
-- Test asset `public/arcade/models/skaters/test-cesium.glb` (CesiumMan, CC-BY, temporary placeholder).
-  Idle-freeze logic (`shouldAdvanceClip`) holds a static pose when a rig lacks a dedicated clip.
-- **Currently DISABLED:** `GLTF_SKATER_BODIES_ENABLED = false` in `skaterGltfSource.ts` — all skaters use the
-  procedural blockout (to match the goalie). Flip to `true` to bring the GLB path back. The user chose to
-  stick with the polished blockout look for now.
+### 3. Solo: control follows ANY teammate pickup (`7b80669`)
+`resolveTeamPossessionSwitch`: loose-puck pickups, rebounds, and interceptions by a teammate also
+grab control — not just your own completed passes. Free Skate uses it unconditionally; the Colyseus
+room uses it only when the team has ≤1 human (co-op teams keep pass-only so you can't yank a body
+from a friend). **Known consequence flagged to user:** if two AI teammates pass amongst themselves,
+control hops to follow the puck. User hasn't said yet whether they want bot-to-bot passes excluded.
 
-## Current tuning defaults (DEFAULT_TUNING == user's last Copy-JSON export)
-All sim knobs are live-tunable in the Feel Lab and were verified via a diff script to match the user's export
-exactly. Notable non-stock values: stick `restOffset:22, restLateral:44.5`; goalie `lateralSpeed:520,
-saveReach:70, reactionDelayMs:150`; puck `maxChargedShotSpeed:1650, wristLiftSpeed:260, slapLiftSpeed:430,
-passChargeMaxMs:600, passChargeSpeedBonus:380`. To re-verify a pasted export: rebuild arcade-core, import
-`snapshotTuning()` from `dist/config/tuning.js`, diff against the JSON (see prior chat for the script).
+### 4 + 5. Skates, legs, shorter torso, white helmet (`197da27`, `916ad7e`)
+`CharacterModel.tsx`: new `Skate` (glossy black boot low-toe→tall-ankle, white Bauer-style holder,
+steel runner with up-swept tips, laced tongue) and `LowerLimb` (pants thigh + team-sock shin, knee
+bend, one foot staggered). **Trap that bit us once:** legs/skates must live in the ROOT frame
+(+X forward, +Z right — same frame as the stick), NOT inside the body's `FORWARD_CORRECTION_Y`
+(π/2) group, or the boots point sideways. Torso capsule shortened+raised (`[9, 10]` at y=30) so hips
+clear the legs. Helmet shell + ear guards are glossy white again; visor is black smoked
+(opacity 0.9). User saw an intermediate version; the FINAL pass (short torso/white helmet) was
+pushed on request but **not explicitly confirmed on screen — ask for a visual check-in**.
 
 ## Controls (current)
-Gamepad: Left stick skate, **Right stick = puck (skill stick)**, **A / RT / R2 = pass (hold to charge)**,
-B/X check, RB poke, LB dive/block, L3 hustle. (No target-cycle button anymore.)
-Keyboard: WASD move, IJKL/mouse = stick, Space simple shot, F pass, G check, R poke, V dive, Shift turbo.
-Shots auto-drive at the net; LEFT stick at release places them (L/R side, up = bar, down = low).
+Gamepad: Left stick skate, **Right stick = skill stick**, **A / RT / R2 = pass (hold to charge)**;
+same button while NOT carrying = **switch to teammate nearest the puck**. B/X check, RB poke,
+LB dive/block, L3 hustle. Keyboard: WASD move, IJKL/mouse stick, Space shot, F pass/switch, G check,
+R poke, V dive, Shift turbo. Shots auto-aim at the net; LEFT stick at release places them
+(L/R side, up = bar, down = low). Control auto-follows your team's puck possession in solo play.
+
+## Online play with a friend — WORKED tonight (ephemeral recipe)
+Played a real internet match this session via **cloudflared quick tunnels** (no account needed):
+1. Download `cloudflared.exe` (single binary, `curl -L .../cloudflared-windows-amd64.exe`).
+2. Start server + tunnel it: `cloudflared tunnel --url http://localhost:2567` → gives `https://xxx.trycloudflare.com`.
+3. Restart the Vite client with `VITE_ARCADE_WS_URL=wss://xxx.trycloudflare.com` (baked at startup!).
+4. Tunnel the client: `cloudflared tunnel --url http://localhost:5173 --http-host-header localhost:5173`
+   (the host-header rewrite stops Vite rejecting the public hostname).
+5. Send the friend the client https URL → Private Room + 6-char code.
+Latency through Cloudflare was playable. Tunnels are shut down; URLs are dead and change every run.
+**Next step if the user wants a permanent link:** deploy server (Fly/Render/Colyseus Cloud) + client
+(Vercel/Netlify), and consider auto-deriving the WS URL from `window.location.host`.
+
+## Current tuning defaults
+`PUCK_CONFIG` is the source of truth (flows into `TUNING.puck` via `buildDefaults()`; Feel Lab
+auto-generates sliders for every field). Notable: `wristLiftSpeed:660, slapLiftSpeed:860,
+maxChargedShotSpeed:1650, passChargeMaxMs:600, passChargeSpeedBonus:380`; stick `restOffset:22,
+restLateral:44.5`; goalie `lateralSpeed:520, saveReach:70, reactionDelayMs:150`.
 
 ## Known next steps / owed / open questions
-- **Commit + push** the session (see git state above). Not yet done.
-- **Online play with a friend:** fully built (Colyseus, Quick Match, Private Room + room codes) but only runs
-  on localhost. Client reads `VITE_ARCADE_WS_URL` env (defaults `ws://localhost:2568`); server binds
-  `PORT ?? 2568`. To actually connect a friend: LAN (point client at host IP), a tunnel (ngrok/cloudflared,
-  needs `wss://` once served over https), or deploy (server→Fly/Render/Colyseus Cloud, client→Vercel/Netlify).
-  A nice helper: auto-derive the WS URL from `window.location.host` instead of hardcoding localhost.
-- **One-timers** need real 2-player testing (user can't test solo). Charged-pass "fires on release" feel may
-  need tuning if quick taps feel laggy (`passChargeMaxMs`).
-- **Blade pocket / stick** fine-tuning is via code constants (`POCKET_RIGHT` in `Puck.tsx`); consider exposing
-  as Feel Lab sliders if the user keeps iterating. Stick blade could get a lie angle / curve if wanted.
-- **GLB roster pipeline** (retargeting Quaternius/Mixamo → the manifest bones) still owed if the user wants
-  real models instead of blockouts.
-- Optional: fully remove the dormant `switchTarget`/`selectedTarget` system + on-screen target indicator.
+- **User feel-checks owed:** (a) new shot lift (neutral vs aimed, wrist vs slap), (b) possession-switch
+  feel in Free Skate + online solo — especially whether bot-to-bot passes hopping control is OK,
+  (c) final skate/leg/torso/white-helmet visual pass.
+- **Possible tweak queued:** exclude bot-to-bot passes from `resolveTeamPossessionSwitch` (only
+  switch on loose-puck/interception/your-own-pass) if the control-hopping annoys.
+- **Permanent online deploy** (see recipe section) if tunnel-on-demand gets old.
+- **One-timers** got real 2-player exercise tonight but no explicit feedback — ask.
+- **GLB roster pipeline** still parked: `GLTF_SKATER_BODIES_ENABLED = false` in `skaterGltfSource.ts`,
+  blockout look is the current choice. Test asset + load path remain wired.
+- Optional cleanups: dormant `selectedTargetSlotId`/`updateAssistTargets` + TargetIndicator;
+  dead `arcade-server/src/ai/goalie.ts`; align launch.json/client default ports (2567 vs 2568).
 
 ## Working style that's been effective
-Small change → `npm run typecheck` + `npm test` green → tell the user to eyeball on localhost:5173 (HMR).
-Feel/visual changes verified by the user in-browser; sim logic by tests + the 2-client smoke. When a test
-breaks from an intended change, fix the test to the new behavior (and anchor geometry tests to real values
-like `bladeWorldPosition` rather than magic numbers). Restart the preview server when asked.
+Small change → `npm run typecheck` + `npm test` green → user eyeballs on localhost:5173 (HMR).
+Feel/visual changes verified by the user in-browser; sim logic by tests + the 2-client smoke. When a
+test breaks from an intended change, fix the test to the new behavior. Ask real design questions
+before building (switch timing, button mapping, test scope all came from user answers). Commit per
+feature with detailed bodies; push when asked. Restart the preview servers when asked.
