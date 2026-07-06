@@ -50,19 +50,50 @@ input {
   z-index: 4;
 }
 
+/* Broadcast-style scoreboard: [BLU] 2  12:34  1 [RED] */
 .score-hud {
   align-items: center;
-  background: rgba(5, 13, 24, 0.78);
-  border: 1px solid rgba(119, 207, 255, 0.45);
+  background: rgba(5, 13, 24, 0.82);
+  border: 2px solid rgba(119, 207, 255, 0.45);
+  border-bottom: 3px solid #ffdf6e;
   display: flex;
-  gap: 14px;
-  min-width: 184px;
-  padding: 8px 12px;
+  gap: 16px;
+  padding: 10px 18px;
 }
 
-.score-hud strong {
+.score-hud-digits {
   color: #ffdf6e;
-  font-size: 22px;
+  font-size: 44px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  line-height: 1;
+  min-width: 1.2ch;
+  text-align: center;
+}
+
+.score-hud-team {
+  border-left: 4px solid #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  padding: 2px 8px;
+}
+
+.score-hud-center {
+  display: grid;
+  justify-items: center;
+}
+
+.score-hud-clock {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.score-hud-phase {
+  color: #9fc4e0;
+  font-size: 11px;
+  text-transform: uppercase;
 }
 
 .turbo-meter,
@@ -156,7 +187,7 @@ input {
 .arcade-shell {
   display: grid;
   gap: 16px;
-  grid-template-columns: 300px minmax(320px, 680px);
+  grid-template-columns: 300px minmax(480px, 860px);
   left: 16px;
   pointer-events: none;
   position: fixed;
@@ -181,17 +212,10 @@ input {
   margin-top: 0;
 }
 
-.connection-actions,
-.team-actions {
+.connection-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-}
-
-.team-actions button {
-  align-items: center;
-  display: inline-flex;
-  gap: 6px;
 }
 
 .team-swatch {
@@ -199,6 +223,95 @@ input {
   display: inline-block;
   height: 12px;
   width: 12px;
+}
+
+/* Two team columns of three slot cards each. */
+.lobby-teams {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.team-column {
+  background: rgba(5, 13, 24, 0.78);
+  border: 1px solid rgba(119, 207, 255, 0.35);
+  border-top: 3px solid #ffffff;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.team-column-header {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.team-column-header h2 {
+  flex: 1;
+  font-size: 15px;
+  margin: 0;
+}
+
+.slot-card {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #eff8ff;
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  text-align: left;
+}
+
+.slot-card.editable:hover {
+  border-color: #ffdf6e;
+}
+
+.slot-card.editing {
+  border-color: #ffdf6e;
+  box-shadow: inset 0 0 0 1px rgba(255, 223, 110, 0.7);
+}
+
+.slot-card-head {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+}
+
+.slot-card-character {
+  color: #ffdf6e;
+  font-size: 13px;
+}
+
+.slot-card small {
+  color: #b8d0e8;
+}
+
+.captain-badge {
+  background: #ffdf6e;
+  color: #07111d;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.4;
+  padding: 0 6px;
+}
+
+.you-badge {
+  border: 1px solid rgba(119, 207, 255, 0.6);
+  color: #9fd6ff;
+  font-size: 11px;
+  padding: 0 6px;
+}
+
+.character-picker-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.character-picker-header h3 {
+  font-size: 14px;
+  margin: 0;
 }
 
 .character-select {
@@ -230,8 +343,7 @@ input {
   box-shadow: inset 0 0 0 1px rgba(255, 223, 110, 0.7);
 }
 
-.character-card small,
-.teams small {
+.character-card small {
   color: #b8d0e8;
 }
 
@@ -252,24 +364,6 @@ input {
 .stat-grid meter {
   height: 8px;
   width: 100%;
-}
-
-.teams {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.teams ol {
-  margin: 0;
-  padding-left: 22px;
-}
-
-.teams li {
-  align-items: baseline;
-  display: flex;
-  gap: 5px;
-  min-height: 22px;
 }
 
 @media (max-width: 880px) {

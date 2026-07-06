@@ -180,9 +180,12 @@ export function App({
     activeRoomRef.current?.session.chooseTeam(teamId);
   }, []);
 
-  const handleChooseCharacter = useCallback((characterId: CharacterId) => {
-    activeRoomRef.current?.session.chooseCharacter(characterId);
-  }, []);
+  const handleChooseCharacterFor = useCallback(
+    (slotId: string, characterId: CharacterId) => {
+      activeRoomRef.current?.session.chooseCharacterFor(slotId, characterId);
+    },
+    []
+  );
 
   const handleRequestStart = useCallback(() => {
     activeRoomRef.current?.session.requestStart();
@@ -336,7 +339,7 @@ export function App({
             onCreatePrivateRoom={handleCreatePrivateRoom}
             onJoinPrivateRoom={handleJoinPrivateRoom}
             onChooseTeam={handleChooseTeam}
-            onChooseCharacter={handleChooseCharacter}
+            onChooseCharacterFor={handleChooseCharacterFor}
             onRequestStart={handleRequestStart}
           />
           <ControllerPrompt />

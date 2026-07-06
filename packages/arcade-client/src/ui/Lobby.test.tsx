@@ -22,6 +22,7 @@ function lobbyState(overrides: Partial<ArcadeClientState> = {}): ArcadeClientSta
         characterId: "rook-rocket",
         displayName: "Ada",
         isBot: false,
+        isCaptain: true,
         isOwnedByLocalPlayer: true
       },
       {
@@ -35,6 +36,7 @@ function lobbyState(overrides: Partial<ArcadeClientState> = {}): ArcadeClientSta
         characterId: "nova-screen",
         displayName: "Bot",
         isBot: true,
+        isCaptain: false,
         isOwnedByLocalPlayer: false
       },
       {
@@ -48,6 +50,7 @@ function lobbyState(overrides: Partial<ArcadeClientState> = {}): ArcadeClientSta
         characterId: "dash-iron",
         displayName: "Bot",
         isBot: true,
+        isCaptain: false,
         isOwnedByLocalPlayer: false
       }
     ],
@@ -55,41 +58,57 @@ function lobbyState(overrides: Partial<ArcadeClientState> = {}): ArcadeClientSta
   };
 }
 
+function renderLobby(state: ArcadeClientState): string {
+  return renderToStaticMarkup(
+    <Lobby
+      state={state}
+      onChooseTeam={vi.fn()}
+      onCreatePrivateRoom={vi.fn()}
+      onJoinPrivateRoom={vi.fn()}
+      onChooseCharacterFor={vi.fn()}
+      onQuickMatch={vi.fn()}
+      onRequestStart={vi.fn()}
+    />
+  );
+}
+
 describe("Lobby", () => {
-  it("renders humans and server-provided bots in skater slots", () => {
-    const html = renderToStaticMarkup(
-      <Lobby
-        state={lobbyState()}
-        onChooseTeam={vi.fn()}
-        onCreatePrivateRoom={vi.fn()}
-        onJoinPrivateRoom={vi.fn()}
-        onChooseCharacter={vi.fn()}
-        onQuickMatch={vi.fn()}
-        onRequestStart={vi.fn()}
-      />
-    );
+  it("renders team columns with player names and bot character cards", () => {
+    const html = renderLobby(lobbyState());
 
     expect(html).toContain("Room PUCK42");
+    expect(html).toContain("Blue Blades");
+    expect(html).toContain("Red Rockets");
     expect(html).toContain("Ada");
-    expect(html.match(/>Bot</g)).toHaveLength(2);
-    expect(html).toContain("home-skater-2");
-    expect(html).toContain("away-skater-1");
+    // Bots are labeled by slot number and show their character's name.
+    expect(html).toContain("Bot 2");
+    expect(html).toContain("Nova Screen");
+    expect(html).toContain("Dash Iron");
+  });
+
+  it("marks the captain and the local player, and offers joining the other team", () => {
+    const html = renderLobby(lobbyState());
+
+    // Exactly one captain badge (Ada) and one You badge.
+    expect(html.match(/captain-badge/g)).toHaveLength(1);
+    expect(html.match(/you-badge/g)).toHaveLength(1);
+    // Local player is on home: away column offers Join, home does not.
+    expect(html.match(/>Join</g)).toHaveLength(1);
+  });
+
+  it("defaults the character picker to the local player's own slot", () => {
+    const html = renderLobby(lobbyState());
+
+    expect(html).toContain("Pick for Ada");
+    expect(html).toContain("Rook Rocket");
   });
 
   it("shows connection errors and disables connection actions while connecting", () => {
-    const html = renderToStaticMarkup(
-      <Lobby
-        state={lobbyState({
-          connectionStatus: "connecting",
-          error: "room not found"
-        })}
-        onChooseTeam={vi.fn()}
-        onCreatePrivateRoom={vi.fn()}
-        onJoinPrivateRoom={vi.fn()}
-        onChooseCharacter={vi.fn()}
-        onQuickMatch={vi.fn()}
-        onRequestStart={vi.fn()}
-      />
+    const html = renderLobby(
+      lobbyState({
+        connectionStatus: "connecting",
+        error: "room not found"
+      })
     );
 
     expect(html).toContain("room not found");
@@ -97,28 +116,8 @@ describe("Lobby", () => {
   });
 
   it("renders the start button only when the authoritative roster is valid", () => {
-    const invalidHtml = renderToStaticMarkup(
-      <Lobby
-        state={lobbyState({ isRosterValid: false })}
-        onChooseTeam={vi.fn()}
-        onCreatePrivateRoom={vi.fn()}
-        onJoinPrivateRoom={vi.fn()}
-        onChooseCharacter={vi.fn()}
-        onQuickMatch={vi.fn()}
-        onRequestStart={vi.fn()}
-      />
-    );
-    const validHtml = renderToStaticMarkup(
-      <Lobby
-        state={lobbyState({ isRosterValid: true })}
-        onChooseTeam={vi.fn()}
-        onCreatePrivateRoom={vi.fn()}
-        onJoinPrivateRoom={vi.fn()}
-        onChooseCharacter={vi.fn()}
-        onQuickMatch={vi.fn()}
-        onRequestStart={vi.fn()}
-      />
-    );
+    const invalidHtml = renderLobby(lobbyState({ isRosterValid: false }));
+    const validHtml = renderLobby(lobbyState({ isRosterValid: true }));
 
     expect(invalidHtml).not.toContain("Start Match");
     expect(validHtml).toContain("Start Match");

@@ -4,30 +4,41 @@ import {
   CHARACTER_STAT_KEYS,
   type CharacterId
 } from "@bbh/arcade-core";
-import type { ClientRosterSlot } from "../store.js";
 
 export interface CharacterSelectProps {
-  readonly roster: readonly ClientRosterSlot[];
-  readonly localSessionId: string | null;
+  /** The editing slot's current character (highlighted in the grid). */
+  readonly selectedCharacterId: CharacterId | null;
+  /** e.g. "Pick for Ada" / "Pick for Bot 2". */
+  readonly headline: string;
   readonly disabled: boolean;
   readonly onChooseCharacter: (characterId: CharacterId) => void;
+  readonly onClose: () => void;
 }
 
 const SPECIAL_BY_ID = new Map(
   CHARACTER_SPECIALS.map((special) => [special.id, special])
 );
 
+/**
+ * Dumb character picker for whichever slot the lobby is editing. Stays open
+ * after a pick (the server round-trips the roster and the highlight follows);
+ * Done closes it.
+ */
 export function CharacterSelect({
-  roster,
-  localSessionId,
+  selectedCharacterId,
+  headline,
   disabled,
-  onChooseCharacter
+  onChooseCharacter,
+  onClose
 }: CharacterSelectProps): JSX.Element {
-  const selectedCharacterId =
-    roster.find((slot) => slot.sessionId === localSessionId)?.characterId ?? null;
-
   return (
     <section className="character-select" aria-label="Character select">
+      <div className="character-picker-header">
+        <h3>{headline}</h3>
+        <button type="button" onClick={onClose}>
+          Done
+        </button>
+      </div>
       <div className="character-grid">
         {ARCADE_CHARACTERS.map((character) => {
           const special = SPECIAL_BY_ID.get(character.specialId);

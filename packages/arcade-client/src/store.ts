@@ -24,6 +24,7 @@ export interface ServerRosterSlot {
   readonly botId: string | null;
   readonly characterId: CharacterId;
   readonly isBot: boolean;
+  readonly isCaptain: boolean;
 }
 
 export interface ClientRosterSlot extends ServerRosterSlot {

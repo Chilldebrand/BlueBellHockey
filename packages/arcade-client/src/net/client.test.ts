@@ -28,7 +28,8 @@ function serverState(): ArcadeRoomConnection["state"] {
             playerName: "Ada",
             botId: null,
             characterId: "rook-rocket",
-            isBot: false
+            isBot: false,
+            isCaptain: true
           },
           {
             slotId: "home-skater-2",
@@ -39,7 +40,8 @@ function serverState(): ArcadeRoomConnection["state"] {
             playerName: null,
             botId: "bot-home-skater-2",
             characterId: "nova-screen",
-            isBot: true
+            isBot: true,
+            isCaptain: false
           }
         ]
       },
@@ -54,7 +56,8 @@ function serverState(): ArcadeRoomConnection["state"] {
             playerName: null,
             botId: "bot-away-skater-1",
             characterId: "dash-iron",
-            isBot: true
+            isBot: true,
+            isCaptain: false
           }
         ]
       }
@@ -173,7 +176,7 @@ describe("arcade room connection", () => {
 
     const result = await joinPrivateRoom(" puck42 ", { matchmaker });
     result.connection.chooseTeam("away");
-    result.connection.chooseCharacter("milo-ghost");
+    result.connection.chooseCharacterFor("home-skater-2", "milo-ghost");
     result.connection.requestStart();
     result.connection.sendInput({
       playerId: "session-a",
@@ -197,7 +200,8 @@ describe("arcade room connection", () => {
     expect(room.send).toHaveBeenCalledWith("client.chooseTeam", {
       teamId: "away"
     });
-    expect(room.send).toHaveBeenCalledWith("client.chooseCharacter", {
+    expect(room.send).toHaveBeenCalledWith("client.chooseCharacterFor", {
+      slotId: "home-skater-2",
       characterId: "milo-ghost"
     });
     expect(room.send).toHaveBeenCalledWith("client.requestStart");

@@ -82,8 +82,12 @@ export class ArcadeRoomSession {
     this.room.send("client.chooseTeam", { teamId });
   }
 
-  chooseCharacter(characterId: CharacterId): void {
-    this.room.send("client.chooseCharacter", { characterId });
+  /**
+   * Slot-targeted character selection: your own slot, or (as team captain)
+   * one of your team's bot slots. The server enforces permissions.
+   */
+  chooseCharacterFor(slotId: string, characterId: CharacterId): void {
+    this.room.send("client.chooseCharacterFor", { slotId, characterId });
   }
 
   requestStart(): void {
