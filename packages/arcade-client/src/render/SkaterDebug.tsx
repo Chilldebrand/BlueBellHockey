@@ -53,6 +53,23 @@ const TEAM_COLORS: Record<TeamId, string> = {
 };
 
 /**
+ * Every slot gets its own indicator color (like most sports games) so each
+ * human in an all-human online match can identify their skater at a glance.
+ * Only the skater YOU control renders vibrant; everyone else is faded.
+ */
+const SLOT_INDICATOR_COLORS: Record<string, string> = {
+  "home-skater-1": "#1f8fff", // blue
+  "home-skater-2": "#3dfc9d", // green
+  "home-skater-3": "#ffdf6e", // yellow
+  "away-skater-1": "#ff4f5e", // red
+  "away-skater-2": "#ff9e3d", // orange
+  "away-skater-3": "#c479ff" // purple
+};
+
+/** Faded opacity for skaters the local human is NOT controlling. */
+const UNCONTROLLED_CIRCLE_OPACITY = 0.28;
+
+/**
  * NHL-Arcade-style character/ice ratio: the blockout body is ~69 units tall,
  * which reads tiny on a 1000-unit-wide sheet (≈14.5 player-heights across).
  * The reference game fits ~9 across, so bodies render 1.6× (≈110 units) while
@@ -72,14 +89,20 @@ export function SkaterDebug({
   bladeOffset,
   showVectors = false
 }: SkaterDebugProps): JSX.Element {
+  const indicatorColor = SLOT_INDICATOR_COLORS[id] ?? TEAM_COLORS[teamId];
+
   return (
     <group position={[position.x, 10, position.y]} name={id}>
+      {/* Slot-colored disc: vibrant only under the skater this human controls;
+          everyone else fades so control is unambiguous online. */}
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[isLocal ? 56 : 46, 24]} />
         <meshStandardMaterial
-          color={TEAM_COLORS[teamId]}
+          color={indicatorColor}
           emissive={isLocal ? "#ffffff" : "#000000"}
-          emissiveIntensity={isLocal ? 0.2 : 0}
+          emissiveIntensity={isLocal ? 0.25 : 0}
+          transparent={!isLocal}
+          opacity={isLocal ? 1 : UNCONTROLLED_CIRCLE_OPACITY}
         />
       </mesh>
       <group rotation={[0, facing === undefined ? 0 : -facing, 0]}>
