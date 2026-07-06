@@ -8,6 +8,7 @@
  */
 import { Client, type Room } from "colyseus.js";
 import { createArcadeServer } from "../src/index.js";
+import { RINK_CONFIG } from "@bbh/arcade-core";
 import type { InputFrame, ServerWorldSnapshotMessage, WorldState } from "@bbh/arcade-core";
 
 const PORT = 2599;
@@ -41,15 +42,23 @@ function wait(ms: number): Promise<void> {
 interface TrackedClient {
   readonly room: Room;
   latest: WorldState | null;
+  latestAcks: Readonly<Record<string, number>>;
   snapshots: number;
   mySlotId: string | null;
 }
 
 function track(room: Room): TrackedClient {
-  const tracked: TrackedClient = { room, latest: null, snapshots: 0, mySlotId: null };
+  const tracked: TrackedClient = {
+    room,
+    latest: null,
+    latestAcks: {},
+    snapshots: 0,
+    mySlotId: null
+  };
 
   room.onMessage("server.worldSnapshot", (message: ServerWorldSnapshotMessage) => {
     tracked.latest = message.world;
+    tracked.latestAcks = message.inputAcks ?? {};
     tracked.snapshots += 1;
   });
   room.onMessage("server.error", (message: unknown) => {
@@ -57,6 +66,21 @@ function track(room: Room): TrackedClient {
   });
 
   return tracked;
+}
+
+/** Faceoff spawn for a slot id — mirrors arcade-core sim/spawns.ts. */
+function spawnForSlot(slotId: string): { x: number; y: number } | null {
+  const match = /^(home|away)-skater-(\d)$/.exec(slotId);
+  if (!match) {
+    return null;
+  }
+
+  const teamSide = match[1] === "home" ? -1 : 1;
+  const index = Number(match[2]) - 1;
+  return {
+    x: RINK_CONFIG.width / 2 + teamSide * 260,
+    y: RINK_CONFIG.height / 2 + (index - 1) * 140
+  };
 }
 
 function slotOf(room: Room): string | null {
@@ -136,13 +160,28 @@ async function main(): Promise<void> {
     );
   }
 
-  const skaterA = worldA.skaters.find((skater) => skater.id === trackedA.mySlotId);
-  const spawnX = 740; // home-skater-1 spawn
+  // Solo-play control follows the puck (a teammate pickup can reassign A's
+  // slot mid-run), so measure whichever skater A CURRENTLY controls against
+  // that slot's own faceoff spawn.
+  const finalSlotA = slotOf(roomA);
+  const skaterA = worldA.skaters.find((skater) => skater.id === finalSlotA);
+  const spawnA = finalSlotA ? spawnForSlot(finalSlotA) : null;
+  const movedFromSpawn =
+    !!skaterA &&
+    !!spawnA &&
+    Math.hypot(
+      skaterA.position.x - spawnA.x,
+      skaterA.position.y - spawnA.y
+    ) > 100;
+  const lastAckedSequence = finalSlotA
+    ? trackedA.latestAcks[finalSlotA] ?? -1
+    : -1;
 
   const checks: [string, boolean][] = [
     ["both clients received snapshots", trackedA.snapshots > 20 && trackedB.snapshots > 20],
     ["match is playing", worldA.phase === "playing"],
-    ["A's skater moved from spawn", !!skaterA && Math.abs(skaterA.position.x - spawnX) > 100],
+    ["A's controlled skater moved from its spawn", movedFromSpawn],
+    ["server acked A's recent input", lastAckedSequence >= sequence - 10],
     ["clients agree on score", JSON.stringify(worldA.score) === JSON.stringify(worldB.score)],
     [
       "clients agree on clock within one tick",
