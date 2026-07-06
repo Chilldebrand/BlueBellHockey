@@ -19,6 +19,14 @@ export interface RoomRosterSlot {
   playerName: string | null;
   botId: string | null;
   characterId: CharacterId;
+  /**
+   * Monotonic order in which a human landed on their CURRENT team; null for
+   * non-humans. Captaincy is derived, never stored: the team's captain is the
+   * human slot with the lowest order. Leaving nulls it; switching teams gets a
+   * fresh (highest) order on the new team; a mid-match control switch carries
+   * it with the session so the badge doesn't strobe.
+   */
+  teamJoinOrder: number | null;
 }
 
 export interface HumanAssignment {
@@ -49,8 +57,45 @@ function createSlot(slot: SkaterSlot): RoomRosterSlot {
     sessionId: null,
     playerName: null,
     botId: null,
-    characterId: characterIdForSlot(slot)
+    characterId: characterIdForSlot(slot),
+    teamJoinOrder: null
   };
+}
+
+/** Next monotonic join order, derived from the roster (no room counter). */
+function nextTeamJoinOrder(roster: readonly RoomRosterSlot[]): number {
+  return (
+    roster.reduce(
+      (highest, slot) => Math.max(highest, slot.teamJoinOrder ?? 0),
+      0
+    ) + 1
+  );
+}
+
+/** The captain of a team: its longest-tenured human, or null if none. */
+export function captainSessionId(
+  roster: readonly RoomRosterSlot[],
+  teamId: TeamId
+): string | null {
+  let captain: RoomRosterSlot | null = null;
+
+  for (const slot of roster) {
+    if (slot.teamId !== teamId || slot.kind !== "human" || !slot.sessionId) {
+      continue;
+    }
+
+    if (
+      !captain ||
+      (slot.teamJoinOrder ?? Number.POSITIVE_INFINITY) <
+        (captain.teamJoinOrder ?? Number.POSITIVE_INFINITY) ||
+      (slot.teamJoinOrder === captain.teamJoinOrder &&
+        slot.slotId < captain.slotId)
+    ) {
+      captain = slot;
+    }
+  }
+
+  return captain?.sessionId ?? null;
 }
 
 function botIdForSlot(slotId: string): string {
@@ -85,6 +130,7 @@ export function assignHumanToOpenSlot(
   slot.sessionId = assignment.sessionId;
   slot.playerName = assignment.playerName?.trim() || "Player";
   slot.botId = null;
+  slot.teamJoinOrder = nextTeamJoinOrder(roster);
 
   return slot;
 }
@@ -119,6 +165,7 @@ export function releaseHuman(
   slot.sessionId = null;
   slot.playerName = null;
   slot.botId = null;
+  slot.teamJoinOrder = null;
 
   return slot;
 }
@@ -152,12 +199,16 @@ export function moveHumanToTeam(
   current.playerName = null;
   current.botId = botIdForSlot(current.slotId);
   current.characterId = characterIdForSlot(current);
+  current.teamJoinOrder = null;
 
   target.kind = "human";
   target.sessionId = sessionId;
   target.playerName = playerName;
   target.botId = null;
   target.characterId = characterId;
+  // Fresh order on the NEW team: a switching captain relinquishes the old
+  // team and never usurps the new team's incumbent captain.
+  target.teamJoinOrder = nextTeamJoinOrder(roster);
 
   return target;
 }
@@ -191,16 +242,66 @@ export function switchHumanControl(
   }
 
   const playerName = current.playerName;
+  const teamJoinOrder = current.teamJoinOrder;
   current.kind = "bot";
   current.sessionId = null;
   current.playerName = null;
   current.botId = botIdForSlot(current.slotId);
+  current.teamJoinOrder = null;
 
   target.kind = "human";
   target.sessionId = sessionId;
   target.playerName = playerName;
   target.botId = null;
+  // Captaincy rides with the session through mid-match control switches.
+  target.teamJoinOrder = teamJoinOrder;
 
+  return target;
+}
+
+/**
+ * Set a character on a specific slot, permission-checked: a human may edit
+ * their OWN slot, and the team captain may additionally edit their team's BOT
+ * slots. Never another human's slot, never the other team's bots.
+ * Returns the mutated slot, or null when the sender has no slot or lacks
+ * permission. Throws on an unknown characterId.
+ */
+export function selectCharacterForSlot(
+  roster: RoomRosterSlot[],
+  sessionId: string,
+  slotId: string,
+  characterId: string
+): RoomRosterSlot | null {
+  if (!isCharacterId(characterId)) {
+    throw new InvalidCharacterSelectionError(characterId);
+  }
+
+  const sender = roster.find(
+    (candidate) =>
+      candidate.kind === "human" && candidate.sessionId === sessionId
+  );
+
+  if (!sender) {
+    return null;
+  }
+
+  const target = roster.find((candidate) => candidate.slotId === slotId);
+
+  if (!target) {
+    return null;
+  }
+
+  const allowed =
+    target === sender ||
+    (target.kind === "bot" &&
+      target.teamId === sender.teamId &&
+      captainSessionId(roster, target.teamId) === sessionId);
+
+  if (!allowed) {
+    return null;
+  }
+
+  target.characterId = characterId;
   return target;
 }
 
@@ -209,21 +310,20 @@ export function selectCharacterForSession(
   sessionId: string,
   characterId: string
 ): RoomRosterSlot | null {
-  if (!isCharacterId(characterId)) {
-    throw new InvalidCharacterSelectionError(characterId);
-  }
-
-  const slot = roster.find(
+  const sender = roster.find(
     (candidate) =>
       candidate.kind === "human" && candidate.sessionId === sessionId
   );
 
-  if (!slot) {
+  if (!sender) {
+    // Preserve the invalid-character error even for slotless senders.
+    if (!isCharacterId(characterId)) {
+      throw new InvalidCharacterSelectionError(characterId);
+    }
     return null;
   }
 
-  slot.characterId = characterId;
-  return slot;
+  return selectCharacterForSlot(roster, sessionId, sender.slotId, characterId);
 }
 
 function characterIdForSlot(slot: Pick<SkaterSlot, "teamId" | "index">): CharacterId {

@@ -1,7 +1,7 @@
 import { ArraySchema, Schema, type } from "@colyseus/schema";
 import type { MatchMode, TeamId, WorldPhase } from "@bbh/arcade-core";
 import { MATCH_CONFIG, TEAM_IDS } from "@bbh/arcade-core";
-import type { RoomRosterSlot, RosterSlotKind } from "./roster.js";
+import { captainSessionId, type RoomRosterSlot, type RosterSlotKind } from "./roster.js";
 
 export class ArcadeScoreState extends Schema {
   @type("number") home = 0;
@@ -24,6 +24,7 @@ export class ArcadeRoomSlotState extends Schema {
   @type("string") botId: string | null = null;
   @type("string") characterId = "";
   @type("boolean") isBot = false;
+  @type("boolean") isCaptain = false;
 }
 
 export class ArcadeTeamState extends Schema {
@@ -52,7 +53,10 @@ function createTeamState(teamId: TeamId): ArcadeTeamState {
   return team;
 }
 
-function createSlotState(slot: RoomRosterSlot): ArcadeRoomSlotState {
+function createSlotState(
+  slot: RoomRosterSlot,
+  teamCaptainSessionId: string | null
+): ArcadeRoomSlotState {
   const state = new ArcadeRoomSlotState();
   state.slotId = slot.slotId;
   state.teamId = slot.teamId;
@@ -63,6 +67,10 @@ function createSlotState(slot: RoomRosterSlot): ArcadeRoomSlotState {
   state.botId = slot.botId;
   state.characterId = slot.characterId;
   state.isBot = slot.kind === "bot";
+  state.isCaptain =
+    slot.kind === "human" &&
+    slot.sessionId !== null &&
+    slot.sessionId === teamCaptainSessionId;
   return state;
 }
 
@@ -80,14 +88,16 @@ export function applyRosterToState(
   state: ArcadeRoomState,
   roster: readonly RoomRosterSlot[]
 ): void {
+  const homeCaptain = captainSessionId(roster, "home");
+  const awayCaptain = captainSessionId(roster, "away");
   state.teams.home.slots = new ArraySchema(
     ...roster
       .filter((slot) => slot.teamId === "home")
-      .map(createSlotState)
+      .map((slot) => createSlotState(slot, homeCaptain))
   );
   state.teams.away.slots = new ArraySchema(
     ...roster
       .filter((slot) => slot.teamId === "away")
-      .map(createSlotState)
+      .map((slot) => createSlotState(slot, awayCaptain))
   );
 }

@@ -274,6 +274,92 @@ describe("ArcadeRoom", () => {
     });
   });
 
+  it("lets the captain pick bot-slot characters but not another human's", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    const sender = vi
+      .spyOn(room, "send")
+      .mockImplementation(() => room as never);
+    const captain = client("session-a");
+    const friend = client("session-b");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(captain as never, { playerName: "Ada" });
+    room.onJoin(friend as never, { playerName: "Bo" });
+    const handler = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.chooseCharacterFor"
+    )?.[1];
+
+    expect(handler).toBeTypeOf("function");
+
+    // Captain sets a same-team bot slot.
+    handler?.(captain as never, {
+      slotId: "home-skater-3",
+      characterId: "tess-flash"
+    });
+    expect(
+      [...room.state.teams.home.slots].find(
+        (slot) => slot.slotId === "home-skater-3"
+      )
+    ).toMatchObject({ isBot: true, characterId: "tess-flash" });
+    expect(sender).not.toHaveBeenCalled();
+
+    // Captain may NOT edit another human's slot.
+    handler?.(captain as never, {
+      slotId: "home-skater-2",
+      characterId: "tess-flash"
+    });
+    expect(sender).toHaveBeenCalledWith(captain, "server.error", {
+      message: "You can't edit that slot."
+    });
+
+    // Non-captain may NOT edit a bot slot.
+    handler?.(friend as never, {
+      slotId: "home-skater-3",
+      characterId: "milo-ghost"
+    });
+    expect(sender).toHaveBeenCalledWith(friend, "server.error", {
+      message: "You can't edit that slot."
+    });
+    expect(
+      [...room.state.teams.home.slots].find(
+        (slot) => slot.slotId === "home-skater-3"
+      )?.characterId
+    ).toBe("tess-flash");
+  });
+
+  it("syncs isCaptain through joins, leaves, and team switches", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    vi.spyOn(room, "send").mockImplementation(() => room as never);
+    const first = client("session-a");
+    const second = client("session-b");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(first as never, { playerName: "Ada" });
+    room.onJoin(second as never, { playerName: "Bo" });
+
+    const captainFlags = () =>
+      [...room.state.teams.home.slots, ...room.state.teams.away.slots]
+        .filter((slot) => slot.isCaptain)
+        .map((slot) => slot.sessionId);
+
+    // First joiner captains home; second is not captain.
+    expect(captainFlags()).toEqual(["session-a"]);
+
+    // First moves to away: home passes to second, away gets first.
+    const chooseTeam = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.chooseTeam"
+    )?.[1];
+    chooseTeam?.(first as never, { teamId: "away" });
+    expect(captainFlags().sort()).toEqual(["session-a", "session-b"]);
+    expect(
+      [...room.state.teams.away.slots].find((slot) => slot.isCaptain)?.sessionId
+    ).toBe("session-a");
+
+    // Away captain leaves: away has no captain left.
+    room.onLeave(first as never);
+    expect(captainFlags()).toEqual(["session-b"]);
+  });
+
   it("starts the authoritative room phase from a client start request", () => {
     const room = createTestRoom();
     const onMessage = vi.spyOn(room, "onMessage");

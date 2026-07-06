@@ -27,6 +27,7 @@ import {
   InvalidCharacterSelectionError,
   releaseHuman,
   selectCharacterForSession,
+  selectCharacterForSlot,
   switchHumanControl,
   type RoomRosterSlot
 } from "./roster.js";
@@ -135,6 +136,9 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     });
     this.onMessage("client.chooseCharacter", (client, message: unknown) => {
       this.handleChooseCharacter(client, message);
+    });
+    this.onMessage("client.chooseCharacterFor", (client, message: unknown) => {
+      this.handleChooseCharacterFor(client, message);
     });
     this.onMessage("client.requestStart", (client) => {
       this.handleRequestStart(client);
@@ -278,6 +282,51 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
 
       if (!slot) {
         this.send(client, "server.error", { message: "Join a slot first." });
+        return;
+      }
+
+      this.syncRosterState();
+    } catch (error) {
+      if (error instanceof InvalidCharacterSelectionError) {
+        this.send(client, "server.error", { message: "Invalid character." });
+        return;
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * Slot-targeted character selection: a human edits their own slot, and the
+   * team captain can additionally edit their team's bot slots. Permission is
+   * enforced in selectCharacterForSlot.
+   */
+  private handleChooseCharacterFor(client: Client, message: unknown): void {
+    const characterId = getRequestedCharacterId(message);
+    const slotId = getRequestedSlotId(message);
+
+    if (!characterId || !slotId) {
+      this.send(client, "server.error", { message: "Invalid selection." });
+      return;
+    }
+
+    try {
+      const slot = selectCharacterForSlot(
+        this.roster,
+        client.sessionId,
+        slotId,
+        characterId
+      );
+
+      if (!slot) {
+        const sender = this.roster.find(
+          (candidate) =>
+            candidate.kind === "human" &&
+            candidate.sessionId === client.sessionId
+        );
+        this.send(client, "server.error", {
+          message: sender ? "You can't edit that slot." : "Join a slot first."
+        });
         return;
       }
 
@@ -528,6 +577,15 @@ function getRequestedCharacterId(
   }
 
   return (message as ChooseCharacterMessage).characterId;
+}
+
+function getRequestedSlotId(message: unknown): string | undefined {
+  if (!message || typeof message !== "object" || !("slotId" in message)) {
+    return undefined;
+  }
+
+  const slotId = (message as { slotId?: unknown }).slotId;
+  return typeof slotId === "string" && slotId ? slotId : undefined;
 }
 
 function getClientInputFrame(message: unknown): InputFrame | null {
