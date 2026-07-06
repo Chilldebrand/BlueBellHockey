@@ -1,10 +1,34 @@
 import { POWERUP_PICKUP_RADIUS } from "../../config/powerups.js";
-import { RINK_CONFIG } from "../../config/rink.js";
+import { RINK_CONFIG, goalLineX } from "../../config/rink.js";
 import type { TeamId } from "../../config/teams.js";
 import { CHECK_CONFIG } from "../actions.js";
 import type { SkaterEntity, Vec2, WorldState } from "../types.js";
 
-export type BotRole = "carrier" | "support" | "defender";
+/**
+ * Positional roles, assigned per TEAM per tick (see computeTeamPlan) so the
+ * three skaters spread into hockey shape instead of all swarming the puck:
+ * - carrier: has the puck, drives the attacking net (shoot/pass logic keys on
+ *   actual possession, so this literal must stay).
+ * - chase: closest teammate races a winnable loose puck.
+ * - attack-slot: posts up in the high slot in front of the opposing net for a
+ *   one-timer outlet.
+ * - hold-back: safety between the puck and our net, own half.
+ * - pressure: closest defender attacks the opposing carrier (or presumed
+ *   winner of a lost loose puck).
+ * - cover: shadow an off-puck opponent — near them, goal-side, not on top.
+ * - protect-net: park in front of our crease when the assigned mark is far
+ *   from our net.
+ */
+export type PositionalRole =
+  | "carrier"
+  | "chase"
+  | "attack-slot"
+  | "hold-back"
+  | "pressure"
+  | "cover"
+  | "protect-net";
+
+export type BotRole = PositionalRole;
 
 export interface BotDifficulty {
   readonly reactionRange: number;
@@ -39,19 +63,36 @@ export interface BotDecision {
 
 const SLOT_SHOT_RANGE = 430;
 const SLOT_Y_RANGE = 190;
-const SUPPORT_ADVANCE = 220;
-const SUPPORT_WIDE_OFFSET = 180;
-const LOOSE_PUCK_RANGE = 520;
+
+// Positional-play constants. Code-level for now (the Feel Lab tuning panel
+// doesn't cover AI); TODO: fold into TUNING if AI feel iteration starts.
+/** Loose puck: if both teams' closest skaters are within this, both race it. */
+export const CONTESTED_PUCK_MARGIN = 120;
+/** High slot: this far down-ice from the attacking goal line. */
+export const SLOT_DEPTH = 420;
+/** Slot man nudges off center toward the puck side by this much. */
+export const SLOT_LANE_OFFSET = 140;
+/** Hold-back safety sits this fraction of the way from our goal to the puck. */
+export const HOLD_BACK_LERP = 0.35;
+/** ...but never closer to our goal line than this, and never past center. */
+export const HOLD_BACK_MIN_DEPTH = 420;
+/** Cover: shadow distance between the mark and our net (near, not on top). */
+export const COVER_STANDOFF = 140;
+/** A mark closer to our net than this gets covered; farther ⇒ protect-net. */
+export const COVER_STEP_OUT_RANGE = 980;
+/** Net-front post distance off our own goal line. */
+export const PROTECT_NET_DEPTH = 180;
 
 export function selectBotDecision(
   bot: SkaterEntity,
   world: WorldState,
   difficulty: BotDifficulty = DEFAULT_BOT_DIFFICULTY
 ): BotDecision {
-  const role = chooseBotRole(bot, world);
+  const plan = computeTeamPlan(world, bot.teamId);
+  const role = plan.roles.get(bot.id) ?? "hold-back";
   const moveTarget =
     choosePickupTarget(bot, world, difficulty) ??
-    botTargetForRole(bot, world, role);
+    targetForPlannedRole(bot, world, role, plan);
   const pass = shouldPass(bot, world, difficulty);
   const passTarget = pass ? findPassTarget(bot, world, difficulty) : null;
   const shoot = !pass && shouldShoot(bot, world, difficulty);
@@ -85,37 +126,263 @@ export function selectBotDecision(
 export const selectBotRole = chooseBotRole;
 export const bestPassingTarget = findPassTarget;
 
-export function chooseBotRole(bot: SkaterEntity, world: WorldState): BotRole {
-  if (world.puck.carrierSlotId === bot.id) {
-    return "carrier";
-  }
+/**
+ * Roles + cover-mark assignments for one team, computed together so role
+ * assignment and target computation can never disagree on who covers whom.
+ * Pure function of the world (no state, no randomness): ranking is by distance
+ * with slotId as the deterministic tiebreak, so Free Skate replays stay
+ * byte-identical. All three teammates are ranked with no knowledge of who is
+ * human — bots look up only their own slot, so a human chasing the puck simply
+ * leaves chase unclaimed-by-bots and the bots fill the remaining shape.
+ */
+interface TeamPlan {
+  readonly roles: ReadonlyMap<string, PositionalRole>;
+  readonly markBySlotId: ReadonlyMap<string, Vec2>;
+}
 
+function computeTeamPlan(world: WorldState, teamId: TeamId): TeamPlan {
+  const roles = new Map<string, PositionalRole>();
+  const markBySlotId = new Map<string, Vec2>();
+  const mates = world.skaters.filter((skater) => skater.teamId === teamId);
+  const opponents = world.skaters.filter((skater) => skater.teamId !== teamId);
   const carrier = findCarrier(world);
-  if (carrier?.teamId === bot.teamId) {
-    return "support";
+
+  if (carrier && carrier.teamId === teamId) {
+    // OFFENSE: carrier attacks; closer remaining mate posts up in the slot,
+    // the other stays home as the safety.
+    roles.set(carrier.id, "carrier");
+    const goal = attackingGoal(teamId);
+    const others = rankByDistance(
+      mates.filter((mate) => mate.id !== carrier.id),
+      goal
+    );
+    if (others[0]) {
+      roles.set(others[0].id, "attack-slot");
+    }
+    if (others[1]) {
+      roles.set(others[1].id, "hold-back");
+    }
+    return { roles, markBySlotId };
   }
 
-  if (carrier && carrier.teamId !== bot.teamId) {
-    return "defender";
+  if (carrier) {
+    // DEFENSE: opponent carries.
+    applyDefensiveShape(roles, markBySlotId, mates, opponents, carrier, teamId);
+    return { roles, markBySlotId };
   }
 
-  return isClosestTeammateToPuck(bot, world) ? "carrier" : "defender";
+  // LOOSE PUCK: the closer team attacks; within the contested margin BOTH
+  // teams' checks pass, so both send their closest skater racing.
+  const puck = world.puck.position;
+  const myRanked = rankByDistance(mates, puck);
+  const myBest = myRanked[0]
+    ? distance(myRanked[0].position, puck)
+    : Number.POSITIVE_INFINITY;
+  const oppBest = opponents.reduce(
+    (best, opponent) => Math.min(best, distance(opponent.position, puck)),
+    Number.POSITIVE_INFINITY
+  );
+
+  if (myBest <= oppBest + CONTESTED_PUCK_MARGIN) {
+    const chaseMan = myRanked[0];
+    if (chaseMan) {
+      roles.set(chaseMan.id, "chase");
+    }
+    const others = rankByDistance(myRanked.slice(1), attackingGoal(teamId));
+    if (others[0]) {
+      roles.set(others[0].id, "attack-slot");
+    }
+    if (others[1]) {
+      roles.set(others[1].id, "hold-back");
+    }
+    return { roles, markBySlotId };
+  }
+
+  // Clearly losing the race: fall into defensive shape against the opponent
+  // who is about to win the puck.
+  const threat = nearestByDistance(
+    opponents,
+    (opponent) => opponent.position,
+    puck
+  );
+  if (threat) {
+    applyDefensiveShape(roles, markBySlotId, mates, opponents, threat, teamId);
+  }
+  return { roles, markBySlotId };
+}
+
+/**
+ * Defensive shape vs. a threat (the carrier, or the presumed loose-puck
+ * winner): closest mate pressures the threat; the other two pair off against
+ * the remaining opponents — covering a mark that is inside the step-out range
+ * of our net, otherwise parking net-front.
+ */
+function applyDefensiveShape(
+  roles: Map<string, PositionalRole>,
+  markBySlotId: Map<string, Vec2>,
+  mates: readonly SkaterEntity[],
+  opponents: readonly SkaterEntity[],
+  threat: SkaterEntity,
+  teamId: TeamId
+): void {
+  const ownGoal = defendingGoal(teamId);
+  const pressureMan = rankByDistance(mates, threat.position)[0];
+  if (pressureMan) {
+    roles.set(pressureMan.id, "pressure");
+  }
+
+  const marks = rankByDistance(
+    opponents.filter((opponent) => opponent.id !== threat.id),
+    ownGoal
+  );
+  const defenders = marks[0]
+    ? rankByDistance(
+        mates.filter((mate) => mate.id !== pressureMan?.id),
+        marks[0].position
+      )
+    : mates.filter((mate) => mate.id !== pressureMan?.id);
+
+  defenders.forEach((defender, index) => {
+    const mark = marks[index] ?? marks[marks.length - 1];
+    if (mark && distance(mark.position, ownGoal) <= COVER_STEP_OUT_RANGE) {
+      roles.set(defender.id, "cover");
+      markBySlotId.set(defender.id, mark.position);
+    } else {
+      roles.set(defender.id, "protect-net");
+    }
+  });
+}
+
+/** Public view of the per-team role assignment (used by tests/telemetry). */
+export function assignTeamRoles(
+  world: WorldState,
+  teamId: TeamId
+): ReadonlyMap<string, PositionalRole> {
+  return computeTeamPlan(world, teamId).roles;
+}
+
+export function chooseBotRole(
+  bot: SkaterEntity,
+  world: WorldState
+): PositionalRole {
+  return computeTeamPlan(world, bot.teamId).roles.get(bot.id) ?? "hold-back";
 }
 
 export function botTargetForRole(
   bot: SkaterEntity,
   world: WorldState,
-  role: BotRole
+  role: PositionalRole
 ): Vec2 {
-  if (role === "carrier") {
-    return attackingGoal(bot.teamId);
-  }
+  return targetForPlannedRole(bot, world, role, computeTeamPlan(world, bot.teamId));
+}
 
-  if (role === "defender") {
-    return findCarrier(world)?.position ?? world.puck.position;
+function targetForPlannedRole(
+  bot: SkaterEntity,
+  world: WorldState,
+  role: PositionalRole,
+  plan: TeamPlan
+): Vec2 {
+  switch (role) {
+    case "carrier":
+      return attackingGoal(bot.teamId);
+    case "chase":
+      return world.puck.position;
+    case "pressure":
+      return presumedThreat(world, bot.teamId)?.position ?? world.puck.position;
+    case "attack-slot":
+      return slotPositionTarget(bot.teamId, world);
+    case "hold-back":
+      return holdBackTarget(bot.teamId, world);
+    case "cover": {
+      const mark = plan.markBySlotId.get(bot.id);
+      return mark ? coverTarget(mark, bot.teamId) : protectNetTarget(bot.teamId);
+    }
+    case "protect-net":
+      return protectNetTarget(bot.teamId);
   }
+}
 
-  return supportLaneTarget(bot, world);
+/** The opponent we defend against: their carrier, else their loose-puck racer. */
+function presumedThreat(
+  world: WorldState,
+  teamId: TeamId
+): SkaterEntity | null {
+  const carrier = findCarrier(world);
+  if (carrier && carrier.teamId !== teamId) {
+    return carrier;
+  }
+  return nearestByDistance(
+    world.skaters.filter((skater) => skater.teamId !== teamId),
+    (skater) => skater.position,
+    world.puck.position
+  );
+}
+
+/** High slot in front of the attacking net, nudged toward the puck side. */
+export function slotPositionTarget(teamId: TeamId, world: WorldState): Vec2 {
+  const goal = attackingGoal(teamId);
+  const centerY = RINK_CONFIG.height / 2;
+  return clampToRink({
+    x: goal.x - teamDirection(teamId) * SLOT_DEPTH,
+    y:
+      centerY +
+      Math.sign(world.puck.position.y - centerY) * SLOT_LANE_OFFSET
+  });
+}
+
+/** Safety spot between the puck and our net, kept in our half. */
+export function holdBackTarget(teamId: TeamId, world: WorldState): Vec2 {
+  const ownGoal = defendingGoal(teamId);
+  const puck = world.puck.position;
+  const direction = teamDirection(teamId);
+  const rawX = ownGoal.x + (puck.x - ownGoal.x) * HOLD_BACK_LERP;
+  const minX = ownGoal.x + direction * HOLD_BACK_MIN_DEPTH;
+  const centerX = RINK_CONFIG.width / 2;
+  const x =
+    direction > 0
+      ? Math.min(Math.max(rawX, minX), centerX)
+      : Math.max(Math.min(rawX, minX), centerX);
+
+  return clampToRink({
+    x,
+    y: ownGoal.y + (puck.y - ownGoal.y) * HOLD_BACK_LERP
+  });
+}
+
+/** Shadow spot: on the mark→our-net line, a standoff short of the mark. */
+export function coverTarget(mark: Vec2, teamId: TeamId): Vec2 {
+  const toGoal = directionToTarget(mark, defendingGoal(teamId));
+  return clampToRink({
+    x: mark.x + toGoal.x * COVER_STANDOFF,
+    y: mark.y + toGoal.y * COVER_STANDOFF
+  });
+}
+
+/** Net-front post just off our own goal line. */
+export function protectNetTarget(teamId: TeamId): Vec2 {
+  return {
+    x: goalLineX(teamId) + teamDirection(teamId) * PROTECT_NET_DEPTH,
+    y: RINK_CONFIG.height / 2
+  };
+}
+
+function defendingGoal(teamId: TeamId): Vec2 {
+  return { x: goalLineX(teamId), y: RINK_CONFIG.height / 2 };
+}
+
+/** Distance-ascending sort with slotId tiebreak — the determinism anchor. */
+function rankByDistance(
+  skaters: readonly SkaterEntity[],
+  origin: Vec2
+): SkaterEntity[] {
+  return [...skaters].sort((a, b) => {
+    const byDistance =
+      distance(a.position, origin) - distance(b.position, origin);
+    if (byDistance !== 0) {
+      return byDistance;
+    }
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
 }
 
 export function choosePickupTarget(
@@ -369,32 +636,6 @@ export function attackingGoal(teamId: TeamId): Vec2 {
         : RINK_CONFIG.goalLineInset,
     y: RINK_CONFIG.height / 2
   };
-}
-
-function supportLaneTarget(bot: SkaterEntity, world: WorldState): Vec2 {
-  const carrier = findCarrier(world);
-  const anchor =
-    carrier?.teamId === bot.teamId ? carrier.position : world.puck.position;
-  const direction = teamDirection(bot.teamId);
-  const laneSign = bot.slot.index % 2 === 0 ? -1 : 1;
-
-  return clampToRink({
-    x: anchor.x + direction * SUPPORT_ADVANCE,
-    y: anchor.y + laneSign * SUPPORT_WIDE_OFFSET
-  });
-}
-
-function isClosestTeammateToPuck(bot: SkaterEntity, world: WorldState): boolean {
-  const closest = nearestByDistance(
-    world.skaters.filter((candidate) => candidate.teamId === bot.teamId),
-    (candidate) => candidate.position,
-    world.puck.position
-  );
-
-  return (
-    closest?.id === bot.id &&
-    distance(bot.position, world.puck.position) <= LOOSE_PUCK_RANGE
-  );
 }
 
 function findCarrier(world: WorldState): SkaterEntity | null {

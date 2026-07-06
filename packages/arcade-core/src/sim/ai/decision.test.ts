@@ -1,10 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { RINK_CONFIG, createWorld, type SkaterEntity } from "../../index";
 import {
+  RINK_CONFIG,
+  createWorld,
+  goalLineX,
+  type SkaterEntity,
+  type Vec2
+} from "../../index";
+import {
+  CONTESTED_PUCK_MARGIN,
+  COVER_STANDOFF,
   DEFAULT_BOT_DIFFICULTY,
+  HOLD_BACK_MIN_DEPTH,
+  SLOT_DEPTH,
+  assignTeamRoles,
   chooseBotRole,
+  coverTarget,
   findPassTarget,
   selectBotDecision,
+  slotPositionTarget
 } from "./decision.js";
 
 function skater(world: ReturnType<typeof createWorld>, id: string): SkaterEntity {
@@ -17,6 +30,18 @@ function skater(world: ReturnType<typeof createWorld>, id: string): SkaterEntity
   return entity;
 }
 
+/** Pin every skater so spawn geometry can't pollute distance rankings. */
+function placeAll(
+  world: ReturnType<typeof createWorld>,
+  positions: Record<string, Vec2>
+): void {
+  for (const [id, position] of Object.entries(positions)) {
+    skater(world, id).position = { ...position };
+  }
+}
+
+const CENTER = { x: RINK_CONFIG.width / 2, y: RINK_CONFIG.height / 2 };
+
 const alwaysAct = {
   ...DEFAULT_BOT_DIFFICULTY,
   shotAggression: 1,
@@ -25,14 +50,16 @@ const alwaysAct = {
 };
 
 describe("bot decision helpers", () => {
-  it("assigns only the nearest loose-puck teammate as carrier", () => {
+  it("assigns only the nearest loose-puck teammate as the chaser", () => {
     const world = createWorld(1, "arcade3v3");
     const first = skater(world, "home-skater-1");
     const second = skater(world, "home-skater-2");
+    const third = skater(world, "home-skater-3");
     world.puck.position = { x: first.position.x + 5, y: first.position.y };
 
-    expect(chooseBotRole(first, world)).toBe("carrier");
-    expect(chooseBotRole(second, world)).not.toBe("carrier");
+    expect(chooseBotRole(first, world)).toBe("chase");
+    expect(chooseBotRole(second, world)).not.toBe("chase");
+    expect(chooseBotRole(third, world)).not.toBe("chase");
   });
 
   it("moves puck carriers toward the net and shoots from range", () => {
@@ -73,20 +100,46 @@ describe("bot decision helpers", () => {
     expect(decision.aimTarget).toEqual(support.position);
   });
 
-  it("puts support bots into lanes instead of clumping on the carrier", () => {
+  it("spreads the attacking team into carrier + attack-slot + hold-back", () => {
     const world = createWorld(1, "arcade3v3");
-    const carrier = skater(world, "home-skater-1");
-    const support = skater(world, "home-skater-2");
-    carrier.position = { x: 900, y: 500 };
-    support.position = { x: 840, y: 500 };
-    world.puck.carrierSlotId = carrier.id;
+    placeAll(world, {
+      "home-skater-1": { x: 900, y: 500 },
+      "home-skater-2": { x: 1600, y: 700 }, // closer to the attacking net
+      "home-skater-3": { x: 700, y: 900 }
+    });
+    world.puck.carrierSlotId = "home-skater-1";
 
-    const decision = selectBotDecision(support, world, alwaysAct);
+    const roles = assignTeamRoles(world, "home");
+    expect([...roles.values()].sort()).toEqual([
+      "attack-slot",
+      "carrier",
+      "hold-back"
+    ]);
+    expect(roles.get("home-skater-2")).toBe("attack-slot");
+    expect(roles.get("home-skater-3")).toBe("hold-back");
 
-    expect(decision.role).toBe("support");
-    expect(decision.moveTarget.x).toBeGreaterThan(carrier.position.x);
-    expect(decision.moveTarget.y).not.toBe(carrier.position.y);
-    expect(decision.pass).toBe(false);
+    // Slot man posts up in the high slot in front of the away net, not on the
+    // carrier; safety stays in the home half at defensive depth.
+    const slotDecision = selectBotDecision(
+      skater(world, "home-skater-2"),
+      world,
+      alwaysAct
+    );
+    expect(slotDecision.moveTarget.x).toBe(
+      goalLineX("away") - SLOT_DEPTH
+    );
+
+    const safetyDecision = selectBotDecision(
+      skater(world, "home-skater-3"),
+      world,
+      alwaysAct
+    );
+    expect(safetyDecision.moveTarget.x).toBeLessThanOrEqual(
+      RINK_CONFIG.width / 2
+    );
+    expect(safetyDecision.moveTarget.x).toBeGreaterThanOrEqual(
+      goalLineX("home") + HOLD_BACK_MIN_DEPTH
+    );
   });
 
   it("pressures and checks opposing puck carriers", () => {
@@ -99,9 +152,114 @@ describe("bot decision helpers", () => {
 
     const decision = selectBotDecision(defender, world, alwaysAct);
 
-    expect(decision.role).toBe("defender");
+    expect(decision.role).toBe("pressure");
     expect(decision.moveTarget).toEqual(carrier.position);
     expect(decision.check).toBe(true);
+  });
+
+  it("covers close marks and protects the net against distant ones", () => {
+    const world = createWorld(1, "arcade3v3");
+    placeAll(world, {
+      "home-skater-1": { x: 1000, y: 780 }, // closest to the carrier -> pressure
+      "home-skater-2": { x: 700, y: 700 },
+      "home-skater-3": { x: 400, y: 900 },
+      "away-skater-1": { x: 1100, y: 780 }, // carrier / threat
+      "away-skater-2": { x: 600, y: 700 }, // deep in our zone -> covered
+      "away-skater-3": { x: 2200, y: 800 } // far away -> defender protects net
+    });
+    world.puck.carrierSlotId = "away-skater-1";
+
+    const roles = assignTeamRoles(world, "home");
+    expect(roles.get("home-skater-1")).toBe("pressure");
+    expect(roles.get("home-skater-2")).toBe("cover");
+    expect(roles.get("home-skater-3")).toBe("protect-net");
+
+    // The covering defender shadows goal-side of the mark, not on top of it.
+    const coverDecision = selectBotDecision(
+      skater(world, "home-skater-2"),
+      world,
+      alwaysAct
+    );
+    const mark = skater(world, "away-skater-2").position;
+    const standoff = Math.hypot(
+      coverDecision.moveTarget.x - mark.x,
+      coverDecision.moveTarget.y - mark.y
+    );
+    expect(standoff).toBeCloseTo(COVER_STANDOFF, 0);
+    expect(coverDecision.moveTarget.x).toBeLessThan(mark.x); // goal side
+  });
+
+  it("sends both teams' closest skaters after a near-tie loose puck", () => {
+    const world = createWorld(1, "arcade3v3");
+    world.puck.position = { ...CENTER };
+    placeAll(world, {
+      "home-skater-1": { x: CENTER.x - 300, y: CENTER.y },
+      "home-skater-2": { x: 400, y: 600 },
+      "home-skater-3": { x: 350, y: 950 },
+      "away-skater-1": { x: CENTER.x + 300 + CONTESTED_PUCK_MARGIN / 2, y: CENTER.y },
+      "away-skater-2": { x: 2200, y: 600 },
+      "away-skater-3": { x: 2250, y: 950 }
+    });
+
+    expect(assignTeamRoles(world, "home").get("home-skater-1")).toBe("chase");
+    expect(assignTeamRoles(world, "away").get("away-skater-1")).toBe("chase");
+  });
+
+  it("collapses into defensive shape when clearly losing a loose-puck race", () => {
+    const world = createWorld(1, "arcade3v3");
+    world.puck.position = { ...CENTER };
+    placeAll(world, {
+      "home-skater-1": { x: 600, y: CENTER.y }, // 700 away — losing by > margin
+      "home-skater-2": { x: 500, y: 600 },
+      "home-skater-3": { x: 400, y: 900 },
+      "away-skater-1": { x: CENTER.x + 50, y: CENTER.y }, // about to win it
+      "away-skater-2": { x: 1800, y: 700 },
+      "away-skater-3": { x: 2000, y: 900 }
+    });
+
+    const homeRoles = assignTeamRoles(world, "home");
+    expect([...homeRoles.values()]).toContain("pressure");
+    expect([...homeRoles.values()]).not.toContain("chase");
+    // The winning team still races it.
+    expect(assignTeamRoles(world, "away").get("away-skater-1")).toBe("chase");
+  });
+
+  it("breaks identical-distance ties deterministically by slot id", () => {
+    const world = createWorld(1, "arcade3v3");
+    world.puck.position = { x: 1200, y: RINK_CONFIG.height / 2 };
+    placeAll(world, {
+      "home-skater-1": { x: 1200, y: RINK_CONFIG.height / 2 - 80 },
+      "home-skater-2": { x: 1200, y: RINK_CONFIG.height / 2 + 80 }, // same distance
+      "home-skater-3": { x: 300, y: 900 },
+      "away-skater-1": { x: 2200, y: 600 },
+      "away-skater-2": { x: 2300, y: 800 },
+      "away-skater-3": { x: 2400, y: 1000 }
+    });
+
+    const first = assignTeamRoles(world, "home");
+    expect(first.get("home-skater-1")).toBe("chase");
+    // Stable across repeated evaluation (pure function of the world).
+    expect(assignTeamRoles(world, "home")).toEqual(first);
+  });
+
+  it("places the high slot in front of the correct net for both teams", () => {
+    const world = createWorld(1, "arcade3v3");
+    world.puck.position = { x: CENTER.x, y: CENTER.y + 400 };
+
+    const homeSlot = slotPositionTarget("home", world);
+    expect(homeSlot.x).toBe(goalLineX("away") - SLOT_DEPTH);
+    expect(homeSlot.y).toBeGreaterThan(CENTER.y); // nudged toward puck side
+
+    const awaySlot = slotPositionTarget("away", world);
+    expect(awaySlot.x).toBe(goalLineX("home") + SLOT_DEPTH);
+  });
+
+  it("computes cover points on the mark-to-net line at the standoff", () => {
+    const mark = { x: 800, y: RINK_CONFIG.height / 2 };
+    const point = coverTarget(mark, "home"); // home net is at low x
+
+    expect(point.x).toBeCloseTo(mark.x - COVER_STANDOFF, 5);
+    expect(point.y).toBeCloseTo(mark.y, 5);
   });
 
   it("uses held powerups in situational offensive and defensive contexts", () => {
