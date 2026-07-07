@@ -16,7 +16,7 @@ react-three-fiber client, authoritative Colyseus server, deterministic shared si
 ## How to run
 ```
 cd "C:\Users\hilde\OneDrive\Desktop\3V3 Hockey Files\BBellHockey"
-npm run dev      # arcade server (ws://localhost:2568) + client (http://localhost:5173)
+npm run dev      # arcade server (ws://localhost:2567) + client (http://localhost:5173)
 npm test         # 218 tests (124 arcade-core / 32 arcade-server / 62 arcade-client)
 npm run typecheck
 npm run smoke --workspace @bbh/arcade-server   # 2-client websocket end-to-end
@@ -28,10 +28,8 @@ teammates vs 3 AI opponents + goalie) with the **Feel Lab** live-tuning panel (C
 > so all VISUAL changes must be eyeballed by the user in their own browser. Logic is verified by tests +
 > the 2-client smoke. When iterating, the assistant edits source and Vite HMR hot-reloads localhost:5173.
 
-> ⚠️ **Port gotcha:** `.claude/launch.json` (assistant preview tooling) starts the server with PORT=2567,
-> but the client's default WS URL is `ws://localhost:2568` (`packages/arcade-client/src/net/client.ts`).
-> `npm run dev` uses 2568 everywhere and is fine. If online mode can't connect while using the preview
-> tools, that mismatch is why — align launch.json to 2568 or set `VITE_ARCADE_WS_URL`.
+> Ports are unified on **2567** (server default, client DEFAULT_WS_URL, .claude/launch.json) — the old
+> 2567-vs-2568 mismatch that broke online mode under the preview tools is fixed.
 
 ## GIT STATE
 **Everything is committed AND pushed** — clean tree, `main` in sync with origin. All green:
@@ -122,7 +120,7 @@ restLateral:44.5`; goalie `lateralSpeed:520, saveReach:70, reactionDelayMs:150`.
 - **GLB roster pipeline** still parked: `GLTF_SKATER_BODIES_ENABLED = false` in `skaterGltfSource.ts`,
   blockout look is the current choice. Test asset + load path remain wired.
 - Optional cleanups: dormant `selectedTargetSlotId`/`updateAssistTargets` + TargetIndicator;
-  dead `arcade-server/src/ai/goalie.ts`; align launch.json/client default ports (2567 vs 2568).
+  dead `arcade-server/src/ai/goalie.ts`. (Ports now unified on 2567 — done.)
 
 ## Working style that's been effective
 Small change → `npm run typecheck` + `npm test` green → user eyeballs on localhost:5173 (HMR).

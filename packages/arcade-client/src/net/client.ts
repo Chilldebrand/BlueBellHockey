@@ -58,7 +58,7 @@ export interface ArcadePrivateRoomResult extends ArcadeConnectionResult {
 
 const ROOM_NAME = "arcade";
 const MODE = "arcade3v3";
-const DEFAULT_WS_URL = "ws://localhost:2568";
+const DEFAULT_WS_URL = "ws://localhost:2567";
 export const ARCADE_RECONNECT_STORAGE_KEY = "bbh.arcade.reconnect.v1";
 const RECONNECT_WINDOW_MS = 30_000;
 

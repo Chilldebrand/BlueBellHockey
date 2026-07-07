@@ -50,7 +50,9 @@ function isMainModule(): boolean {
 
 if (isMainModule()) {
   const serverInfo = getArcadeServerInfo();
-  const port = Number(process.env.PORT ?? 2568);
+  // 2567 everywhere: matches the client's DEFAULT_WS_URL and .claude/launch.json
+  // so both `npm run dev` and the preview launcher agree.
+  const port = Number(process.env.PORT ?? 2567);
   const { gameServer } = createArcadeServer();
 
   void gameServer.listen(port).then(() => {
