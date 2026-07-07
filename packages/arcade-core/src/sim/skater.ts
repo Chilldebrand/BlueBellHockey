@@ -46,6 +46,8 @@ export interface SkaterMovementConfig {
   readonly knockdownDrag: number;
   /** Speed multiplier while winding up a slap shot — telegraphs the bomb. */
   readonly windupSpeedMultiplier: number;
+  /** Speed cap multiplier while stumbling (hit recovery / check whiff). */
+  readonly stumbleSpeedMultiplier: number;
 }
 
 // Feel pass 2026-07-03: normal skating slowed so turbo reads as a real burst
@@ -72,7 +74,8 @@ export const SKATER_MOVEMENT_CONFIG: SkaterMovementConfig = {
   turboRechargePerSecond: 0.4,
   turboMinActivation: 0.08,
   knockdownDrag: 3.05,
-  windupSpeedMultiplier: 0.62
+  windupSpeedMultiplier: 0.62,
+  stumbleSpeedMultiplier: 0.55
 };
 
 /**
@@ -117,7 +120,8 @@ export function stepSkater(
   const maxSpeed =
     config.maxSpeed *
     (turboActive ? config.turboMaxSpeedMultiplier : 1) *
-    (skater.gesture.phase === "windup" ? config.windupSpeedMultiplier : 1);
+    (skater.gesture.phase === "windup" ? config.windupSpeedMultiplier : 1) *
+    (skater.contactState === "stumbling" ? config.stumbleSpeedMultiplier : 1);
   const speed = magnitude(skater.velocity);
   let braking = false;
 

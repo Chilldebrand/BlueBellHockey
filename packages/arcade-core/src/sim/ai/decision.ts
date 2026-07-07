@@ -467,6 +467,10 @@ export function shouldCheckCarrier(
   return (
     bot.contactState === "ready" &&
     world.time.nowMs >= bot.checkCooldownUntilMs &&
+    // NHL-style hitting is speed-based: don't spam doomed standstill checks
+    // (a whiff now costs a recovery stumble).
+    Math.hypot(bot.velocity.x, bot.velocity.y) >=
+      CHECK_CONFIG.stumbleForce * 0.55 &&
     distance(bot.position, carrier.position) <=
       Math.min(difficulty.reactionRange, CHECK_CONFIG.radius)
   );

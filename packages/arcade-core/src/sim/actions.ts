@@ -1,4 +1,6 @@
+import { getCharacterById } from "../config/characters.js";
 import type { InputFrame, SkaterEntity, Vec2, WorldState } from "./types.js";
+import { clearPendingRelease } from "./gestures.js";
 import { fromAngle, magnitude, normalizeOrZero } from "./physics.js";
 
 export interface CheckConfig {
@@ -7,10 +9,35 @@ export interface CheckConfig {
   readonly activeMs: number;
   readonly stumbleMs: number;
   readonly knockdownMs: number;
-  readonly stumbleSpeed: number;
-  readonly knockdownSpeed: number;
-  readonly puckStripSpeed: number;
+  /** Force needed (vs a stat-3 target) to stagger them into a stumble. */
+  readonly stumbleForce: number;
+  /** Force needed (vs a stat-3, moving target) to flatten them. */
+  readonly knockdownForce: number;
+  /** Force needed to strip a carried puck loose. */
+  readonly puckStripForce: number;
   readonly slideSpeed: number;
+  /** Flat body-contact force so a standstill press still shoves (never fells). */
+  readonly baseCheckForce: number;
+  /** Force multiplier per point of checker `power` above/below 3. */
+  readonly powerStatScale: number;
+  /** Threshold multiplier per point of target `balance` above/below 3. */
+  readonly balanceStatScale: number;
+  /** Targets moving slower than this are braced/anchored. */
+  readonly anchorSpeed: number;
+  /** Knockdown-threshold multiplier for anchored targets. */
+  readonly anchorResistMultiplier: number;
+  /** Shove speed added to a bumped (sub-stumble) target at full force ratio. */
+  readonly bumpImpulse: number;
+  /** Forward lunge applied when a check attempt doesn't connect instantly. */
+  readonly checkLungeBoost: number;
+  /** Vulnerable recovery after a check that never lands. */
+  readonly whiffRecoveryMs: number;
+  /** Bounce off an anchored target when force < stumbleThreshold * ratio. */
+  readonly bounceBackRatio: number;
+  readonly bounceBackImpulse: number;
+  readonly bounceBackMs: number;
+  /** How much a soft stick-flick reduces the attempt vs the button (1 = off). */
+  readonly flickPowerFloor: number;
   /** Poke check: how long the blade lunge lasts and how often it can fire. */
   readonly pokeDurationMs: number;
   readonly pokeCooldownMs: number;
@@ -30,10 +57,25 @@ export const CHECK_CONFIG: CheckConfig = {
   activeMs: 150,
   stumbleMs: 390,
   knockdownMs: 960,
-  stumbleSpeed: 290,
-  knockdownSpeed: 650,
-  puckStripSpeed: 430,
+  // NHL-style hitting: calibrated against cruise 560 / turbo 840 so a
+  // standstill press only bumps, an aligned cruise hit stumbles, and
+  // knockdowns need turbo or a power edge (see hit.test.ts table).
+  stumbleForce: 520,
+  knockdownForce: 1000,
+  puckStripForce: 600,
   slideSpeed: 380,
+  baseCheckForce: 130,
+  powerStatScale: 0.12,
+  balanceStatScale: 0.1,
+  anchorSpeed: 140,
+  anchorResistMultiplier: 1.2,
+  bumpImpulse: 300,
+  checkLungeBoost: 230,
+  whiffRecoveryMs: 500,
+  bounceBackRatio: 0.5,
+  bounceBackImpulse: 320,
+  bounceBackMs: 480,
+  flickPowerFloor: 0.85,
   pokeDurationMs: 200,
   pokeCooldownMs: 650,
   pokeReachBonus: 58,
@@ -94,91 +136,211 @@ export function resolveDefensiveActions(
   }
 }
 
+/**
+ * NHL-style body checking. An attempt (B button, or a right-stick up-flick
+ * while not carrying) opens the existing `activeMs` window: contact inside the
+ * window resolves a graded hit — bump / stumble / knockdown — from the
+ * checker's speed and `power` stat against the target's `balance` stat (and a
+ * braced bonus when the target is barely moving). Attempts that never connect
+ * whiff into a vulnerable recovery stumble, and weak hits on anchored, stronger
+ * targets bounce the CHECKER off instead.
+ */
 export function resolveChecks(
   world: WorldState,
   inputsBySlot: ReadonlyMap<string, InputFrame>,
   config: CheckConfig = CHECK_CONFIG
 ): void {
   recoverContactStates(world);
+  const now = world.time.nowMs;
 
   for (const hitter of world.skaters) {
     const input = inputsBySlot.get(hitter.id);
 
+    // Right-stick up-flick doubles as a hit attempt when NOT carrying (when
+    // carrying it stays the wrist shot, consumed later by the puck step).
+    // Consume the latch here even if the attempt is gated, so gaining the puck
+    // later this tick can't turn the same flick into a shot.
+    const isCarrier = world.puck.carrierSlotId === hitter.id;
+    const flickCheck =
+      !isCarrier && hitter.gesture.pendingReleaseType === "wrist";
+    const flickPower = hitter.gesture.pendingReleasePower;
+    if (flickCheck) {
+      clearPendingRelease(hitter.gesture);
+    }
+
+    const wantsCheck = input?.check === true || flickCheck;
+    let startedThisTick = false;
+
     if (
-      !input?.check ||
-      hitter.contactState !== "ready" ||
-      world.time.nowMs < hitter.checkCooldownUntilMs
+      wantsCheck &&
+      hitter.contactState === "ready" &&
+      now >= hitter.checkCooldownUntilMs
     ) {
+      hitter.checkCooldownUntilMs = now + config.cooldownMs;
+      hitter.activeCheckUntilMs = now + config.activeMs;
+      hitter.activeCheckPower = flickCheck && !input?.check ? flickPower : 1;
+      startedThisTick = true;
+    }
+
+    if (hitter.activeCheckPower <= 0) {
       continue;
     }
 
-    hitter.checkCooldownUntilMs = world.time.nowMs + config.cooldownMs;
-    hitter.activeCheckUntilMs = world.time.nowMs + config.activeMs;
+    // Getting hit (or diving) cancels a pending attempt.
+    if (hitter.contactState !== "ready") {
+      hitter.activeCheckPower = 0;
+      continue;
+    }
 
     const target = findCheckTarget(world, hitter, config);
+
     if (!target) {
+      if (now >= hitter.activeCheckUntilMs && !startedThisTick) {
+        // Window expired with no contact: whiff into a vulnerable recovery.
+        hitter.activeCheckPower = 0;
+        hitter.contactState = "stumbling";
+        hitter.contactStateUntilMs = now + config.whiffRecoveryMs;
+        world.eventQueue.push({
+          id: `checkwhiff-${world.time.tick}-${hitter.id}`,
+          type: "checkWhiff",
+          atMs: now,
+          sourceSlotId: hitter.id
+        });
+      } else if (startedThisTick) {
+        // Lunge toward the play — may carry the checker into contact on a
+        // later window tick. Only on a miss, so landed hits keep the
+        // calibration table honest (baseCheckForce is the standstill term).
+        const lunge = facingDirection(hitter);
+        hitter.velocity.x += lunge.x * config.checkLungeBoost;
+        hitter.velocity.y += lunge.y * config.checkLungeBoost;
+      }
       continue;
     }
 
-    const force = checkForce(hitter, target);
+    resolveHit(world, hitter, target, hitter.activeCheckPower, config);
+    hitter.activeCheckPower = 0;
+  }
+}
+
+/** Graded hit resolution — see resolveChecks. */
+function resolveHit(
+  world: WorldState,
+  hitter: SkaterEntity,
+  target: SkaterEntity,
+  attemptPower: number,
+  config: CheckConfig
+): void {
+  const now = world.time.nowMs;
+  const hitterStats = getCharacterById(hitter.characterId).stats;
+  const targetStats = getCharacterById(target.characterId).stats;
+
+  const direction = facingDirection(hitter);
+  const toTarget = normalizeOrZero({
+    x: target.position.x - hitter.position.x,
+    y: target.position.y - hitter.position.y
+  });
+  const hitDir = magnitude(toTarget) > 0 ? toTarget : direction;
+  const alignment = Math.max(
+    0,
+    direction.x * toTarget.x + direction.y * toTarget.y
+  );
+
+  const powerScale = 1 + (hitterStats.power - 3) * config.powerStatScale;
+  const flickScale =
+    config.flickPowerFloor + (1 - config.flickPowerFloor) * attemptPower;
+  const force =
+    (magnitude(hitter.velocity) * (0.75 + alignment * 0.5) +
+      config.baseCheckForce) *
+    powerScale *
+    flickScale;
+
+  const resistScale = 1 + (targetStats.balance - 3) * config.balanceStatScale;
+  const anchored = magnitude(target.velocity) < config.anchorSpeed;
+  const stumbleThreshold = config.stumbleForce * resistScale;
+  const stripThreshold = config.puckStripForce * resistScale;
+  const knockdownThreshold =
+    config.knockdownForce *
+    resistScale *
+    (anchored ? config.anchorResistMultiplier : 1);
+
+  world.eventQueue.push({
+    id: `hit-${world.time.tick}-${hitter.id}-${target.id}`,
+    type: "hit",
+    atMs: now,
+    sourceSlotId: hitter.id,
+    targetSlotId: target.id,
+    force
+  });
+  world.stats[hitter.teamId].hits += 1;
+  world.stats.hits[hitter.teamId] += 1;
+
+  if (force >= knockdownThreshold) {
+    target.contactState = "knockedDown";
+    target.contactStateUntilMs = now + config.knockdownMs;
+    const slide = facingDirection(hitter);
+    target.velocity = {
+      x: slide.x * config.slideSpeed,
+      y: slide.y * config.slideSpeed
+    };
     world.eventQueue.push({
-      id: `hit-${world.time.tick}-${hitter.id}-${target.id}`,
-      type: "hit",
-      atMs: world.time.nowMs,
+      id: `knockdown-${world.time.tick}-${target.id}`,
+      type: "knockdown",
+      atMs: now,
       sourceSlotId: hitter.id,
       targetSlotId: target.id,
       force
     });
-    world.stats[hitter.teamId].hits += 1;
-    world.stats.hits[hitter.teamId] += 1;
+  } else if (force >= stumbleThreshold) {
+    target.contactState = "stumbling";
+    target.contactStateUntilMs = now + config.stumbleMs;
+    target.velocity.x += hitDir.x * config.bumpImpulse;
+    target.velocity.y += hitDir.y * config.bumpImpulse;
+    world.eventQueue.push({
+      id: `stumble-${world.time.tick}-${target.id}`,
+      type: "stumble",
+      atMs: now,
+      sourceSlotId: hitter.id,
+      targetSlotId: target.id,
+      force
+    });
+  } else if (anchored && force < stumbleThreshold * config.bounceBackRatio) {
+    // Braced, stronger target: the CHECKER caroms off and staggers.
+    hitter.contactState = "stumbling";
+    hitter.contactStateUntilMs = now + config.bounceBackMs;
+    hitter.velocity = {
+      x: -hitDir.x * config.bounceBackImpulse,
+      y: -hitDir.y * config.bounceBackImpulse
+    };
+    target.velocity.x += hitDir.x * config.bumpImpulse * 0.35;
+    target.velocity.y += hitDir.y * config.bumpImpulse * 0.35;
+    world.eventQueue.push({
+      id: `bounceback-${world.time.tick}-${hitter.id}`,
+      type: "bounceBack",
+      atMs: now,
+      sourceSlotId: hitter.id,
+      targetSlotId: target.id,
+      force
+    });
+  } else if (target.contactState !== "knockedDown") {
+    // Weak contact: a physical shove, no state change.
+    const shove =
+      config.bumpImpulse *
+      Math.min(1, Math.max(0.35, force / stumbleThreshold));
+    target.velocity.x += hitDir.x * shove;
+    target.velocity.y += hitDir.y * shove;
+  }
 
-    if (force >= config.stumbleSpeed) {
-      target.contactState = "stumbling";
-      target.contactStateUntilMs = world.time.nowMs + config.stumbleMs;
-      world.eventQueue.push({
-        id: `stumble-${world.time.tick}-${target.id}`,
-        type: "stumble",
-        atMs: world.time.nowMs,
-        sourceSlotId: hitter.id,
-        targetSlotId: target.id,
-        force
-      });
-    }
-
-    if (force >= config.knockdownSpeed) {
-      target.contactState = "knockedDown";
-      target.contactStateUntilMs = world.time.nowMs + config.knockdownMs;
-      const slide = facingDirection(hitter);
-      target.velocity = {
-        x: slide.x * config.slideSpeed,
-        y: slide.y * config.slideSpeed
-      };
-      world.eventQueue.push({
-        id: `knockdown-${world.time.tick}-${target.id}`,
-        type: "knockdown",
-        atMs: world.time.nowMs,
-        sourceSlotId: hitter.id,
-        targetSlotId: target.id,
-        force
-      });
-    }
-
-    if (
-      world.puck.carrierSlotId === target.id &&
-      force >= config.puckStripSpeed
-    ) {
-      const direction = facingDirection(hitter);
-      world.puck.carrierSlotId = null;
-      world.puck.lastTouchSlotId = hitter.id;
-      world.puck.pickupDisabledForSlotId = target.id;
-      world.puck.pickupDisabledUntilMs = world.time.nowMs + 250;
-      world.puck.velocity = {
-        x: direction.x * Math.max(config.puckStripSpeed, force),
-        y: direction.y * Math.max(config.puckStripSpeed, force)
-      };
-      world.stats[hitter.teamId].takeaways += 1;
-      world.stats.takeaways[hitter.teamId] += 1;
-    }
+  if (world.puck.carrierSlotId === target.id && force >= stripThreshold) {
+    world.puck.carrierSlotId = null;
+    world.puck.lastTouchSlotId = hitter.id;
+    world.puck.pickupDisabledForSlotId = target.id;
+    world.puck.pickupDisabledUntilMs = now + 250;
+    world.puck.velocity = {
+      x: direction.x * Math.max(config.puckStripForce, force),
+      y: direction.y * Math.max(config.puckStripForce, force)
+    };
+    world.stats[hitter.teamId].takeaways += 1;
+    world.stats.takeaways[hitter.teamId] += 1;
   }
 }
 
@@ -223,17 +385,6 @@ function findCheckTarget(
   }
 
   return best;
-}
-
-function checkForce(hitter: SkaterEntity, target: SkaterEntity): number {
-  const direction = facingDirection(hitter);
-  const toTarget = normalizeOrZero({
-    x: target.position.x - hitter.position.x,
-    y: target.position.y - hitter.position.y
-  });
-  const alignment = Math.max(0, direction.x * toTarget.x + direction.y * toTarget.y);
-
-  return magnitude(hitter.velocity) * (0.75 + alignment * 0.5);
 }
 
 /**

@@ -147,6 +147,8 @@ describe("bot decision helpers", () => {
     const defender = skater(world, "home-skater-1");
     const carrier = skater(world, "away-skater-1");
     defender.position = { x: 930, y: 500 };
+    // Checks are speed-gated now — a bot only throws one with momentum.
+    defender.velocity = { x: 420, y: 0 };
     carrier.position = { x: 1000, y: 500 };
     world.puck.carrierSlotId = carrier.id;
 
