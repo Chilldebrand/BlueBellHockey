@@ -138,6 +138,7 @@ function BlockoutBody({
 }: BlockoutBodyProps): JSX.Element {
   const palette = TEAM_PALETTES[teamId].uniform;
   const pose = skaterPose(animationState);
+  const body = bodyScaleForCharacter(characterId);
 
   // Blade in root-frame local coords (x forward, z lateral-right), tracking the
   // sim blade so the carried puck sits on the flat head as it stickhandles.
@@ -150,6 +151,10 @@ function BlockoutBody({
 
   return (
     <group name={`character-model:${characterId ?? manifestId}:${animationState}`}>
+      {/* Stat-driven physique: bruisers wider/taller, speedsters smaller.
+          Scales the BODY only (grounded at the ice, so skates stay down) —
+          the stick lives outside so the blade keeps tracking the sim puck. */}
+      <group scale={[body.bulk, body.height, body.bulk]}>
       {/* Body: authored +Z, turned to face +X, then posed. */}
       <group rotation={[0, FORWARD_CORRECTION_Y, 0]}>
         <group
@@ -249,11 +254,33 @@ function BlockoutBody({
           boots sideways. One foot is staggered forward for a skating stance. */}
       <LowerLimb z={-6.5} forward={-1} pants={palette.pants} socks={palette.jersey} />
       <LowerLimb z={6.5} forward={2.5} pants={palette.pants} socks={palette.jersey} />
+      </group>
       {/* Stick lives in the root (+X forward) frame so its flat head can sit on
           the sim-driven puck without fighting the body's pose transforms. */}
       <StickAssembly bladeLocal={bladeLocal} />
     </group>
   );
+}
+
+/**
+ * Stat-driven physique so a body reads its play style at a glance: bulk
+ * (width/depth) grows with power + balance, height rises with power and
+ * shrinks with speed. Deliberately subtle — a stat-neutral character is
+ * exactly 1.0/1.0. Visual only; physics radii and speeds are untouched.
+ */
+export function bodyScaleForCharacter(characterId?: CharacterId): {
+  readonly bulk: number;
+  readonly height: number;
+} {
+  if (!characterId) {
+    return { bulk: 1, height: 1 };
+  }
+
+  const stats = getCharacterById(characterId).stats;
+  return {
+    bulk: 1 + (stats.power + stats.balance - 6) * 0.04,
+    height: 1 + (stats.power - 3) * 0.03 - (stats.speed - 3) * 0.02
+  };
 }
 
 /**
