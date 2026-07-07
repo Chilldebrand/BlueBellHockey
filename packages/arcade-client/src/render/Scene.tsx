@@ -44,16 +44,23 @@ export function Scene({
   // Prefer the reconciled local skater when it's the carrier (no net lag),
   // otherwise the authoritative carrier — so the blade pocket works in Free
   // Skate (no predicted local skater) as well as online.
-  const puckCarrier =
-    predictedLocalSkater &&
-    predictedLocalSkater.id === currentWorld.puck.carrierSlotId
-      ? predictedLocalSkater
-      : currentWorld.skaters.find(
-          (skater) => skater.id === currentWorld.puck.carrierSlotId
-        ) ?? null;
+  const localIsCarrier =
+    predictedLocalSkater !== null &&
+    predictedLocalSkater.id === currentWorld.puck.carrierSlotId;
+  const puckCarrier = localIsCarrier
+    ? predictedLocalSkater
+    : currentWorld.skaters.find(
+        (skater) => skater.id === currentWorld.puck.carrierSlotId
+      ) ?? null;
+  // Carried by the local player: pin the puck to the RENDERED skater's blade
+  // (the smoothed prediction) exactly like remote carriers get the sim tether
+  // against their rendered body — using the raw predicted puck here makes it
+  // lead the smoothed blade and float out front. The raw predicted puck still
+  // wins for everything else (loose-puck tether prediction, shots).
   const renderedPuck = pocketCarriedPuck(
-    predictedPuck ??
-      predictedCarriedPuck(currentWorld.puck, predictedLocalSkater),
+    localIsCarrier
+      ? predictedCarriedPuck(currentWorld.puck, predictedLocalSkater)
+      : predictedPuck ?? currentWorld.puck,
     puckCarrier
   );
 
