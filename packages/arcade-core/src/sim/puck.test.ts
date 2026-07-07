@@ -53,6 +53,36 @@ describe("puck simulation", () => {
     expect(world.puck.position.x).toBeGreaterThan(skater.position.x);
   });
 
+  it("lets a teammate catch a fast pass that a loose puck would deflect off", () => {
+    const world = playingWorld();
+    const receiver = world.skaters.find((s) => s.id === "home-skater-2")!;
+    receiver.velocity = { x: 0, y: 0 };
+    // A full-speed pass arriving right on the blade, marked as thrown by a
+    // teammate: the reception assist gathers it.
+    world.puck.position = { ...bladeWorldPosition(receiver) };
+    world.puck.velocity = { x: PUCK_CONFIG.passSpeed + 300, y: 0 };
+    world.puck.passedFromSlotId = "home-skater-1";
+    world.puck.passedAtMs = world.time.nowMs;
+
+    stepWorld(world, [inputFrame(receiver.id, 1)], 16);
+
+    expect(world.puck.carrierSlotId).toBe(receiver.id);
+  });
+
+  it("does not extend the catch assist to opponents intercepting a pass", () => {
+    const world = playingWorld();
+    const interceptor = world.skaters.find((s) => s.id === "away-skater-1")!;
+    interceptor.velocity = { x: 0, y: 0 };
+    world.puck.position = { ...bladeWorldPosition(interceptor) };
+    world.puck.velocity = { x: PUCK_CONFIG.passSpeed + 300, y: 0 };
+    world.puck.passedFromSlotId = "home-skater-1"; // other team's pass
+
+    stepWorld(world, [inputFrame(interceptor.id, 1)], 16);
+
+    // Too hot to handle for anyone but the intended team.
+    expect(world.puck.carrierSlotId).not.toBe(interceptor.id);
+  });
+
   it("applies ice friction to a loose puck", () => {
     const world = playingWorld();
     world.puck.velocity = { x: 600, y: 0 };

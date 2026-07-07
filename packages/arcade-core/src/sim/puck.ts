@@ -45,6 +45,10 @@ export interface PuckConfig {
   /** Speed given to a poked-loose puck along the poking blade's motion. */
   readonly pokeImpulse: number;
   readonly passSpeed: number;
+  /** Reception assist: catch radius for a fresh pass from a teammate. */
+  readonly passCatchRadius: number;
+  /** Reception assist: teammates gather passes up to this relative speed. */
+  readonly passCatchMaxRelativeSpeed: number;
   readonly wristShotSpeed: number;
   readonly maxChargedShotSpeed: number;
   /** Shooting within this of gathering a teammate's pass is a one-timer. */
@@ -85,7 +89,13 @@ export const PUCK_CONFIG: PuckConfig = {
   carryBreakDistance: 96,
   pokeRadius: 34,
   pokeImpulse: 480,
-  passSpeed: 820,
+  // Snappy passing: quicker base pass, and receptions are assisted — a fresh
+  // teammate pass is catchable well above the loose-puck deflection gate
+  // (base 900 + full charge 380 = 1280 < 1500), so passes stick instead of
+  // sailing through the receiver. Interceptions keep the strict gate.
+  passSpeed: 900,
+  passCatchRadius: 72,
+  passCatchMaxRelativeSpeed: 1500,
   wristShotSpeed: 1040,
   maxChargedShotSpeed: 1650,
   oneTimerWindowMs: 550,
@@ -556,6 +566,10 @@ function tryPickupLoosePuck(
   }
 
   const dt = dtMs / 1000;
+  const passer = puck.passedFromSlotId
+    ? world.skaters.find((skater) => skater.id === puck.passedFromSlotId) ??
+      null
+    : null;
 
   for (const skater of world.skaters) {
     if (
@@ -569,13 +583,27 @@ function tryPickupLoosePuck(
       continue;
     }
 
+    // Reception assist: a fresh pass from a teammate is meant to be caught —
+    // wider radius and a much higher speed tolerance than a loose puck.
+    // Opponents trying to intercept keep the strict gates.
+    const isPassReception =
+      passer !== null &&
+      passer.id !== skater.id &&
+      passer.teamId === skater.teamId;
+    const catchRadius = isPassReception
+      ? config.passCatchRadius
+      : config.pickupRadius;
+    const maxRelativeSpeed = isPassReception
+      ? config.passCatchMaxRelativeSpeed
+      : config.pickupMaxRelativeSpeed;
+
     const blade = bladeWorldPosition(skater, undefined, world.time.nowMs);
     const distance = Math.hypot(
       puck.position.x - blade.x,
       puck.position.y - blade.y
     );
 
-    if (distance > config.pickupRadius) {
+    if (distance > catchRadius) {
       continue;
     }
 
@@ -586,7 +614,7 @@ function tryPickupLoosePuck(
       puck.velocity.y - bladeVelocity.y
     );
 
-    if (relativeSpeed > config.pickupMaxRelativeSpeed) {
+    if (relativeSpeed > maxRelativeSpeed) {
       continue;
     }
 

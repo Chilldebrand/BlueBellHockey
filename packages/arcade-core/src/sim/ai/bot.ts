@@ -1,10 +1,20 @@
 import { normalizeOrZero } from "../physics.js";
 import type { InputFrame, SkaterEntity, WorldState } from "../types.js";
 import {
+  ARRIVAL_RADIUS,
   DEFAULT_BOT_DIFFICULTY,
   selectBotDecision,
-  type BotDifficulty
+  type BotDifficulty,
+  type PositionalRole
 } from "./decision.js";
+
+/** Roles that hold a station — ease in and settle rather than orbiting it. */
+const STATION_ROLES: ReadonlySet<PositionalRole> = new Set([
+  "attack-slot",
+  "hold-back",
+  "cover",
+  "protect-net"
+]);
 
 /**
  * Bots speak the same skill-stick protocol as humans: raw stick samples the
@@ -19,10 +29,18 @@ export function createBotInputFrame(
   difficulty: BotDifficulty = DEFAULT_BOT_DIFFICULTY
 ): InputFrame {
   const decision = selectBotDecision(bot, world, difficulty);
-  const movement = normalizeOrZero({
+  const toTarget = {
     x: decision.moveTarget.x - bot.position.x,
     y: decision.moveTarget.y - bot.position.y
-  });
+  };
+  // Arrival damping for station roles: full stick far out, easing to neutral
+  // at the spot — otherwise bots overshoot their station and circle it
+  // forever. Puck-attacking roles (chase/pressure/carrier) stay full-tilt.
+  const throttle = STATION_ROLES.has(decision.role)
+    ? Math.min(1, Math.hypot(toTarget.x, toTarget.y) / ARRIVAL_RADIUS)
+    : 1;
+  const direction = normalizeOrZero(toTarget);
+  const movement = { x: direction.x * throttle, y: direction.y * throttle };
   const shootFlick = decision.shoot && world.puck.carrierSlotId === bot.id;
 
   return {

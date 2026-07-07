@@ -159,7 +159,7 @@ describe("bot decision helpers", () => {
     expect(decision.check).toBe(true);
   });
 
-  it("covers close marks and protects the net against distant ones", () => {
+  it("puts both off-puck defenders in man coverage on their marks", () => {
     const world = createWorld(1, "arcade3v3");
     placeAll(world, {
       "home-skater-1": { x: 1000, y: 780 }, // closest to the carrier -> pressure
@@ -167,14 +167,16 @@ describe("bot decision helpers", () => {
       "home-skater-3": { x: 400, y: 900 },
       "away-skater-1": { x: 1100, y: 780 }, // carrier / threat
       "away-skater-2": { x: 600, y: 700 }, // deep in our zone -> covered
-      "away-skater-3": { x: 2200, y: 800 } // far away -> defender protects net
+      "away-skater-3": { x: 2200, y: 800 } // far away -> still man-covered
     });
     world.puck.carrierSlotId = "away-skater-1";
 
     const roles = assignTeamRoles(world, "home");
     expect(roles.get("home-skater-1")).toBe("pressure");
     expect(roles.get("home-skater-2")).toBe("cover");
-    expect(roles.get("home-skater-3")).toBe("protect-net");
+    // No net-camping: the second defender shadows the far mark instead of
+    // orbiting a net-front spot.
+    expect(roles.get("home-skater-3")).toBe("cover");
 
     // The covering defender shadows goal-side of the mark, not on top of it.
     const coverDecision = selectBotDecision(

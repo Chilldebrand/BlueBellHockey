@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { RINK_CONFIG, createWorld } from "../../index";
-import { DEFAULT_BOT_DIFFICULTY } from "./decision.js";
+import {
+  DEFAULT_BOT_DIFFICULTY,
+  assignTeamRoles,
+  slotPositionTarget
+} from "./decision.js";
 import { createBotInputFrame } from "./bot.js";
 
 describe("bot input frames", () => {
@@ -58,5 +62,29 @@ describe("bot input frames", () => {
     expect(frame.pass).toBe(true);
     expect(frame.switchTarget).toBe(true);
     expect(frame.stickY).toBe(0); // passing, not flicking a shot
+  });
+
+  it("eases station bots into their spot instead of orbiting it", () => {
+    const world = createWorld(1, "arcade3v3");
+    const carrier = world.skaters.find((s) => s.id === "home-skater-1")!;
+    const slotMan = world.skaters.find((s) => s.id === "home-skater-2")!;
+    world.puck.carrierSlotId = carrier.id;
+    carrier.position = { x: 900, y: 500 };
+    // Park the slot man exactly at his station; a third mate stays far back so
+    // the roles are stable.
+    world.skaters.find((s) => s.id === "home-skater-3")!.position = {
+      x: 400,
+      y: 900
+    };
+    slotMan.position = { ...slotPositionTarget("home", world) };
+    expect(assignTeamRoles(world, "home").get(slotMan.id)).toBe("attack-slot");
+
+    const atStation = createBotInputFrame(slotMan, world, 1);
+    expect(Math.hypot(atStation.moveX, atStation.moveY)).toBeLessThan(0.05);
+
+    // Puck-attacking roles keep full stick even when close: the carrier still
+    // drives at the net.
+    const attacking = createBotInputFrame(carrier, world, 1);
+    expect(Math.hypot(attacking.moveX, attacking.moveY)).toBeCloseTo(1);
   });
 });

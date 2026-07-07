@@ -78,10 +78,10 @@ export const HOLD_BACK_LERP = 0.35;
 export const HOLD_BACK_MIN_DEPTH = 420;
 /** Cover: shadow distance between the mark and our net (near, not on top). */
 export const COVER_STANDOFF = 140;
-/** A mark closer to our net than this gets covered; farther ⇒ protect-net. */
-export const COVER_STEP_OUT_RANGE = 980;
-/** Net-front post distance off our own goal line. */
+/** Net-front post distance off our own goal line (no-mark fallback only). */
 export const PROTECT_NET_DEPTH = 180;
+/** Bots ease off within this range of a station target instead of orbiting. */
+export const ARRIVAL_RADIUS = 150;
 
 export function selectBotDecision(
   bot: SkaterEntity,
@@ -213,9 +213,10 @@ function computeTeamPlan(world: WorldState, teamId: TeamId): TeamPlan {
 
 /**
  * Defensive shape vs. a threat (the carrier, or the presumed loose-puck
- * winner): closest mate pressures the threat; the other two pair off against
- * the remaining opponents — covering a mark that is inside the step-out range
- * of our net, otherwise parking net-front.
+ * winner): closest mate pressures the threat; the other two play MAN coverage
+ * on the remaining opponents — always shadowing a player rather than orbiting
+ * a net-front spot. Protect-net only remains as the no-mark fallback (fewer
+ * opponents than defenders).
  */
 function applyDefensiveShape(
   roles: Map<string, PositionalRole>,
@@ -244,7 +245,7 @@ function applyDefensiveShape(
 
   defenders.forEach((defender, index) => {
     const mark = marks[index] ?? marks[marks.length - 1];
-    if (mark && distance(mark.position, ownGoal) <= COVER_STEP_OUT_RANGE) {
+    if (mark) {
       roles.set(defender.id, "cover");
       markBySlotId.set(defender.id, mark.position);
     } else {
