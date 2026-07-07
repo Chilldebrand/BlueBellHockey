@@ -205,6 +205,11 @@ input {
   pointer-events: auto;
 }
 
+.lobby-panel {
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
+}
+
 .connection-panel h1,
 .lobby-panel h2,
 .connection-panel p,
@@ -258,8 +263,8 @@ input {
   border: 1px solid rgba(255, 255, 255, 0.16);
   color: #eff8ff;
   display: grid;
-  gap: 4px;
-  padding: 8px;
+  gap: 2px;
+  padding: 6px 8px;
   text-align: left;
 }
 
@@ -285,6 +290,7 @@ input {
 
 .slot-card small {
   color: #b8d0e8;
+  font-size: 11px;
 }
 
 .captain-badge {
@@ -322,7 +328,8 @@ input {
   display: grid;
   gap: 8px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  max-height: 250px;
+  /* Compact roster cards freed this space — the picker is the star now. */
+  max-height: min(46vh, 460px);
   overflow-y: auto;
   padding-right: 4px;
 }

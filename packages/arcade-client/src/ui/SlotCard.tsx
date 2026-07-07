@@ -1,4 +1,4 @@
-import { ARCADE_CHARACTERS, CHARACTER_STAT_KEYS } from "@bbh/arcade-core";
+import { ARCADE_CHARACTERS } from "@bbh/arcade-core";
 import type { ClientRosterSlot } from "../store.js";
 
 /** "Ada" for humans, "Bot 2" for bots (index is per-team, 0-based). */
@@ -16,10 +16,10 @@ export interface SlotCardProps {
 }
 
 /**
- * One roster slot in a team column: who occupies it (player name or BOT, with
- * captain/You badges) and which character it runs (name, silhouette, stats).
- * Editable cards are buttons that focus the character picker on this slot;
- * non-editable cards are inert.
+ * One roster slot in a team column, kept COMPACT (who + which character) so
+ * the roster doesn't crowd out the character picker below — stat comparison
+ * lives in the picker. Editable cards are buttons that focus the picker on
+ * this slot; non-editable cards are inert.
  */
 export function SlotCard({
   slot,
@@ -46,18 +46,8 @@ export function SlotCard({
       </div>
       <span className="slot-card-character">
         {character?.displayName ?? slot.characterId}
+        {character ? <small> · {character.silhouette}</small> : null}
       </span>
-      <small>{character?.silhouette ?? ""}</small>
-      {character ? (
-        <div className="stat-grid" aria-label={`${character.displayName} stats`}>
-          {CHARACTER_STAT_KEYS.map((key) => (
-            <span key={key}>
-              {key}
-              <meter min={0} max={5} value={character.stats[key]} />
-            </span>
-          ))}
-        </div>
-      ) : null}
     </>
   );
 
