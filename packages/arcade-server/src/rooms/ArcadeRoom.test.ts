@@ -360,6 +360,32 @@ describe("ArcadeRoom", () => {
     expect(captainFlags()).toEqual(["session-b"]);
   });
 
+  it("stamps lobby character picks into the world at match start", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    vi.spyOn(room, "send").mockImplementation(() => room as never);
+    const clientA = client("session-a");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(clientA as never, { playerName: "Ada" });
+
+    const chooseCharacter = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.chooseCharacter"
+    )?.[1];
+    const requestStart = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.requestStart"
+    )?.[1];
+
+    // Pick in the lobby (mutates only the roster), then start the match —
+    // the waiting world must pick the character up at that moment.
+    chooseCharacter?.(clientA as never, { characterId: "zara-crush" });
+    requestStart?.(clientA as never, undefined);
+
+    const world = (room as unknown as { world: { skaters: { id: string; characterId: string }[] } }).world;
+    expect(
+      world.skaters.find((skater) => skater.id === "home-skater-1")?.characterId
+    ).toBe("zara-crush");
+  });
+
   it("starts the authoritative room phase from a client start request", () => {
     const room = createTestRoom();
     const onMessage = vi.spyOn(room, "onMessage");

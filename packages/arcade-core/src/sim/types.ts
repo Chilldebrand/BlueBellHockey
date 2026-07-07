@@ -1,3 +1,4 @@
+import type { CharacterId } from "../config/characters.js";
 import type { MatchMode } from "../config/match.js";
 import type { PowerupType } from "../config/powerups.js";
 import type { GoalieSlot, SkaterSlot, TeamId } from "../config/teams.js";
@@ -91,6 +92,12 @@ export interface SkaterEntity {
   readonly id: string;
   readonly slot: SkaterSlot;
   readonly teamId: TeamId;
+  /**
+   * Which arcade character this body runs — drives stat-based mechanics
+   * (hitting power/balance). Mutable only so the server can sync lobby picks
+   * into a waiting world at match start; sim code must treat it as read-only.
+   */
+  characterId: CharacterId;
   position: Vec2;
   velocity: Vec2;
   /** Body orientation in radians on the sim plane (0 = +x). */
@@ -101,6 +108,12 @@ export interface SkaterEntity {
   contactStateUntilMs: number;
   checkCooldownUntilMs: number;
   activeCheckUntilMs: number;
+  /**
+   * Strength of an in-flight check attempt (0 = none). Set on the attempt
+   * tick; while non-zero the checker keeps trying to connect until
+   * activeCheckUntilMs, then whiffs into a recovery stumble.
+   */
+  activeCheckPower: number;
   /** While set (sim time), the blade lunges forward — active poke check. */
   pokeUntilMs: number;
   pokeCooldownUntilMs: number;

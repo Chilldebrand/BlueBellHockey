@@ -1,3 +1,7 @@
+import {
+  defaultCharacterIdForSlot,
+  type CharacterId
+} from "../config/characters.js";
 import { MATCH_CONFIG, type MatchMode } from "../config/match.js";
 import { RINK_CONFIG } from "../config/rink.js";
 import { GOALIE_SLOTS, SKATER_SLOTS } from "../config/teams.js";
@@ -30,7 +34,11 @@ function zeroVector(): Vec2 {
   return { x: 0, y: 0 };
 }
 
-export function createWorld(seed: number, mode: MatchMode): WorldState {
+export function createWorld(
+  seed: number,
+  mode: MatchMode,
+  charactersBySlotId?: Readonly<Record<string, CharacterId>>
+): WorldState {
   const skaters: SkaterEntity[] = SKATER_SLOTS.map((slot) => {
     const teamSide = slot.teamId === "home" ? -1 : 1;
 
@@ -38,6 +46,8 @@ export function createWorld(seed: number, mode: MatchMode): WorldState {
       id: slot.id,
       slot,
       teamId: slot.teamId,
+      characterId:
+        charactersBySlotId?.[slot.id] ?? defaultCharacterIdForSlot(slot),
       position: skaterSpawn(slot.index, teamSide),
       velocity: zeroVector(),
       facing: spawnFacing(teamSide),
@@ -47,6 +57,7 @@ export function createWorld(seed: number, mode: MatchMode): WorldState {
       contactStateUntilMs: 0,
       checkCooldownUntilMs: 0,
       activeCheckUntilMs: 0,
+      activeCheckPower: 0,
       pokeUntilMs: 0,
       pokeCooldownUntilMs: 0,
       diveCooldownUntilMs: 0,

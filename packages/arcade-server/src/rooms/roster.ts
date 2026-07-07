@@ -1,11 +1,11 @@
 import {
-  ARCADE_CHARACTERS,
-  DEFAULT_CHARACTER_ID,
+  defaultCharacterIdForSlot,
   isCharacterId,
   SKATER_SLOTS,
   type CharacterId,
   type SkaterSlot,
-  type TeamId
+  type TeamId,
+  type WorldState
 } from "@bbh/arcade-core";
 
 export type RosterSlotKind = "open" | "human" | "bot";
@@ -327,9 +327,25 @@ export function selectCharacterForSession(
 }
 
 function characterIdForSlot(slot: Pick<SkaterSlot, "teamId" | "index">): CharacterId {
-  const offset = slot.teamId === "away" ? 3 : 0;
-  return (
-    ARCADE_CHARACTERS[(slot.index + offset) % ARCADE_CHARACTERS.length]?.id ??
-    DEFAULT_CHARACTER_ID
-  );
+  return defaultCharacterIdForSlot(slot);
+}
+
+/**
+ * Sync the roster's character picks into a live world's skaters. The world is
+ * created before (or independently of) lobby character selection, so this runs
+ * at room create, match start, and rematch.
+ */
+export function applyRosterCharactersToWorld(
+  world: WorldState,
+  roster: readonly RoomRosterSlot[]
+): void {
+  for (const slot of roster) {
+    const skater = world.skaters.find(
+      (candidate) => candidate.id === slot.slotId
+    );
+
+    if (skater) {
+      skater.characterId = slot.characterId;
+    }
+  }
 }

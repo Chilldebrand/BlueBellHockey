@@ -1,4 +1,5 @@
 import { isSpecialId, type SpecialId } from "./specials.js";
+import type { SkaterSlot } from "./teams.js";
 
 export const CHARACTER_STAT_KEYS = [
   "speed",
@@ -6,7 +7,7 @@ export const CHARACTER_STAT_KEYS = [
   "handling",
   "shot",
   "pass",
-  "defense"
+  "balance"
 ] as const;
 
 export type CharacterStatKey = (typeof CHARACTER_STAT_KEYS)[number];
@@ -48,7 +49,7 @@ export const ARCADE_CHARACTERS = [
     handling: 4,
     shot: 3,
     pass: 4,
-    defense: 2
+    balance: 2
   }),
   character("nova-screen", "Nova Screen", "wide net-front forward", "screen-spark", {
     speed: 3,
@@ -56,7 +57,7 @@ export const ARCADE_CHARACTERS = [
     handling: 3,
     shot: 4,
     pass: 2,
-    defense: 4
+    balance: 4
   }),
   character("dash-iron", "Dash Iron", "square-shouldered checker", "wall-check", {
     speed: 3,
@@ -64,7 +65,7 @@ export const ARCADE_CHARACTERS = [
     handling: 2,
     shot: 3,
     pass: 2,
-    defense: 5
+    balance: 5
   }),
   character("luna-thread", "Luna Thread", "lean passing ace", "thread-pass", {
     speed: 4,
@@ -72,7 +73,7 @@ export const ARCADE_CHARACTERS = [
     handling: 4,
     shot: 2,
     pass: 5,
-    defense: 3
+    balance: 3
   }),
   character("kip-hook", "Kip Hook", "low-stance puck thief", "ice-hook", {
     speed: 4,
@@ -80,7 +81,7 @@ export const ARCADE_CHARACTERS = [
     handling: 5,
     shot: 2,
     pass: 3,
-    defense: 3
+    balance: 3
   }),
   character("vex-rebound", "Vex Rebound", "crease-crashing shooter", "rebound-rain", {
     speed: 3,
@@ -88,7 +89,7 @@ export const ARCADE_CHARACTERS = [
     handling: 3,
     shot: 5,
     pass: 2,
-    defense: 3
+    balance: 3
   }),
   character("axel-laser", "Axel Laser", "tall blue-line bomber", "blue-line-laser", {
     speed: 2,
@@ -96,7 +97,7 @@ export const ARCADE_CHARACTERS = [
     handling: 2,
     shot: 5,
     pass: 4,
-    defense: 3
+    balance: 3
   }),
   character("zara-crush", "Zara Crush", "corner-board bruiser", "corner-crush", {
     speed: 2,
@@ -104,7 +105,7 @@ export const ARCADE_CHARACTERS = [
     handling: 3,
     shot: 3,
     pass: 3,
-    defense: 4
+    balance: 4
   }),
   character("milo-ghost", "Milo Ghost", "slippery slot cutter", "crease-ghost", {
     speed: 5,
@@ -112,7 +113,7 @@ export const ARCADE_CHARACTERS = [
     handling: 5,
     shot: 3,
     pass: 3,
-    defense: 2
+    balance: 2
   }),
   character("tess-flash", "Tess Flash", "defensive glove-hand skater", "glove-flash", {
     speed: 3,
@@ -120,7 +121,7 @@ export const ARCADE_CHARACTERS = [
     handling: 3,
     shot: 2,
     pass: 4,
-    defense: 5
+    balance: 5
   }),
   character("orin-pads", "Orin Pads", "slot-blocking defender", "pad-surge", {
     speed: 2,
@@ -128,7 +129,7 @@ export const ARCADE_CHARACTERS = [
     handling: 2,
     shot: 3,
     pass: 4,
-    defense: 5
+    balance: 5
   }),
   character("mira-wall", "Mira Wall", "goalie-inspired stopper", "mask-focus", {
     speed: 3,
@@ -136,7 +137,7 @@ export const ARCADE_CHARACTERS = [
     handling: 3,
     shot: 3,
     pass: 3,
-    defense: 5
+    balance: 5
   })
 ] as const satisfies readonly ArcadeCharacter[];
 
@@ -148,6 +149,21 @@ export function isCharacterId(value: string): value is CharacterId {
 
 export function getCharacterById(id: CharacterId): ArcadeCharacter {
   return ARCADE_CHARACTERS.find((character) => character.id === id) ?? ARCADE_CHARACTERS[0];
+}
+
+/**
+ * Deterministic default character for a slot (used when no roster picks exist,
+ * e.g. Free Skate and bare createWorld calls): fans the cast so the two teams
+ * don't mirror each other.
+ */
+export function defaultCharacterIdForSlot(
+  slot: Pick<SkaterSlot, "teamId" | "index">
+): CharacterId {
+  const offset = slot.teamId === "away" ? 3 : 0;
+  return (
+    ARCADE_CHARACTERS[(slot.index + offset) % ARCADE_CHARACTERS.length]?.id ??
+    DEFAULT_CHARACTER_ID
+  );
 }
 
 export function characterStatTotal(stats: CharacterStats): number {

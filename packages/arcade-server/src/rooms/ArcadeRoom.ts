@@ -20,6 +20,7 @@ import {
   type ArcadeRoomState
 } from "./schema.js";
 import {
+  applyRosterCharactersToWorld,
   assignHumanToOpenSlot,
   createRoster,
   fillRosterWithBots,
@@ -122,6 +123,7 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
 
     this.roster = fillRosterWithBots(createRoster());
     this.world = createWorld(this.seedGenerator(), mode);
+    applyRosterCharactersToWorld(this.world, this.roster);
     this.setState(
       createInitialRoomState({
         privateCode,
@@ -351,12 +353,16 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
       return;
     }
 
+    // Lobby character picks only mutate the roster — stamp them into the
+    // waiting world before play begins.
+    applyRosterCharactersToWorld(this.world, this.roster);
     this.world.phase = "playing";
     this.syncStateFromWorld();
   }
 
   private handleRematch(): void {
     this.world = createWorld(this.seedGenerator(), this.roomOptions.mode);
+    applyRosterCharactersToWorld(this.world, this.roster);
     this.world.phase = "playing";
     this.botInputSequence = 0;
     this.syncStateFromWorld();
