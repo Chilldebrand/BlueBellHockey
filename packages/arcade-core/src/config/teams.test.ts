@@ -15,11 +15,16 @@ describe("arcade team palettes", () => {
   });
 
   it("keeps home and away palettes visually distinct", () => {
-    expect(
-      contrastRatio(
-        TEAM_PALETTES.home.uniform.jersey,
-        TEAM_PALETTES.away.uniform.jersey
-      )
-    ).toBeGreaterThan(2.5);
+    // Distinctness comes from opposing hues (blue vs red), not luminance —
+    // a bright red and a bright blue can be equally light yet unmistakable.
+    const channel = (hex: string, index: number) =>
+      Number.parseInt(hex.replace("#", "").slice(index * 2, index * 2 + 2), 16);
+    const home = TEAM_PALETTES.home.uniform.jersey;
+    const away = TEAM_PALETTES.away.uniform.jersey;
+
+    // Home reads blue (blue channel dominates red)...
+    expect(channel(home, 2)).toBeGreaterThan(channel(home, 0) * 2);
+    // ...away reads red (red channel dominates blue).
+    expect(channel(away, 0)).toBeGreaterThan(channel(away, 2) * 2);
   });
 });

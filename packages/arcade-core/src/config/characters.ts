@@ -36,11 +36,29 @@ export interface ArcadeCharacter {
   readonly silhouette: string;
   readonly specialId: SpecialId;
   readonly stats: CharacterStats;
+  /** Number worn on the jersey back (unique across the cast). */
+  readonly jerseyNumber: number;
   readonly modelId: string;
   readonly gearSlots: readonly string[];
 }
 
 export const CHARACTER_STAT_BUDGET = 20;
+
+/** Jersey numbers, one per character (rendered with the surname on the back). */
+const JERSEY_NUMBERS: Record<CharacterId, number> = {
+  "rook-rocket": 9,
+  "nova-screen": 21,
+  "dash-iron": 44,
+  "luna-thread": 7,
+  "kip-hook": 13,
+  "vex-rebound": 89,
+  "axel-laser": 4,
+  "zara-crush": 55,
+  "milo-ghost": 47,
+  "tess-flash": 3,
+  "orin-pads": 27,
+  "mira-wall": 33
+};
 
 export const ARCADE_CHARACTERS = [
   character("rook-rocket", "Rook Rocket", "compact speedster", "rocket-burst", {
@@ -187,6 +205,7 @@ function character(
     silhouette,
     specialId,
     stats,
+    jerseyNumber: JERSEY_NUMBERS[id],
     modelId: id,
     gearSlots: ["gear_helmet", "gear_gloves", "gear_skates", "gear_stick"]
   };

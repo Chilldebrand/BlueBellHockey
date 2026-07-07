@@ -1,7 +1,8 @@
-import { Suspense } from "react";
-import { DoubleSide, Euler, Quaternion, Vector3 } from "three";
+import { Suspense, useMemo } from "react";
+import { CanvasTexture, DoubleSide, Euler, Quaternion, Vector3 } from "three";
 import {
   TEAM_PALETTES,
+  getCharacterById,
   type CharacterId,
   type TeamId,
   type Vec2
@@ -162,6 +163,12 @@ function BlockoutBody({
             <capsuleGeometry args={[9, 10, 8, 14]} />
             <meshStandardMaterial color={palette.jersey} roughness={0.58} />
           </mesh>
+          {characterId ? (
+            <JerseyBack
+              characterId={characterId}
+              textColor={palette.numbers}
+            />
+          ) : null}
           {/* Head (face looks toward +Z, the authored forward). */}
           <mesh position={[0, 46, 0]} castShadow>
             <sphereGeometry args={[14, 18, 14]} />
@@ -246,6 +253,51 @@ function BlockoutBody({
           the sim-driven puck without fighting the body's pose transforms. */}
       <StickAssembly bladeLocal={bladeLocal} />
     </group>
+  );
+}
+
+/**
+ * Name + number on the jersey back, drawn to an offscreen canvas (same
+ * pattern as the center-ice logo — no external assets) and mapped onto a
+ * plane hugging the back of the torso. The body is authored facing +Z, so
+ * the back is -Z.
+ */
+function JerseyBack({
+  characterId,
+  textColor
+}: {
+  readonly characterId: CharacterId;
+  readonly textColor: string;
+}): JSX.Element {
+  const character = getCharacterById(characterId);
+  const surname = character.displayName.split(" ").pop() ?? "";
+  const number = character.jerseyNumber;
+
+  const texture = useMemo(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.clearRect(0, 0, 256, 256);
+      ctx.fillStyle = textColor;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = "700 44px Inter, sans-serif";
+      ctx.fillText(surname.toUpperCase(), 128, 52, 236);
+      ctx.font = "800 150px Inter, sans-serif";
+      ctx.fillText(String(number), 128, 160);
+    }
+    const tex = new CanvasTexture(canvas);
+    tex.anisotropy = 8;
+    return tex;
+  }, [surname, number, textColor]);
+
+  return (
+    <mesh position={[0, 31, -9.4]} rotation={[0, Math.PI, 0]}>
+      <planeGeometry args={[17, 17]} />
+      <meshStandardMaterial map={texture} transparent roughness={0.6} />
+    </mesh>
   );
 }
 

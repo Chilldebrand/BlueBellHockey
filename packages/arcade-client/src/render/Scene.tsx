@@ -94,6 +94,7 @@ export function Scene({
               key={skater.id}
               id={skater.id}
               teamId={skater.teamId}
+              characterId={skater.characterId}
               position={renderSkater.position}
               isLocal={skater.id === localSlotId}
               hasPossession={currentWorld.puck.carrierSlotId === skater.id}

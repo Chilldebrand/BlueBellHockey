@@ -3,6 +3,7 @@ import type { SkaterEntity, Vec2, WorldState } from "@bbh/arcade-core";
 export interface InterpolatedSkater {
   readonly id: string;
   readonly teamId: SkaterEntity["teamId"];
+  readonly characterId: SkaterEntity["characterId"];
   readonly position: Vec2;
   readonly velocity: Vec2;
   readonly facing: number;
@@ -54,6 +55,7 @@ export function interpolateSkaters(
     return {
       id: skater.id,
       teamId: skater.teamId,
+      characterId: skater.characterId,
       position: interpolateVector(previousSkater.position, skater.position, alpha),
       velocity: interpolateVector(previousSkater.velocity, skater.velocity, alpha),
       facing: interpolateAngle(previousSkater.facing, skater.facing, alpha)
@@ -65,6 +67,7 @@ function skaterFromCurrent(skater: SkaterEntity): InterpolatedSkater {
   return {
     id: skater.id,
     teamId: skater.teamId,
+    characterId: skater.characterId,
     position: skater.position,
     velocity: skater.velocity,
     facing: skater.facing

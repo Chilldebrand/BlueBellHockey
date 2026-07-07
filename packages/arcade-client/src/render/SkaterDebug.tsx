@@ -1,10 +1,11 @@
-import type { TeamId, Vec2 } from "@bbh/arcade-core";
+import type { CharacterId, TeamId, Vec2 } from "@bbh/arcade-core";
 import { CharacterModel } from "./CharacterModel.js";
 import type { SkaterAnimationState } from "./animation/clipMap.js";
 
 export interface SkaterDebugProps {
   readonly id: string;
   readonly teamId: TeamId;
+  readonly characterId?: CharacterId;
   readonly position: Vec2;
   readonly isLocal: boolean;
   readonly hasPossession?: boolean;
@@ -80,6 +81,7 @@ export const SKATER_MODEL_SCALE = 1.6;
 export function SkaterDebug({
   id,
   teamId,
+  characterId,
   position,
   isLocal,
   hasPossession = false,
@@ -109,6 +111,7 @@ export function SkaterDebug({
         <group scale={SKATER_MODEL_SCALE}>
           <CharacterModel
             teamId={teamId}
+            characterId={characterId}
             isLocal={isLocal}
             animationState={animationState}
             bladeOffset={bladeOffset}

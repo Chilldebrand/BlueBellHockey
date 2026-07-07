@@ -64,8 +64,9 @@ export const TEAM_PALETTES: Record<TeamId, TeamPalette> = {
     shortName: "RED",
     iconColor: "#ff4f5e",
     uniform: {
-      jersey: "#3b0714",
-      pants: "#1f0610",
+      // A real hockey red — the old #3b0714 read as black on the ice.
+      jersey: "#b3132b",
+      pants: "#3a0b14",
       socks: "#fff1f2",
       numbers: "#ffffff",
       trim: "#72f1d1"
