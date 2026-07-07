@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import {
   MATCH_CONFIG,
   type CharacterId,
@@ -66,6 +66,19 @@ export interface AppConnectionApi {
   readonly reconnectPreviousRoom?: typeof reconnectPreviousRoom;
   readonly hasReconnectTicket?: typeof hasReconnectTicket;
 }
+
+/**
+ * Identity colors for humans, assigned local-player-first: on your own screen
+ * you are always blue, other humans take the next colors in stable order.
+ */
+const PLAYER_HIGHLIGHT_COLORS = [
+  "#1f8fff", // blue — always the local player
+  "#ff4f5e", // red
+  "#3dfc9d", // green
+  "#ffdf6e", // yellow
+  "#ff9e3d", // orange
+  "#c479ff" // purple
+];
 
 const defaultConnectionApi: AppConnectionApi = {
   connectQuickMatch,
@@ -203,6 +216,30 @@ export function App({
   const localSlotId =
     state.roster.find((slot) => slot.isOwnedByLocalPlayer)?.slotId ?? null;
 
+  // Human identity colors: YOU are always blue on your own screen; other
+  // humans get stable colors (sessionId-sorted so they don't reshuffle).
+  // The map keys are CURRENT slots, so a Madden control switch moves the
+  // disc with the human automatically. AI slots aren't in the map = no disc.
+  const highlightColorBySlotId = useMemo(() => {
+    const humans = state.roster.filter(
+      (slot) => slot.kind === "human" && slot.sessionId
+    );
+    const ordered = [
+      ...humans.filter((slot) => slot.isOwnedByLocalPlayer),
+      ...humans
+        .filter((slot) => !slot.isOwnedByLocalPlayer)
+        .sort((a, b) => (a.sessionId ?? "").localeCompare(b.sessionId ?? ""))
+    ];
+    const map: Record<string, string> = {};
+    ordered.forEach((slot, index) => {
+      const color = PLAYER_HIGHLIGHT_COLORS[index % PLAYER_HIGHLIGHT_COLORS.length];
+      if (color) {
+        map[slot.slotId] = color;
+      }
+    });
+    return map;
+  }, [state.roster]);
+
   useEffect(() => {
     if (!localSlotId || !state.playerSessionId) {
       unackedFramesRef.current = [];
@@ -308,6 +345,7 @@ export function App({
           localSlotId={localSlotId}
           predictedLocalSkater={predictedLocalSkater}
           predictedPuck={predictedPuck}
+          highlightColorBySlotId={highlightColorBySlotId}
         />
         <WinSplash winnerTeamId={state.currentWorld.winnerTeamId} />
         <Postgame
@@ -330,6 +368,7 @@ export function App({
         localSlotId={localSlotId}
         predictedLocalSkater={predictedLocalSkater}
         predictedPuck={predictedPuck}
+        highlightColorBySlotId={highlightColorBySlotId}
       />
       {state.phase === "playing" ? null : (
         <>

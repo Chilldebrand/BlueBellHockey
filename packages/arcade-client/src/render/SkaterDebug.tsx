@@ -8,7 +8,13 @@ export interface SkaterDebugProps {
   readonly characterId?: CharacterId;
   readonly position: Vec2;
   readonly isLocal: boolean;
-  readonly hasPossession?: boolean;
+  /**
+   * Identity color of the HUMAN controlling this skater (e.g. player 1 =
+   * blue), or null when AI-controlled. Only human-controlled skaters get a
+   * disc; the color follows the human through control switches and never
+   * changes for possession.
+   */
+  readonly highlightColor?: string | null;
   readonly animationState?: SkaterAnimationState;
   /** Sim-plane velocity; when set with showVectors, renders a debug arrow. */
   readonly velocity?: Vec2;
@@ -48,28 +54,6 @@ function VelocityArrow({ velocity }: { readonly velocity: Vec2 }): JSX.Element |
   );
 }
 
-const TEAM_COLORS: Record<TeamId, string> = {
-  home: "#1f8fff",
-  away: "#ff4f5e"
-};
-
-/**
- * Every slot gets its own indicator color (like most sports games) so each
- * human in an all-human online match can identify their skater at a glance.
- * Only the skater YOU control renders vibrant; everyone else is faded.
- */
-const SLOT_INDICATOR_COLORS: Record<string, string> = {
-  "home-skater-1": "#1f8fff", // blue
-  "home-skater-2": "#3dfc9d", // green
-  "home-skater-3": "#ffdf6e", // yellow
-  "away-skater-1": "#ff4f5e", // red
-  "away-skater-2": "#ff9e3d", // orange
-  "away-skater-3": "#c479ff" // purple
-};
-
-/** Faded opacity for skaters the local human is NOT controlling. */
-const UNCONTROLLED_CIRCLE_OPACITY = 0.28;
-
 /**
  * NHL-Arcade-style character/ice ratio: the blockout body is ~69 units tall,
  * which reads tiny on a 1000-unit-wide sheet (≈14.5 player-heights across).
@@ -84,29 +68,28 @@ export function SkaterDebug({
   characterId,
   position,
   isLocal,
-  hasPossession = false,
+  highlightColor = null,
   animationState = "idle",
   velocity,
   facing,
   bladeOffset,
   showVectors = false
 }: SkaterDebugProps): JSX.Element {
-  const indicatorColor = SLOT_INDICATOR_COLORS[id] ?? TEAM_COLORS[teamId];
-
   return (
     <group position={[position.x, 10, position.y]} name={id}>
-      {/* Slot-colored disc: vibrant only under the skater this human controls;
-          everyone else fades so control is unambiguous online. */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[isLocal ? 56 : 46, 24]} />
-        <meshStandardMaterial
-          color={indicatorColor}
-          emissive={isLocal ? "#ffffff" : "#000000"}
-          emissiveIntensity={isLocal ? 0.25 : 0}
-          transparent={!isLocal}
-          opacity={isLocal ? 1 : UNCONTROLLED_CIRCLE_OPACITY}
-        />
-      </mesh>
+      {/* Human-identity disc: rendered ONLY under human-controlled skaters,
+          in that human's fixed color (it follows them through control
+          switches and never changes for possession). AI gets nothing. */}
+      {highlightColor ? (
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <circleGeometry args={[isLocal ? 56 : 50, 24]} />
+          <meshStandardMaterial
+            color={highlightColor}
+            emissive={isLocal ? "#ffffff" : "#000000"}
+            emissiveIntensity={isLocal ? 0.25 : 0}
+          />
+        </mesh>
+      ) : null}
       <group rotation={[0, facing === undefined ? 0 : -facing, 0]}>
         <group scale={SKATER_MODEL_SCALE}>
           <CharacterModel
@@ -124,12 +107,6 @@ export function SkaterDebug({
           </mesh>
         ) : null}
       </group>
-      {isLocal || hasPossession ? (
-        <mesh position={[0, 4, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[52, 58, 24]} />
-          <meshStandardMaterial color={hasPossession ? "#ffdf6e" : "#ffffff"} />
-        </mesh>
-      ) : null}
       {showVectors && velocity ? <VelocityArrow velocity={velocity} /> : null}
     </group>
   );

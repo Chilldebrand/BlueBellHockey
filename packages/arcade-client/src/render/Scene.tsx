@@ -24,6 +24,11 @@ export interface SceneProps {
   readonly predictedLocalSkater: SkaterEntity | null;
   /** Fully replayed local puck (tether prediction); overrides the blade snap. */
   readonly predictedPuck?: PuckState | null;
+  /**
+   * Human identity color per CURRENTLY-controlled slot (from the roster).
+   * Slots not in the map are AI-controlled and render no disc.
+   */
+  readonly highlightColorBySlotId?: Readonly<Record<string, string>>;
   /** Feel-lab overlays: velocity vectors and other sim diagnostics. */
   readonly debugOverlays?: boolean;
 }
@@ -34,6 +39,7 @@ export function Scene({
   localSlotId,
   predictedLocalSkater,
   predictedPuck = null,
+  highlightColorBySlotId = {},
   debugOverlays = false
 }: SceneProps): JSX.Element | null {
   if (!currentWorld) {
@@ -97,7 +103,7 @@ export function Scene({
               characterId={skater.characterId}
               position={renderSkater.position}
               isLocal={skater.id === localSlotId}
-              hasPossession={currentWorld.puck.carrierSlotId === skater.id}
+              highlightColor={highlightColorBySlotId[skater.id] ?? null}
               velocity={renderSkater.velocity}
               facing={renderSkater.facing}
               bladeOffset={bladeBodyOffset(

@@ -213,6 +213,7 @@ export function FreeSkate({ onExit }: FreeSkateProps): JSX.Element {
         previousWorld={previousWorldRef.current}
         localSlotId={localSlotId}
         predictedLocalSkater={null}
+        highlightColorBySlotId={{ [localSlotId]: "#1f8fff" }}
         debugOverlays
       />
       <TuningPanel />
