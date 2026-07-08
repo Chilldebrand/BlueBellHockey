@@ -3,6 +3,7 @@ import { RINK_CONFIG, createWorld } from "../../index";
 import {
   DEFAULT_BOT_DIFFICULTY,
   assignTeamRoles,
+  selectBotDecision,
   slotPositionTarget
 } from "./decision.js";
 import { createBotInputFrame } from "./bot.js";
@@ -79,6 +80,9 @@ describe("bot input frames", () => {
     slotMan.position = { ...slotPositionTarget("home", world) };
     expect(assignTeamRoles(world, "home").get(slotMan.id)).toBe("attack-slot");
 
+    // The slot station cycles, so park him exactly on the CURRENT cycled
+    // target and confirm he eases off there.
+    slotMan.position = { ...selectBotDecision(slotMan, world).moveTarget };
     const atStation = createBotInputFrame(slotMan, world, 1);
     expect(Math.hypot(atStation.moveX, atStation.moveY)).toBeLessThan(0.05);
 

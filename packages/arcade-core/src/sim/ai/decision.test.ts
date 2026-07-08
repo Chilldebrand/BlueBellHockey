@@ -11,6 +11,8 @@ import {
   COVER_STANDOFF,
   DEFAULT_BOT_DIFFICULTY,
   HOLD_BACK_MIN_DEPTH,
+  POINT_LINE_OFFSET,
+  SLOT_CYCLE_RADIUS_X,
   SLOT_DEPTH,
   assignTeamRoles,
   chooseBotRole,
@@ -118,16 +120,17 @@ describe("bot decision helpers", () => {
     expect(roles.get("home-skater-2")).toBe("attack-slot");
     expect(roles.get("home-skater-3")).toBe("hold-back");
 
-    // Slot man posts up in the high slot in front of the away net, not on the
-    // carrier; safety stays in the home half at defensive depth.
+    // Slot man works the high slot in front of the away net (cycling around
+    // it to get open), not the carrier; the trailer stays behind the play at
+    // defensive depth for this mid-ice puck.
     const slotDecision = selectBotDecision(
       skater(world, "home-skater-2"),
       world,
       alwaysAct
     );
-    expect(slotDecision.moveTarget.x).toBe(
-      goalLineX("away") - SLOT_DEPTH
-    );
+    expect(
+      Math.abs(slotDecision.moveTarget.x - (goalLineX("away") - SLOT_DEPTH))
+    ).toBeLessThanOrEqual(SLOT_CYCLE_RADIUS_X);
 
     const safetyDecision = selectBotDecision(
       skater(world, "home-skater-3"),
@@ -139,6 +142,54 @@ describe("bot decision helpers", () => {
     );
     expect(safetyDecision.moveTarget.x).toBeGreaterThanOrEqual(
       goalLineX("home") + HOLD_BACK_MIN_DEPTH
+    );
+  });
+
+  it("cycles the slot man around the high slot instead of parking him", () => {
+    const world = createWorld(1, "arcade3v3");
+    placeAll(world, {
+      "home-skater-1": { x: 900, y: 500 },
+      "home-skater-2": { x: 1600, y: 700 },
+      "home-skater-3": { x: 700, y: 900 }
+    });
+    world.puck.carrierSlotId = "home-skater-1";
+
+    const early = selectBotDecision(
+      skater(world, "home-skater-2"),
+      world,
+      alwaysAct
+    ).moveTarget;
+    world.time.nowMs += 2500; // ~half a cycle later
+    const later = selectBotDecision(
+      skater(world, "home-skater-2"),
+      world,
+      alwaysAct
+    ).moveTarget;
+
+    expect(
+      Math.hypot(later.x - early.x, later.y - early.y)
+    ).toBeGreaterThan(100);
+  });
+
+  it("advances the trailer to the offensive point when the attack is deep", () => {
+    const world = createWorld(1, "arcade3v3");
+    placeAll(world, {
+      "home-skater-1": { x: 2350, y: 700 }, // carrier deep in the attack
+      "home-skater-2": { x: 1900, y: 900 },
+      "home-skater-3": { x: 800, y: 800 }
+    });
+    world.puck.carrierSlotId = "home-skater-1";
+    world.puck.position = { x: 2350, y: 700 };
+
+    const trailer = selectBotDecision(
+      skater(world, "home-skater-3"),
+      world,
+      alwaysAct
+    );
+    // Point man: past center, parked around the offensive blue line.
+    expect(trailer.role).toBe("hold-back");
+    expect(trailer.moveTarget.x).toBe(
+      RINK_CONFIG.width / 2 + POINT_LINE_OFFSET
     );
   });
 

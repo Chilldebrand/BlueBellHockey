@@ -72,9 +72,15 @@ export const CONTESTED_PUCK_MARGIN = 120;
 export const SLOT_DEPTH = 420;
 /** Slot man nudges off center toward the puck side by this much. */
 export const SLOT_LANE_OFFSET = 140;
-/** Hold-back safety sits this fraction of the way from our goal to the puck. */
-export const HOLD_BACK_LERP = 0.35;
-/** ...but never closer to our goal line than this, and never past center. */
+/** Attack-slot cycling to get open: ellipse radii and angular rate (rad/s). */
+export const SLOT_CYCLE_RADIUS_X = 170;
+export const SLOT_CYCLE_RADIUS_Y = 200;
+export const SLOT_CYCLE_RATE = 1.0;
+/** Trailing point man: how far behind the puck the hold-back skater trails. */
+export const TRAIL_BEHIND = 500;
+/** ...advancing at most this far past center — the offensive point/blue line. */
+export const POINT_LINE_OFFSET = 320;
+/** Hold-back never sits closer to our own goal line than this. */
 export const HOLD_BACK_MIN_DEPTH = 420;
 /** Cover: shadow distance between the mark and our net (near, not on top). */
 export const COVER_STANDOFF = 140;
@@ -291,7 +297,13 @@ function targetForPlannedRole(
     case "pressure":
       return presumedThreat(world, bot.teamId)?.position ?? world.puck.position;
     case "attack-slot":
-      return slotPositionTarget(bot.teamId, world);
+      // Phase by slot + team so two cycling skaters never sync up.
+      return slotPositionTarget(
+        bot.teamId,
+        world,
+        bot.slot.index * ((Math.PI * 2) / 3) +
+          (bot.teamId === "away" ? Math.PI : 0)
+      );
     case "hold-back":
       return holdBackTarget(bot.teamId, world);
     case "cover": {
@@ -319,34 +331,59 @@ function presumedThreat(
   );
 }
 
-/** High slot in front of the attacking net, nudged toward the puck side. */
-export function slotPositionTarget(teamId: TeamId, world: WorldState): Vec2 {
+/**
+ * High slot in front of the attacking net, nudged toward the puck side. With a
+ * cyclePhase the slot man ORBITS that spot on a slow deterministic loop (pure
+ * function of sim time, so replays hold) — cycling to get open instead of
+ * standing still while a defender orbits him.
+ */
+export function slotPositionTarget(
+  teamId: TeamId,
+  world: WorldState,
+  cyclePhase?: number
+): Vec2 {
   const goal = attackingGoal(teamId);
   const centerY = RINK_CONFIG.height / 2;
-  return clampToRink({
+  const base = {
     x: goal.x - teamDirection(teamId) * SLOT_DEPTH,
     y:
       centerY +
       Math.sign(world.puck.position.y - centerY) * SLOT_LANE_OFFSET
+  };
+
+  if (cyclePhase === undefined) {
+    return clampToRink(base);
+  }
+
+  const angle = (world.time.nowMs / 1000) * SLOT_CYCLE_RATE + cyclePhase;
+  return clampToRink({
+    x: base.x + Math.cos(angle) * SLOT_CYCLE_RADIUS_X,
+    y: base.y + Math.sin(angle) * SLOT_CYCLE_RADIUS_Y
   });
 }
 
-/** Safety spot between the puck and our net, kept in our half. */
+/**
+ * Trailing point man: follows the play TRAIL_BEHIND back of the puck — up
+ * ice with the attack as far as the offensive point (just inside their blue
+ * line, in slap-shot range), never pinned near our own net, and holding the
+ * lane opposite the puck to spread the ice.
+ */
 export function holdBackTarget(teamId: TeamId, world: WorldState): Vec2 {
   const ownGoal = defendingGoal(teamId);
   const puck = world.puck.position;
   const direction = teamDirection(teamId);
-  const rawX = ownGoal.x + (puck.x - ownGoal.x) * HOLD_BACK_LERP;
+  const rawX = puck.x - direction * TRAIL_BEHIND;
   const minX = ownGoal.x + direction * HOLD_BACK_MIN_DEPTH;
-  const centerX = RINK_CONFIG.width / 2;
+  const pointX = RINK_CONFIG.width / 2 + direction * POINT_LINE_OFFSET;
   const x =
     direction > 0
-      ? Math.min(Math.max(rawX, minX), centerX)
-      : Math.max(Math.min(rawX, minX), centerX);
+      ? Math.min(Math.max(rawX, minX), pointX)
+      : Math.max(Math.min(rawX, minX), pointX);
+  const centerY = RINK_CONFIG.height / 2;
 
   return clampToRink({
     x,
-    y: ownGoal.y + (puck.y - ownGoal.y) * HOLD_BACK_LERP
+    y: centerY - Math.sign(puck.y - centerY) * 160
   });
 }
 
