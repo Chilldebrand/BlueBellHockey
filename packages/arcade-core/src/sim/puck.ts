@@ -226,7 +226,9 @@ function stepCarriedPuck(
   }
 
   // Tether: spring the puck's velocity toward tracking the blade point.
-  const blade = bladeWorldPosition(carrier);
+  // Pass the sim time — without it a long-expired poke lunge would read as
+  // still active and permanently tether the puck ahead of the blade.
+  const blade = bladeWorldPosition(carrier, undefined, world.time.nowMs);
   const toBladeX = blade.x - puck.position.x;
   const toBladeY = blade.y - puck.position.y;
   const separation = Math.hypot(toBladeX, toBladeY);
@@ -664,7 +666,7 @@ function releasePuck(
   }
 ): void {
   const normalized = normalizeOrZero(direction);
-  const blade = bladeWorldPosition(carrier);
+  const blade = bladeWorldPosition(carrier, undefined, world.time.nowMs);
 
   world.puck.carrierSlotId = null;
   world.puck.lastTouchSlotId = carrier.id;

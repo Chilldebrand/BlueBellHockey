@@ -65,7 +65,11 @@ export function Scene({
   // wins for everything else (loose-puck tether prediction, shots).
   const renderedPuck = pocketCarriedPuck(
     localIsCarrier
-      ? predictedCarriedPuck(currentWorld.puck, predictedLocalSkater)
+      ? predictedCarriedPuck(
+          currentWorld.puck,
+          predictedLocalSkater,
+          currentWorld.time.nowMs
+        )
       : predictedPuck ?? currentWorld.puck,
     puckCarrier
   );

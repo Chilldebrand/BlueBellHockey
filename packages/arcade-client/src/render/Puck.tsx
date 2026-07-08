@@ -22,17 +22,20 @@ export function Puck({ puck }: PuckProps): JSX.Element {
 
 export function predictedCarriedPuck(
   puck: PuckState,
-  predictedCarrier: SkaterEntity | null
+  predictedCarrier: SkaterEntity | null,
+  nowMs = 0
 ): PuckState {
   if (!predictedCarrier || puck.carrierSlotId !== predictedCarrier.id) {
     return puck;
   }
 
   // Snap the locally-carried puck to the predicted carrier's blade so it
-  // doesn't trail a network tick behind the player's own stick.
+  // doesn't trail a network tick behind the player's own stick. nowMs matters:
+  // without it an expired poke lunge reads as active forever and the puck
+  // floats ahead of the blade.
   return {
     ...puck,
-    position: bladeWorldPosition(predictedCarrier)
+    position: bladeWorldPosition(predictedCarrier, undefined, nowMs)
   };
 }
 

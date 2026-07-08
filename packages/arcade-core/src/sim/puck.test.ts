@@ -53,6 +53,27 @@ describe("puck simulation", () => {
     expect(world.puck.position.x).toBeGreaterThan(skater.position.x);
   });
 
+  it("tethers the carried puck to the rest blade after a poke has expired", () => {
+    const world = playingWorld();
+    const carrier = world.skaters[0];
+    world.puck.carrierSlotId = carrier.id;
+    world.puck.position = { ...bladeWorldPosition(carrier) };
+    // Advance well past a poke, then keep carrying: the long-expired lunge
+    // must NOT keep extending the tether target (+58 ahead of the blade).
+    carrier.pokeUntilMs = 50;
+    for (let tick = 0; tick < 40; tick += 1) {
+      stepWorld(world, [inputFrame(carrier.id, tick + 1)], 16);
+    }
+
+    const blade = bladeWorldPosition(carrier, undefined, world.time.nowMs);
+    const separation = Math.hypot(
+      world.puck.position.x - blade.x,
+      world.puck.position.y - blade.y
+    );
+    expect(world.puck.carrierSlotId).toBe(carrier.id);
+    expect(separation).toBeLessThan(20);
+  });
+
   it("lets a teammate catch a fast pass that a loose puck would deflect off", () => {
     const world = playingWorld();
     const receiver = world.skaters.find((s) => s.id === "home-skater-2")!;
