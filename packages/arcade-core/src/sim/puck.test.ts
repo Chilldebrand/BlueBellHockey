@@ -137,6 +137,12 @@ describe("puck simulation", () => {
     // Shoot from the home end so the puck has open ice (home attacks +x) and
     // won't reach the far net/goalie during the measured flight.
     shooter.position = { x: RINK_CONFIG.width * 0.35, y: RINK_CONFIG.height / 2 };
+    // Clear the lane: home-skater-2 spawns dead ahead and would legitimately
+    // catch the shot with the stronger pickup gates.
+    world.skaters.find((s) => s.id === "home-skater-2")!.position = {
+      x: 400,
+      y: 300
+    };
     world.puck.carrierSlotId = shooter.id;
     world.puck.position = { ...bladeWorldPosition(shooter) };
     // Latch a neutral-aim wrist shot at a solid (not full) power.
@@ -161,6 +167,10 @@ describe("puck simulation", () => {
     const world = playingWorld();
     const shooter = world.skaters.find((s) => s.id === "home-skater-1")!;
     shooter.position = { x: RINK_CONFIG.width * 0.35, y: RINK_CONFIG.height / 2 };
+    world.skaters.find((s) => s.id === "home-skater-2")!.position = {
+      x: 400,
+      y: 300
+    };
     world.puck.carrierSlotId = shooter.id;
     world.puck.position = { ...bladeWorldPosition(shooter) };
     shooter.gesture.pendingReleaseType = "wrist";

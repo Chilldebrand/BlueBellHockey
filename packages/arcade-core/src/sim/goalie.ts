@@ -36,16 +36,16 @@ export const GOALIE_CONFIG: GoalieConfig = {
   homeX: goalLineX("home") + RINK_CONFIG.goalieDepth,
   awayX: goalLineX("away") - RINK_CONFIG.goalieDepth,
   creaseHalfHeight: RINK_CONFIG.goalWidth / 2,
-  // Playtested feel: a touch slower across and a hair less reach so placed
-  // shots and (with reaction lag) quick plays can beat him.
-  lateralSpeed: 520,
-  saveReach: 70,
+  // Tuning 2026-07-07: goalies ~20% better — quicker across, longer reach,
+  // faster reactions (shots are also 20% hotter now, so saves keep pace).
+  lateralSpeed: 624,
+  saveReach: 84,
   saveZoneDepth: 340,
   coverMaxSpeed: 520,
   coverMaxOffset: 46,
   reboundSpeedFactor: 0.45,
   reboundMinSpeed: 320,
-  reactionDelayMs: 150
+  reactionDelayMs: 120
 };
 
 export type GoalieSaveType = "pad" | "body" | "glove" | "blocker" | "cover";
