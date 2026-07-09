@@ -109,7 +109,12 @@ export const PUCK_CONFIG: PuckConfig = {
   oneTimerWindowMs: 550,
   oneTimerPowerMultiplier: 1.22,
   wristLiftSpeed: 660,
-  slapLiftSpeed: 860,
+  // A neutral (no-aim) full-power slap must clear the ice yet stay UNDER the
+  // crossbar: a shot only scores below height 77 (GOAL_HEIGHT 95 minus the puck
+  // radius 18). 860 peaked at ~83 so every neutral slapper clanged the bar; 680
+  // peaks at ~52 (one-timers ~69) — scores clean, and only aiming UP now risks
+  // the crossbar for a top-shelf attempt.
+  slapLiftSpeed: 680,
   shotPlacementMargin: 30,
   releasePickupCooldownMs: 220,
   passChargeMaxMs: 600,

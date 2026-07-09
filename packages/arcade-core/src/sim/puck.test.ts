@@ -190,6 +190,36 @@ describe("puck simulation", () => {
     expect(peakHeight).toBeLessThan(15);
   });
 
+  it("keeps a neutral full-power slap under the crossbar so it scores", () => {
+    const world = playingWorld();
+    const shooter = world.skaters.find((s) => s.id === "home-skater-1")!;
+    // Mid-ice with a clear lane so the puck's arc plays out before reaching the
+    // far net; measure its peak height on a NEUTRAL (no-aim) full slap.
+    shooter.position = { x: RINK_CONFIG.width * 0.5, y: RINK_CONFIG.height / 2 };
+    world.skaters.find((s) => s.id === "home-skater-2")!.position = {
+      x: 400,
+      y: 300
+    };
+    world.puck.carrierSlotId = shooter.id;
+    world.puck.position = { ...bladeWorldPosition(shooter) };
+    shooter.gesture.pendingReleaseType = "slap";
+    shooter.gesture.pendingReleasePower = 1;
+
+    stepWorld(world, [inputFrame(shooter.id, 1)], 16);
+    expect(world.puck.carrierSlotId).toBeNull();
+
+    let peakHeight = world.puck.height;
+    for (let tick = 0; tick < 12; tick += 1) {
+      stepWorld(world, [], 16);
+      peakHeight = Math.max(peakHeight, world.puck.height);
+    }
+
+    // Clears the ice but stays under the crossbar-scoring ceiling: a shot only
+    // scores below GOAL_HEIGHT - puck radius. A neutral slap used to clang here.
+    expect(peakHeight).toBeGreaterThan(20);
+    expect(peakHeight).toBeLessThan(GOAL_HEIGHT - PUCK_CONFIG.radius);
+  });
+
   it("keeps pace in the air and scrubs it on the ice", () => {
     const airborne = playingWorld();
     const grounded = playingWorld();

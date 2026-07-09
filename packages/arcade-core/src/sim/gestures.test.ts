@@ -104,9 +104,11 @@ describe("skill-stick gestures", () => {
     expect(magnitude(slap.puck.velocity)).toBeGreaterThan(
       magnitude(wrist.puck.velocity)
     );
-    expect(slap.puck.verticalVelocity).toBeGreaterThan(
-      wrist.puck.verticalVelocity
-    );
+    // "Harder" means FASTER, not loftier: a slap is a flat rocket. It still
+    // clears the ice, but no longer out-lifts a wrist — that extra lift used to
+    // clang every neutral slapper off the crossbar. Aiming up is now what sends
+    // a slap top-shelf.
+    expect(slap.puck.verticalVelocity).toBeGreaterThan(0);
   });
 
   it("slows the carrier while winding up (telegraphed slapper)", () => {
