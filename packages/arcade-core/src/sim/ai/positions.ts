@@ -169,11 +169,15 @@ function chooseIntent(
         ? "protect-slot"
         : "cover";
     case "transition":
-      return tendency === "safety" || tendency === "checker" ? "recover" : "stretch";
+      if (tendency === "safety" || tendency === "checker") {
+        return "recover";
+      }
+      return tendency === "support" ? "support" : "stretch";
     case "loose-puck":
-      return isClosestToPuck(bot, world, context)
-        ? "challenge-loose-puck"
-        : "recover";
+      if (isClosestToPuck(bot, world, context)) {
+        return "challenge-loose-puck";
+      }
+      return tendency === "support" ? "support" : "recover";
     case "reset":
       return "reset-shape";
   }

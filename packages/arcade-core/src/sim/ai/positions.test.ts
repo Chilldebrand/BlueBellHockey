@@ -129,6 +129,49 @@ describe("relative AI positions", () => {
     expect(choice.target.x).toBeLessThan(RINK_CONFIG.width / 2);
   });
 
+  it("uses an outlet and safety lane during a recent friendly transition", () => {
+    const world = createWorld(1, "arcade3v3");
+    const outlet = skater(world, "home-skater-2");
+    const safety = skater(world, "home-skater-3");
+    outlet.characterId = "luna-thread";
+    safety.characterId = "orin-pads";
+    world.time.nowMs = 1_000;
+    world.puck.position = { x: 1300, y: 780 };
+    world.puck.passedFromSlotId = "home-skater-1";
+    world.puck.passedAtMs = 800;
+    world.puck.lastTouchSlotId = "home-skater-1";
+    const context = buildTacticalContext(world, "home");
+
+    const outletChoice = chooseBotIntent(outlet, world, context);
+    const safetyChoice = chooseBotIntent(safety, world, context);
+
+    expect(context.state).toBe("transition");
+    expect(outletChoice.intent).toBe("support");
+    expect(safetyChoice.intent).toBe("recover");
+    expect(outletChoice.target.x).toBeGreaterThan(safetyChoice.target.x);
+  });
+
+  it("sends one loose-puck racer while preserving support and recovery shape", () => {
+    const world = createWorld(1, "arcade3v3");
+    const racer = skater(world, "home-skater-1");
+    const outlet = skater(world, "home-skater-2");
+    const safety = skater(world, "home-skater-3");
+    racer.position = { x: 1200, y: 780 };
+    outlet.position = { x: 800, y: 500 };
+    safety.position = { x: 650, y: 1100 };
+    outlet.characterId = "luna-thread";
+    safety.characterId = "orin-pads";
+    world.puck.position = { x: 1300, y: 780 };
+    const context = buildTacticalContext(world, "home");
+
+    expect(context.state).toBe("loose-puck");
+    expect(chooseBotIntent(racer, world, context).intent).toBe(
+      "challenge-loose-puck"
+    );
+    expect(chooseBotIntent(outlet, world, context).intent).toBe("support");
+    expect(chooseBotIntent(safety, world, context).intent).toBe("recover");
+  });
+
   it("breaks ties by slot id and retains an adequate current target", () => {
     const world = createWorld(1, "arcade3v3");
     const first = skater(world, "home-skater-1");
