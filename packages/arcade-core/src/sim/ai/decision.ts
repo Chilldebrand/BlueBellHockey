@@ -123,8 +123,10 @@ export function selectBotDecision(
   const plan = computeTeamPlan(world, bot.teamId);
   const role = plan.roles.get(bot.id) ?? "hold-back";
   const intentChoice = chooseBotIntent(bot, world, context);
+  const receptionTarget = passReceptionTarget(bot, world);
   const moveTarget =
     choosePickupTarget(bot, world, difficulty) ??
+    receptionTarget ??
     intentChoice.target;
   const pass = shouldPass(bot, world, difficulty);
   const passTarget = pass ? findPassTarget(bot, world, difficulty) : null;
@@ -675,6 +677,77 @@ export function findPassTarget(
   }
 
   return best;
+}
+
+/** A fresh teammate pass gets exactly one deterministic intercept runner. */
+export function passReceptionTarget(
+  bot: SkaterEntity,
+  world: WorldState
+): Vec2 | null {
+  const passerId = world.puck.passedFromSlotId;
+  const ageMs = world.time.nowMs - world.puck.passedAtMs;
+
+  if (
+    !passerId ||
+    world.puck.passedAtMs <= 0 ||
+    ageMs < 0 ||
+    ageMs > TUNING.puck.oneTimerWindowMs
+  ) {
+    return null;
+  }
+
+  const passer = world.skaters.find((skater) => skater.id === passerId);
+
+  if (!passer || passer.teamId !== bot.teamId || passer.id === bot.id) {
+    return null;
+  }
+
+  const remainingSeconds = (TUNING.puck.oneTimerWindowMs - ageMs) / 1000;
+  const pathEnd = {
+    x: world.puck.position.x + world.puck.velocity.x * remainingSeconds,
+    y: world.puck.position.y + world.puck.velocity.y * remainingSeconds
+  };
+  const receiver = world.skaters
+    .filter((skater) => skater.teamId === bot.teamId && skater.id !== passer.id)
+    .sort((left, right) => {
+      const distanceDifference =
+        distanceToSegment(left.position, world.puck.position, pathEnd) -
+        distanceToSegment(right.position, world.puck.position, pathEnd);
+      return distanceDifference === 0
+        ? left.id < right.id
+          ? -1
+          : left.id > right.id
+            ? 1
+            : 0
+        : distanceDifference;
+    })[0];
+
+  if (receiver?.id !== bot.id) {
+    return null;
+  }
+
+  const velocitySquared =
+    world.puck.velocity.x * world.puck.velocity.x +
+    world.puck.velocity.y * world.puck.velocity.y;
+
+  if (velocitySquared === 0) {
+    return { ...world.puck.position };
+  }
+
+  const projectedSeconds = Math.max(
+    0,
+    Math.min(
+      remainingSeconds,
+      ((bot.position.x - world.puck.position.x) * world.puck.velocity.x +
+        (bot.position.y - world.puck.position.y) * world.puck.velocity.y) /
+        velocitySquared
+    )
+  );
+
+  return {
+    x: world.puck.position.x + world.puck.velocity.x * projectedSeconds,
+    y: world.puck.position.y + world.puck.velocity.y * projectedSeconds
+  };
 }
 
 function isPassingLaneOpen(

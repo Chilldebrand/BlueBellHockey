@@ -18,6 +18,7 @@ import {
   chooseBotRole,
   coverTarget,
   findPassTarget,
+  passReceptionTarget,
   selectBotDecision,
   slotPositionTarget,
   shouldPass,
@@ -128,6 +129,25 @@ describe("bot decision helpers", () => {
     world.puck.carrierSlotId = carrier.id;
 
     expect(shouldShoot(carrier, world, alwaysAct)).toBe(false);
+  });
+
+  it("sends only the lane-aligned teammate toward a fresh pass intercept", () => {
+    const world = createWorld(1, "arcade3v3");
+    const receiver = skater(world, "home-skater-2");
+    const otherMate = skater(world, "home-skater-3");
+    world.time.nowMs = 1_000;
+    world.puck.position = { x: 1000, y: RINK_CONFIG.height / 2 };
+    world.puck.velocity = { x: 900, y: 0 };
+    world.puck.passedFromSlotId = "home-skater-1";
+    world.puck.passedAtMs = 800;
+    receiver.position = { x: 1400, y: RINK_CONFIG.height / 2 };
+    otherMate.position = { x: 1200, y: 1180 };
+
+    expect(passReceptionTarget(receiver, world)).toEqual({
+      x: 1315,
+      y: RINK_CONFIG.height / 2
+    });
+    expect(passReceptionTarget(otherMate, world)).toBeNull();
   });
 
   it("spreads the attacking team into carrier + attack-slot + hold-back", () => {
