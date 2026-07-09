@@ -37,9 +37,10 @@ Preferred way to run servers with the assistant: the preview tools + `.claude/la
 > `npm run build:arcade-core` + an arcade-server restart to reach ONLINE play (Free Skate aliases core src).
 
 ## GIT STATE
-**Everything is committed** — clean tree, `main` is two documentation commits ahead of origin
-(HEAD `22a2555`). The commits are `9629dbe docs(ai): plan arcade positioning system` and
-`22a2555 docs(ai): add active positioning work orders`. They have not been pushed yet.
+**Documentation is committed locally** — confirm the exact branch and push state with
+`git status --short --branch` before beginning work. The recent AI planning commits are
+`9629dbe docs(ai): plan arcade positioning system`, `22a2555 docs(ai): add active positioning
+work orders`, and the handoff refresh commit. They have not been pushed yet.
 The last verified gameplay baseline remains `npm test` (277), `npm run typecheck`, and smoke green.
 Stale merged branches `DalesMajorPLan` / `arcade-hockey-game-i4zwau` are fully contained in `main`
 (safe to prune).
