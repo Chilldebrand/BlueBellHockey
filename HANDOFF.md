@@ -180,6 +180,13 @@ Keyboard: WASD move, IJKL/mouse stick, Space simple shot, F pass, G check, R pok
 Shots auto-aim at the net; LEFT stick at release places them (sides/high/low).
 
 ## Known next steps / open questions
+- **New active AI work-order track:** start with `docs/workorders/WO-AI-00-tactical-context.md` and
+  follow the sequence in `docs/workorders/README.md`. The full design and implementation plan are
+  `docs/superpowers/specs/2026-07-09-arcade-ai-positioning-design.md` and
+  `docs/superpowers/plans/2026-07-09-arcade-ai-positioning.md`.
+- **Historical work orders:** the older `WO-00` through `WO-06` files in `docs/workorders` describe
+  the original prototype/Street conversion track. They are reference-only and must not be used as
+  instructions for the next AI coding session; current AI code belongs in `packages/arcade-core`.
 - **User feel passes owed** on the whole 2026-07-09 batch: powerup strengths/durations (all named
   consts), goalie resize factors, banana trip radius/lifetime, forward-lean depth + stride cadence
   (`STRIDE_*`), slap lift 680, and the pickup-icon look (procedural in `render/Powerups.tsx`). Also

@@ -81,3 +81,27 @@ must keep green (or be intentionally updated):
   (today only `bot.ts` uses `Math.random`, and bots are server-only).
 - Each WO has its own acceptance criteria + test notes; update the relevant spec
   in the same change.
+
+## Active track: Arcade AI positioning
+
+The current coding track is the deterministic shared-core AI system. Use these
+work orders for the next AI session:
+
+| WO | Title | Depends on |
+|----|-------|------------|
+| [WO-AI-00](WO-AI-00-tactical-context.md) | Tactical context and observability | - |
+| [WO-AI-01](WO-AI-01-role-tendencies-spacing.md) | Role tendencies and spacing | WO-AI-00 |
+| [WO-AI-02](WO-AI-02-offensive-movement.md) | Offensive movement | WO-AI-01 |
+| [WO-AI-03](WO-AI-03-defensive-positioning.md) | Defensive positioning | WO-AI-01 |
+| [WO-AI-04](WO-AI-04-transitions-loose-pucks.md) | Transitions and loose pucks | WO-AI-02, WO-AI-03 |
+| [WO-AI-05](WO-AI-05-autonomous-actions.md) | Autonomous passing and shooting | WO-AI-02, WO-AI-03 |
+| [WO-AI-06](WO-AI-06-tuning-verification.md) | Tuning and verification | WO-AI-00 through WO-AI-05 |
+
+Design: `docs/superpowers/specs/2026-07-09-arcade-ai-positioning-design.md`.
+Implementation plan: `docs/superpowers/plans/2026-07-09-arcade-ai-positioning.md`.
+
+The original `WO-00` through `WO-06` documents above are historical NHL Street
+conversion/reference material. They are not active instructions for this AI
+track, and their legacy `packages/shared`, `packages/server`, and
+`packages/client` paths must not be used for the next coding session. Current
+AI work belongs in `packages/arcade-core`.
