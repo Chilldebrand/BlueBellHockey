@@ -1,5 +1,13 @@
-import { Suspense, useMemo } from "react";
-import { CanvasTexture, DoubleSide, Euler, Quaternion, Vector3 } from "three";
+import { Suspense, useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
+import {
+  CanvasTexture,
+  DoubleSide,
+  Euler,
+  Quaternion,
+  Vector3,
+  type Group
+} from "three";
 import {
   TEAM_PALETTES,
   getCharacterById,
@@ -17,6 +25,7 @@ import { GltfSkaterBody } from "./gltf/GltfSkaterBody.js";
 import { ModelErrorBoundary } from "./gltf/ModelErrorBoundary.js";
 import {
   ACTIVE_SKATER_GLTF_SOURCE,
+  LOCOMOTION_STATES,
   type SkaterGltfSource
 } from "./gltf/skaterGltfSource.js";
 
@@ -40,6 +49,12 @@ export interface CharacterModelProps {
    * sim at the same offset) rides on the blade. Defaults to the rest offset.
    */
   readonly bladeOffset?: Vec2;
+  /**
+   * Sim-plane speed (units/s). Drives the blockout leg-stride cadence so feet
+   * churn faster the faster the skater actually moves. Omit for static
+   * previews — the legs hold the glide stance.
+   */
+  readonly speed?: number;
 }
 
 export function CharacterModel({
@@ -49,7 +64,8 @@ export function CharacterModel({
   animationState = "idle",
   manifest = FIRST_SKATER_MODEL_MANIFEST,
   gltfSource = ACTIVE_SKATER_GLTF_SOURCE,
-  bladeOffset
+  bladeOffset,
+  speed = 0
 }: CharacterModelProps): JSX.Element {
   const validation = validateModelManifest(manifest, "skater");
 
@@ -70,6 +86,7 @@ export function CharacterModel({
       manifestId={manifest.id}
       animationState={animationState}
       bladeOffset={bladeOffset}
+      speed={speed}
     />
   );
 
@@ -109,6 +126,7 @@ interface BlockoutBodyProps {
   readonly manifestId: string;
   readonly animationState: SkaterAnimationState;
   readonly bladeOffset?: Vec2;
+  readonly speed: number;
 }
 
 // The capsule body was authored facing +Z; skaters travel along local +X, so an
@@ -127,6 +145,22 @@ const REST_BLADE_OFFSET: Vec2 = { x: 22, y: 44.5 };
 // puck. Puck renders at world y=22; 6 * 1.6 + 10 (group base) = ~20.
 const BLADE_LOCAL_Y = 6;
 
+// The torso lean hinges here (top of the thighs) so the body bends forward
+// over the planted skates instead of the whole torso sliding off the legs,
+// which live outside the pose group.
+const HIP_PIVOT_Y = 22;
+
+// Blockout leg-stride cycle. Speed is in sim units/s; everything else is
+// root-frame local units / radians. All eyeball-tunable.
+const STRIDE_LENGTH = 7; // forward/back scissor per leg
+const STRIDE_LIFT = 2.5; // foot lift during the recovery swing
+const STRIDE_KICK = 0.25; // leg tilt: push-off kick behind, knee-up in front
+const STRIDE_RATE = 0.016; // stride phase rad/s per sim unit of speed
+const STRIDE_RATE_MIN = 4; // slowest churn once striding at all
+const STRIDE_RATE_MAX = 11; // cap so turbo legs don't blur
+const STRIDE_MIN_SPEED = 140; // below this the skater just glides
+const STRIDE_EASE = 8; // 1/s blend into/out of the stride
+
 /** Procedural capsule blockout: the pre-GLB body and the universal fallback. */
 function BlockoutBody({
   teamId,
@@ -134,11 +168,35 @@ function BlockoutBody({
   isLocal,
   manifestId,
   animationState,
-  bladeOffset
+  bladeOffset,
+  speed
 }: BlockoutBodyProps): JSX.Element {
   const palette = TEAM_PALETTES[teamId].uniform;
   const pose = skaterPose(animationState);
   const body = bodyScaleForCharacter(characterId);
+
+  const legLeftRef = useRef<Group>(null);
+  const legRightRef = useRef<Group>(null);
+  // Random start phase so the whole rink doesn't stride in lockstep.
+  // Render-only randomness — the sim never sees it.
+  const stride = useRef({ phase: Math.random() * Math.PI * 2, weight: 0 });
+
+  useFrame((_state, delta) => {
+    const s = stride.current;
+    const striding =
+      LOCOMOTION_STATES.has(animationState) && speed > STRIDE_MIN_SPEED;
+    // Ease in/out so strides blend from and back into the glide stance
+    // instead of snapping; phase advances scaled by the weight so feet
+    // coast to a stop rather than freezing mid-air.
+    s.weight += ((striding ? 1 : 0) - s.weight) * (1 - Math.exp(-delta * STRIDE_EASE));
+    const cadence = Math.min(
+      STRIDE_RATE_MAX,
+      Math.max(STRIDE_RATE_MIN, speed * STRIDE_RATE)
+    );
+    s.phase += delta * cadence * s.weight;
+    applyStride(legLeftRef.current, s.phase, s.weight);
+    applyStride(legRightRef.current, s.phase + Math.PI, s.weight);
+  });
 
   // Blade in root-frame local coords (x forward, z lateral-right), tracking the
   // sim blade so the carried puck sits on the flat head as it stickhandles.
@@ -155,12 +213,16 @@ function BlockoutBody({
           Scales the BODY only (grounded at the ice, so skates stay down) —
           the stick lives outside so the blade keeps tracking the sim puck. */}
       <group scale={[body.bulk, body.height, body.bulk]}>
-      {/* Body: authored +Z, turned to face +X, then posed. */}
+      {/* Body: authored +Z, turned to face +X, then posed. The pose hinges
+          at pose.pivotY (the hips for lean poses, the ice for the lying-down
+          rolls) so a forward lean bends the torso over the planted skates. */}
       <group rotation={[0, FORWARD_CORRECTION_Y, 0]}>
+        <group position={[0, pose.pivotY, 0]}>
         <group
           rotation={[pose.pitch, pose.yaw, pose.roll]}
           scale={[pose.scaleX, pose.scaleY, pose.scaleZ]}
         >
+        <group position={[0, -pose.pivotY, 0]}>
           {/* Shorter torso: raised + trimmed from the bottom so the top stays at
               the shoulders but the hips clear the legs (was a long capsule that
               swallowed them). */}
@@ -248,18 +310,79 @@ function BlockoutBody({
           {/* Arms are drawn by StickAssembly as shoulder->grip segments so they
               reach down to the stick instead of hanging at the sides. */}
         </group>
+        </group>
+        </group>
       </group>
       {/* Legs + skates live in the root (+X forward, +Z right) frame like the
           stick — NOT inside the authored-forward rotation, which would turn the
-          boots sideways. One foot is staggered forward for a skating stance. */}
-      <LowerLimb z={-6.5} forward={-1} pants={palette.pants} socks={palette.jersey} />
-      <LowerLimb z={6.5} forward={2.5} pants={palette.pants} socks={palette.jersey} />
+          boots sideways. One foot is staggered forward for a skating stance;
+          the wrapper groups are driven imperatively by the stride useFrame. */}
+      <group ref={legLeftRef}>
+        <LowerLimb z={-6.5} forward={-1} pants={palette.pants} socks={palette.jersey} />
+      </group>
+      <group ref={legRightRef}>
+        <LowerLimb z={6.5} forward={2.5} pants={palette.pants} socks={palette.jersey} />
+      </group>
       </group>
       {/* Stick lives in the root (+X forward) frame so its flat head can sit on
           the sim-driven puck without fighting the body's pose transforms. */}
-      <StickAssembly bladeLocal={bladeLocal} />
+      <StickAssembly bladeLocal={bladeLocal} torsoPitch={pose.pitch} />
+      {animationState === "frozen" ? <IceBlock /> : null}
     </group>
   );
+}
+
+/**
+ * The "iceblock" overlay for a frozen skater: a translucent pale-blue slab
+ * encasing the body, plus a thin frosty base on the ice. Drawn in the model
+ * root frame so it wraps the whole body regardless of pose.
+ */
+function IceBlock(): JSX.Element {
+  return (
+    <group name="ice-block">
+      <mesh position={[0, 34, 0]}>
+        <boxGeometry args={[34, 74, 34]} />
+        <meshPhysicalMaterial
+          color="#bfe9ff"
+          transparent
+          opacity={0.42}
+          roughness={0.08}
+          metalness={0}
+          transmission={0.6}
+          thickness={12}
+          clearcoat={1}
+          clearcoatRoughness={0.05}
+          depthWrite={false}
+        />
+      </mesh>
+      {/* Frosty base pooled on the ice. */}
+      <mesh position={[0, 2, 0]}>
+        <boxGeometry args={[40, 4, 40]} />
+        <meshStandardMaterial
+          color="#e6f6ff"
+          transparent
+          opacity={0.6}
+          roughness={0.3}
+        />
+      </mesh>
+    </group>
+  );
+}
+
+/**
+ * Drive one leg wrapper through the stride cycle: a forward/back scissor, a
+ * foot lift on the recovery swing (front half of the cycle), and a tilt that
+ * kicks the push leg out behind. Everything scales with `weight` so the legs
+ * settle back into the authored glide stance when it eases to 0.
+ */
+function applyStride(leg: Group | null, phase: number, weight: number): void {
+  if (!leg) {
+    return;
+  }
+  const swing = Math.sin(phase);
+  leg.position.x = swing * STRIDE_LENGTH * weight;
+  leg.position.y = Math.max(0, Math.cos(phase)) * STRIDE_LIFT * weight;
+  leg.rotation.z = swing * STRIDE_KICK * weight;
 }
 
 /**
@@ -460,15 +583,18 @@ const LOW_HAND_T = 0.42;
  * blade) so the carried puck rides on it.
  */
 function StickAssembly({
-  bladeLocal
+  bladeLocal,
+  torsoPitch = 0
 }: {
   readonly bladeLocal: [number, number, number];
+  /** Forward-lean pitch of the torso; the shoulder anchors follow it. */
+  readonly torsoPitch?: number;
 }): JSX.Element {
   const topHand = lerp3(STICK_BUTT, bladeLocal, TOP_HAND_T);
   const lowHand = lerp3(STICK_BUTT, bladeLocal, LOW_HAND_T);
   const shaft = segmentBetween(STICK_BUTT, bladeLocal);
-  const leftArm = segmentBetween(SHOULDER_L, topHand);
-  const rightArm = segmentBetween(SHOULDER_R, lowHand);
+  const leftArm = segmentBetween(pitchShoulder(SHOULDER_L, torsoPitch), topHand);
+  const rightArm = segmentBetween(pitchShoulder(SHOULDER_R, torsoPitch), lowHand);
   // Blade sweeps out to ONE side from the heel (where the shaft lands) and lies
   // flat — long axis lateral so it reads horizontal. A rounded heel blends the
   // shaft into the blade so they read as one continuous piece.
@@ -516,6 +642,24 @@ function StickAssembly({
   );
 }
 
+/**
+ * Rotate a shoulder anchor about the hip hinge by the torso's forward-lean
+ * pitch (root frame: forward is +X) so the arms stay glued to the leaned
+ * chest instead of floating behind it. Pitch-only on purpose — yaw/roll poses
+ * are brief and the arms already read as loose.
+ */
+function pitchShoulder(
+  base: readonly [number, number, number],
+  pitch: number
+): [number, number, number] {
+  const dy = base[1] - HIP_PIVOT_Y;
+  return [
+    base[0] + dy * Math.sin(pitch),
+    HIP_PIVOT_Y + dy * Math.cos(pitch),
+    base[2]
+  ];
+}
+
 const SEGMENT_UP = new Vector3(0, 1, 0);
 
 /**
@@ -560,6 +704,13 @@ function lerp3(
   ];
 }
 
+/**
+ * Pose convention: the body is authored facing +Z inside the +90° Y forward
+ * correction, so POSITIVE pitch leans the skater toward the direction of
+ * travel. (The original table assumed the opposite, which is why everyone
+ * used to lean onto their heels at speed.) Skating states carry a baseline
+ * forward crouch that deepens with effort.
+ */
 function skaterPose(state: SkaterAnimationState): {
   readonly pitch: number;
   readonly yaw: number;
@@ -567,33 +718,40 @@ function skaterPose(state: SkaterAnimationState): {
   readonly scaleX: number;
   readonly scaleY: number;
   readonly scaleZ: number;
+  readonly pivotY: number;
 } {
   switch (state) {
     case "hardTurn":
-      return pose(0, 0, -0.26, 1, 1, 1);
+      return pose(0.16, 0, -0.26, 1, 1, 1);
     case "turbo":
-      return pose(-0.22, 0, 0, 0.94, 1.06, 1.04);
+      return pose(0.3, 0, 0, 0.94, 1.06, 1.04);
     case "pass":
-      return pose(0, 0.22, 0, 1, 1, 1);
+      return pose(0.14, 0.22, 0, 1, 1, 1);
     case "wristShot":
     case "chargeShot":
-      return pose(-0.34, -0.16, 0, 1.02, 1, 1);
+      return pose(0.22, -0.16, 0, 1.02, 1, 1);
     case "check":
-      return pose(-0.18, 0, 0.34, 1.08, 0.96, 1);
+      return pose(0.2, 0, 0.34, 1.08, 0.96, 1);
     case "stumble":
-      return pose(0.16, 0, 0.42, 1, 0.92, 1);
+      return pose(0.34, 0, 0.42, 1, 0.92, 1);
+    // Lying poses keep the old ice-level pivot: hinging the big roll at the
+    // hips would leave the torso hovering at hip height instead of flat out.
     case "down":
-      return pose(0, 0, Math.PI / 2, 1.1, 0.72, 1);
+      return pose(0, 0, Math.PI / 2, 1.1, 0.72, 1, 0);
     case "getUp":
-      return pose(0, 0, 0.62, 1, 0.86, 1);
+      return pose(0, 0, 0.62, 1, 0.86, 1, 0);
     case "juke":
-      return pose(0, -0.34, -0.16, 1, 1, 1);
+      return pose(0.14, -0.34, -0.16, 1, 1, 1);
     case "celebrate":
       return pose(0, 0, 0, 1.08, 1.12, 1.08);
+    // Frozen solid: bolt upright and rigid inside the ice block.
+    case "frozen":
+      return pose(0, 0, 0, 1, 1, 1);
     case "skate":
+      return pose(0.18, 0, 0, 1, 1, 1);
     case "idle":
     default:
-      return pose(0, 0, 0, 1, 1, 1);
+      return pose(0.1, 0, 0, 1, 1, 1);
   }
 }
 
@@ -603,9 +761,10 @@ function pose(
   roll: number,
   scaleX: number,
   scaleY: number,
-  scaleZ: number
+  scaleZ: number,
+  pivotY: number = HIP_PIVOT_Y
 ) {
-  return { pitch, yaw, roll, scaleX, scaleY, scaleZ };
+  return { pitch, yaw, roll, scaleX, scaleY, scaleZ, pivotY };
 }
 
 function InvalidModelFallback({

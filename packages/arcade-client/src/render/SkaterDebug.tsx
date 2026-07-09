@@ -98,6 +98,7 @@ export function SkaterDebug({
             isLocal={isLocal}
             animationState={animationState}
             bladeOffset={bladeOffset}
+            speed={velocity ? Math.hypot(velocity.x, velocity.y) : 0}
           />
         </group>
         {showVectors ? (
