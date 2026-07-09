@@ -10,7 +10,9 @@ const EVENT_LABELS: Record<string, string> = {
   knockdown: "Knockdown",
   powerupPickup: "Powerup",
   powerupUse: "Use",
-  specialUse: "Special"
+  specialUse: "Special",
+  freeze: "Freeze!",
+  bananaSlip: "Slip!"
 };
 
 export function Vfx({ events }: VfxProps): JSX.Element | null {
@@ -47,6 +49,10 @@ function eventColor(type: string): string {
     case "powerupPickup":
     case "powerupUse":
       return "#72f1d1";
+    case "freeze":
+      return "#8ee9ff";
+    case "bananaSlip":
+      return "#facc15";
     case "specialUse":
       return "#ff7ad9";
     default:

@@ -54,10 +54,11 @@ function buildDefaults(): MutableTuning {
     check: { ...CHECK_CONFIG },
     collision: { ...COLLISION_CONFIG },
     goalie: { ...GOALIE_CONFIG },
-    // Grounded-arcade scope: powerups and character specials are cut from
-    // the roadmap; the systems stay in code but never activate.
+    // Arcade powerups are now live (speed, hard-shot, freeze, big-hit,
+    // mini/giant goalie + banana-peel hazards). Character specials stay
+    // dormant until that system is designed out.
     flags: {
-      powerupsEnabled: false,
+      powerupsEnabled: true,
       specialsEnabled: false
     }
   };

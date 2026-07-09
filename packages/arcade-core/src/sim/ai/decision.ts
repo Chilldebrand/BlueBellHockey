@@ -554,10 +554,6 @@ export function shouldUseHeldPowerup(
     return false;
   }
 
-  if (bot.heldPowerupType === "instant-special") {
-    return true;
-  }
-
   if (bot.heldPowerupType === "hard-shot") {
     return shouldShoot(bot, world, difficulty);
   }
@@ -566,18 +562,29 @@ export function shouldUseHeldPowerup(
     return isBreakaway(bot, world) || needsRecoveryTurbo(bot, world);
   }
 
-  if (bot.heldPowerupType === "shield") {
+  if (bot.heldPowerupType === "bulldozer") {
+    // Trigger the wrecking ball right before laying a hit on the carrier.
+    return shouldCheckCarrier(bot, world, difficulty);
+  }
+
+  if (bot.heldPowerupType === "freeze") {
+    // Fire-and-forget: freezes a random opponent. Save it for the attack,
+    // when a frozen defender opens the most ice.
     return (
-      world.puck.carrierSlotId === bot.id &&
-      isPressured(bot, world, difficulty)
+      isAttackingZone(bot) &&
+      distance(bot.position, world.puck.position) <= difficulty.reactionRange
     );
   }
 
-  if (bot.heldPowerupType === "puck-magnet") {
-    return (
-      !world.puck.carrierSlotId &&
-      distance(bot.position, world.puck.position) <= difficulty.reactionRange
-    );
+  if (bot.heldPowerupType === "mini-goalie") {
+    // Offensive: shrink the enemy net while pressing the attack.
+    return isAttackingZone(bot);
+  }
+
+  if (bot.heldPowerupType === "giant-goalie") {
+    // Defensive: wall up the moment an opponent has possession.
+    const carrier = findCarrier(world);
+    return carrier !== null && carrier.teamId !== bot.teamId;
   }
 
   return isAttackingZone(bot);

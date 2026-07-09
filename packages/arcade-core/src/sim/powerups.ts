@@ -1,12 +1,37 @@
 import {
+  BANANA_LIFETIME_MS,
+  BANANA_SLIP_MS,
+  BANANA_SLIP_SLIDE,
+  BANANA_TRIP_RADIUS,
   POWERUP_DEFINITIONS,
   POWERUP_PICKUP_RADIUS,
   POWERUP_SPAWN_INTERVAL_MS,
   POWERUP_SPAWN_POINTS,
-  powerupTypeForSpawn
+  isBananaSpawn,
+  powerupTypeForSpawn,
+  type PowerupType
 } from "../config/powerups.js";
 import type { InputFrame, SkaterEntity, WorldState } from "./types.js";
-import { magnitude } from "./physics.js";
+import { magnitude, normalizeOrZero } from "./physics.js";
+
+/** How long a frozen skater stays an ice block. */
+export const FREEZE_DURATION_MS = 5000;
+
+/**
+ * Whether a skater currently has an active (unexpired) powerup of this type.
+ * The active list is expired-filtered each tick, so a hit here means "in
+ * effect right now". This is the read side of `world.activePowerups` — every
+ * sustained powerup effect (speed, hard-shot, bulldozer) consumes it.
+ */
+export function hasActivePowerup(
+  world: WorldState,
+  slotId: string,
+  type: PowerupType
+): boolean {
+  return world.activePowerups.some(
+    (powerup) => powerup.slotId === slotId && powerup.type === type
+  );
+}
 
 export function stepPowerups(
   world: WorldState,
@@ -16,21 +41,39 @@ export function stepPowerups(
   spawnPowerups(world);
   pickUpPowerups(world);
   useHeldPowerups(world, inputsBySlot);
+  stepBananaPeels(world);
   chargeSpecials(world);
 }
 
 function spawnPowerups(world: WorldState): void {
   const spawnIndex = Math.floor(world.time.nowMs / POWERUP_SPAWN_INTERVAL_MS);
-  const existingSpawnIndex = world.powerupPickups.some((pickup) =>
-    pickup.id.includes(`spawn-${spawnIndex}`)
-  );
+  // One object per spawn index across BOTH lists, so re-entering the same
+  // interval doesn't double-spawn a powerup or a peel.
+  const alreadySpawned =
+    world.powerupPickups.some((pickup) => pickup.id.includes(`spawn-${spawnIndex}`)) ||
+    world.bananaPeels.some((peel) => peel.id.includes(`spawn-${spawnIndex}`));
 
-  if (world.time.nowMs === 0 || existingSpawnIndex) {
+  if (world.time.nowMs === 0 || alreadySpawned) {
     return;
   }
 
   const point = POWERUP_SPAWN_POINTS[spawnIndex % POWERUP_SPAWN_POINTS.length];
   if (!point) {
+    return;
+  }
+
+  // Every Nth spawn is a banana peel hazard instead of a collectible powerup.
+  if (isBananaSpawn(world.seed, spawnIndex)) {
+    world.bananaPeels.push({
+      id: `banana-spawn-${spawnIndex}`,
+      position: { x: point.x, y: point.y },
+      spawnedAtMs: world.time.nowMs
+    });
+    world.eventQueue.push({
+      id: `banana-spawn-${world.time.tick}`,
+      type: "bananaSpawn",
+      atMs: world.time.nowMs
+    });
     return;
   }
 
@@ -47,6 +90,62 @@ function spawnPowerups(world: WorldState): void {
     atMs: world.time.nowMs,
     targetSlotId: type
   });
+}
+
+/**
+ * Banana peels: rot away after their lifetime, and the first ready skater to
+ * skate within trip range of one wipes out (full knockdown), dropping the puck
+ * if they were carrying. No owner — anyone can slip. Deterministic (iterates
+ * skaters in world order; the peel is consumed by the first it catches).
+ */
+function stepBananaPeels(world: WorldState): void {
+  const now = world.time.nowMs;
+
+  world.bananaPeels = world.bananaPeels.filter(
+    (peel) => now - peel.spawnedAtMs < BANANA_LIFETIME_MS
+  );
+
+  const survivors: typeof world.bananaPeels = [];
+  for (const peel of world.bananaPeels) {
+    const victim = world.skaters.find(
+      (skater) =>
+        skater.contactState === "ready" &&
+        magnitude({
+          x: peel.position.x - skater.position.x,
+          y: peel.position.y - skater.position.y
+        }) <= BANANA_TRIP_RADIUS
+    );
+
+    if (!victim) {
+      survivors.push(peel);
+      continue;
+    }
+
+    // Wipeout: skid out in the direction they were travelling and fall.
+    const slide = normalizeOrZero(victim.velocity);
+    victim.contactState = "knockedDown";
+    victim.contactStateUntilMs = now + BANANA_SLIP_MS;
+    victim.velocity = {
+      x: slide.x * BANANA_SLIP_SLIDE,
+      y: slide.y * BANANA_SLIP_SLIDE
+    };
+
+    if (world.puck.carrierSlotId === victim.id) {
+      world.puck.carrierSlotId = null;
+      world.puck.lastTouchSlotId = victim.id;
+      world.puck.pickupDisabledForSlotId = victim.id;
+      world.puck.pickupDisabledUntilMs = now + 250;
+    }
+
+    world.eventQueue.push({
+      id: `banana-slip-${world.time.tick}-${victim.id}`,
+      type: "bananaSlip",
+      atMs: now,
+      targetSlotId: victim.id
+    });
+    // Peel consumed — not pushed to survivors.
+  }
+  world.bananaPeels = survivors;
 }
 
 function pickUpPowerups(world: WorldState): void {
@@ -94,8 +193,10 @@ function useHeldPowerups(
     const powerupType = skater.heldPowerupType;
     skater.heldPowerupType = null;
 
-    if (powerupType === "instant-special") {
-      skater.specialCharge = 1;
+    if (powerupType === "freeze") {
+      // Freeze doesn't buff the user — it turns a random opponent into an
+      // ice block. No active-window entry for the user.
+      freezeRandomOpponent(world, skater);
     } else {
       world.activePowerups.push({
         id: `active-${world.time.tick}-${skater.id}-${powerupType}`,
@@ -126,6 +227,51 @@ function applyImmediateEffect(skater: SkaterEntity, powerupType: string): void {
       y: skater.velocity.y * 1.18
     };
   }
+}
+
+/**
+ * Freeze a random opposing SKATER (never the goalie) into an ice block for
+ * FREEZE_DURATION_MS. The pick is seeded off (seed, tick) so it's fully
+ * deterministic — replays stay byte-identical. If the chosen target is
+ * carrying the puck, it pops loose (an ice block can't stickhandle).
+ */
+function freezeRandomOpponent(world: WorldState, user: SkaterEntity): void {
+  const now = world.time.nowMs;
+  const opponents = world.skaters
+    .filter(
+      (skater) =>
+        skater.teamId !== user.teamId && skater.contactState !== "knockedDown"
+    )
+    // Stable order so the seeded index is reproducible regardless of array order.
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+
+  if (opponents.length === 0) {
+    return;
+  }
+
+  const target = opponents[(world.seed + world.time.tick) % opponents.length];
+  if (!target) {
+    return;
+  }
+
+  target.contactState = "frozen";
+  target.contactStateUntilMs = now + FREEZE_DURATION_MS;
+  target.velocity = { x: 0, y: 0 };
+
+  if (world.puck.carrierSlotId === target.id) {
+    world.puck.carrierSlotId = null;
+    world.puck.lastTouchSlotId = target.id;
+    world.puck.pickupDisabledForSlotId = target.id;
+    world.puck.pickupDisabledUntilMs = now + 250;
+  }
+
+  world.eventQueue.push({
+    id: `freeze-${world.time.tick}-${target.id}`,
+    type: "freeze",
+    atMs: now,
+    sourceSlotId: user.id,
+    targetSlotId: target.id
+  });
 }
 
 function chargeSpecials(world: WorldState): void {

@@ -5,6 +5,41 @@ import { clamp } from "./physics.js";
 import { GOAL_HEIGHT } from "./puck.js";
 import { resetForFaceoff } from "./goal.js";
 
+// Goalie-resize powerups. Giant grows the user's OWN goalie into a near-wall;
+// Mini shrinks the OPPOSING goalie so the user scores easier. The multiplier
+// scales the save reach (the dominant save lever) AND the rendered model, so
+// the visual always matches the hitbox. Shared by the client via
+// goalieSizeMultiplier so there's one source of truth.
+export const GIANT_GOALIE_SIZE = 2.2;
+export const MINI_GOALIE_SIZE = 0.45;
+
+/**
+ * Effective size multiplier for a goalie right now, from active goalie-resize
+ * powerups. Giant is owned by a skater on the goalie's OWN team; Mini by a
+ * skater on the ATTACKING team. Pure + deterministic (reads world state only).
+ */
+export function goalieSizeMultiplier(
+  world: WorldState,
+  goalieTeamId: TeamId
+): number {
+  let multiplier = 1;
+  for (const powerup of world.activePowerups) {
+    if (!powerup.slotId) {
+      continue;
+    }
+    const owner = world.skaters.find((skater) => skater.id === powerup.slotId);
+    if (!owner) {
+      continue;
+    }
+    if (powerup.type === "giant-goalie" && owner.teamId === goalieTeamId) {
+      multiplier *= GIANT_GOALIE_SIZE;
+    } else if (powerup.type === "mini-goalie" && owner.teamId !== goalieTeamId) {
+      multiplier *= MINI_GOALIE_SIZE;
+    }
+  }
+  return multiplier;
+}
+
 export interface GoalieConfig {
   readonly homeX: number;
   readonly awayX: number;
@@ -123,6 +158,9 @@ function resolveGoalieSave(
     return;
   }
 
+  // Giant/Mini goalie powerups scale the reach (and the model, client-side).
+  const saveReach = config.saveReach * goalieSizeMultiplier(world, goalie.teamId);
+
   const headingIn =
     goalie.teamId === "home" ? puck.velocity.x < 0 : puck.velocity.x > 0;
 
@@ -160,10 +198,7 @@ function resolveGoalieSave(
     puck.position.y - goalie.position.y
   );
 
-  if (
-    closestDistance > config.saveReach &&
-    restingDistance > config.saveReach
-  ) {
+  if (closestDistance > saveReach && restingDistance > saveReach) {
     return;
   }
 
@@ -223,7 +258,7 @@ function resolveGoalieSave(
     y: ((lateralSign * 0.8) / length) * out
   };
   puck.position = {
-    x: goalie.position.x + upIce * (config.saveReach * 0.6),
+    x: goalie.position.x + upIce * (saveReach * 0.6),
     y: goalie.position.y + lateralSign * 12
   };
   puck.verticalVelocity = Math.max(120, Math.abs(puck.verticalVelocity) * 0.35);

@@ -1,6 +1,7 @@
 import { Canvas } from "@react-three/fiber";
 import {
   bladeBodyOffset,
+  goalieSizeMultiplier,
   TUNING,
   type PuckState,
   type SkaterEntity,
@@ -12,7 +13,7 @@ import { selectSkaterAnimation } from "./animation/skaterAnimation.js";
 import { CameraRig } from "./CameraRig.js";
 import { GoalieModel } from "./GoalieModel.js";
 import { Puck, pocketCarriedPuck, predictedCarriedPuck } from "./Puck.js";
-import { Powerups } from "./Powerups.js";
+import { BananaPeels, Powerups } from "./Powerups.js";
 import { Rink } from "./Rink.js";
 import { SkaterDebug } from "./SkaterDebug.js";
 import { Vfx } from "./Vfx.js";
@@ -90,6 +91,7 @@ export function Scene({
         <directionalLight position={[320, 900, 460]} intensity={1.25} castShadow />
         <Rink />
         <Powerups pickups={currentWorld.powerupPickups} />
+        <BananaPeels peels={currentWorld.bananaPeels} />
         {skaters.map((skater) => {
           const renderSkater =
             skater.id === localSlotId && predictedLocalSkater
@@ -134,7 +136,9 @@ export function Scene({
             // down the X goal-axis: home defends the -X end (faces +X), away
             // defends the +X end (faces -X). So each turns 90 deg toward center.
             rotation={[0, goalie.teamId === "home" ? Math.PI / 2 : -Math.PI / 2, 0]}
-            scale={1.5}
+            // Base 1.5 render scale, grown/shrunk by active Giant/Mini goalie
+            // powerups — the same multiplier the sim uses for save reach.
+            scale={1.5 * goalieSizeMultiplier(currentWorld, goalie.teamId)}
           >
             <GoalieModel
               teamId={goalie.teamId}

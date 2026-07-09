@@ -330,7 +330,10 @@ describe("bot decision helpers", () => {
       y: RINK_CONFIG.height / 2
     };
     carrier.heldPowerupType = "speed-boost";
-    defender.heldPowerupType = "instant-special";
+    // Bulldozer fires right before a hit: the defender is closing on the
+    // carrier at speed and in check range.
+    defender.heldPowerupType = "bulldozer";
+    defender.velocity = { x: 400, y: 0 };
     world.puck.carrierSlotId = carrier.id;
 
     expect(selectBotDecision(carrier, world, alwaysAct).usePowerup).toBe(true);

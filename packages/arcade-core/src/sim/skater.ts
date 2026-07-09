@@ -50,6 +50,10 @@ export interface SkaterMovementConfig {
   readonly stumbleSpeedMultiplier: number;
 }
 
+// Sustained multiplier applied to top speed + acceleration while the
+// speed-boost powerup is active (on top of, and stacking with, turbo).
+export const SPEED_BOOST_MULTIPLIER = 1.25;
+
 // Feel pass 2026-07-03: normal skating slowed so turbo reads as a real burst
 // (cruise 560, turbo 840 — a full 50% jump instead of the old 38%).
 export const SKATER_MOVEMENT_CONFIG: SkaterMovementConfig = {
@@ -90,9 +94,18 @@ export function stepSkater(
   skater: SkaterEntity,
   input: InputFrame | undefined,
   dtMs: number,
-  config: SkaterMovementConfig = SKATER_MOVEMENT_CONFIG
+  config: SkaterMovementConfig = SKATER_MOVEMENT_CONFIG,
+  speedBoosted = false
 ): void {
   const dt = dtMs / 1000;
+
+  // Frozen: a hard lock (freeze powerup). No input, no slide — the ice block
+  // sits exactly where it was caught until recoverContactStates thaws it.
+  if (skater.contactState === "frozen") {
+    skater.velocity.x = 0;
+    skater.velocity.y = 0;
+    return;
+  }
 
   if (skater.contactState === "knockedDown" || skater.contactState === "diving") {
     const slide = expDecay(config.knockdownDrag, dt);
@@ -101,6 +114,8 @@ export function stepSkater(
     integrateAndContain(skater, dt, config);
     return;
   }
+
+  const boost = speedBoosted ? SPEED_BOOST_MULTIPLIER : 1;
 
   const move = normalizedMovement(input);
   const hasInput = magnitude(move) > 0;
@@ -119,6 +134,7 @@ export function stepSkater(
 
   const maxSpeed =
     config.maxSpeed *
+    boost *
     (turboActive ? config.turboMaxSpeedMultiplier : 1) *
     (skater.gesture.phase === "windup" ? config.windupSpeedMultiplier : 1) *
     (skater.contactState === "stumbling" ? config.stumbleSpeedMultiplier : 1);
@@ -140,6 +156,7 @@ export function stepSkater(
     if (alignment > 0) {
       const thrust =
         config.acceleration *
+        boost *
         (turboActive ? config.turboAccelerationMultiplier : 1) *
         alignment;
       skater.velocity.x += Math.cos(skater.facing) * thrust * dt;

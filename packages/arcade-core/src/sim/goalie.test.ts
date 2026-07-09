@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  GIANT_GOALIE_SIZE,
   GOALIE_CONFIG,
+  MINI_GOALIE_SIZE,
   RINK_CONFIG,
   createWorld,
+  goalieSizeMultiplier,
   stepWorld,
   type GoalieEntity,
   type WorldState
@@ -153,5 +156,73 @@ describe("goalie simulation", () => {
     stepWorld(world, [], 16);
 
     expect(world.stats.saves.home).toBe(0);
+  });
+});
+
+describe("goalie-resize powerups", () => {
+  it("scopes the resize to the right goalie by owner team", () => {
+    const world = playingWorld();
+    // A HOME skater holding both: giant buffs the HOME goalie, mini shrinks
+    // the goalie he's attacking (AWAY).
+    world.activePowerups.push({
+      id: "gg",
+      type: "giant-goalie",
+      slotId: "home-skater-1",
+      position: null,
+      expiresAtMs: 999_999
+    });
+    world.activePowerups.push({
+      id: "mg",
+      type: "mini-goalie",
+      slotId: "home-skater-1",
+      position: null,
+      expiresAtMs: 999_999
+    });
+
+    expect(goalieSizeMultiplier(world, "home")).toBeCloseTo(GIANT_GOALIE_SIZE);
+    expect(goalieSizeMultiplier(world, "away")).toBeCloseTo(MINI_GOALIE_SIZE);
+    // No powerups → neutral size.
+    expect(goalieSizeMultiplier(playingWorld(), "home")).toBe(1);
+  });
+
+  it("giant goalie stops a shot that beats a normal-size goalie", () => {
+    // Lateral 105 is inside the net but past the normal 84 reach → normally in.
+    const normal = playingWorld();
+    shotAtHomeGoalie(normal, { speed: 900, lateral: 105 });
+    stepWorld(normal, [], 16);
+    expect(normal.stats.saves.home).toBe(0);
+
+    const giant = playingWorld();
+    giant.activePowerups.push({
+      id: "gg",
+      type: "giant-goalie",
+      slotId: "home-skater-1",
+      position: null,
+      expiresAtMs: 999_999
+    });
+    shotAtHomeGoalie(giant, { speed: 900, lateral: 105 });
+    stepWorld(giant, [], 16);
+    expect(giant.stats.saves.home).toBe(1);
+  });
+
+  it("mini goalie lets through a shot a normal-size goalie stops", () => {
+    // Lateral 60 is inside the normal 84 reach but past the shrunk ~38 reach.
+    const normal = playingWorld();
+    shotAtHomeGoalie(normal, { speed: 900, lateral: 60 });
+    stepWorld(normal, [], 16);
+    expect(normal.stats.saves.home).toBe(1);
+
+    const mini = playingWorld();
+    // Owned by an AWAY skater (the team attacking the home goalie).
+    mini.activePowerups.push({
+      id: "mg",
+      type: "mini-goalie",
+      slotId: "away-skater-1",
+      position: null,
+      expiresAtMs: 999_999
+    });
+    shotAtHomeGoalie(mini, { speed: 900, lateral: 60 });
+    stepWorld(mini, [], 16);
+    expect(mini.stats.saves.home).toBe(0);
   });
 });

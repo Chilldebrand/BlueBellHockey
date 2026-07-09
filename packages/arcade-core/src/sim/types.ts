@@ -104,7 +104,7 @@ export interface SkaterEntity {
   facing: number;
   stick: StickState;
   gesture: GestureState;
-  contactState: "ready" | "stumbling" | "knockedDown" | "diving";
+  contactState: "ready" | "stumbling" | "knockedDown" | "diving" | "frozen";
   contactStateUntilMs: number;
   checkCooldownUntilMs: number;
   activeCheckUntilMs: number;
@@ -190,6 +190,17 @@ export interface PowerupPickup {
   readonly spawnedAtMs: number;
 }
 
+/**
+ * A banana peel hazard resting on the ice. Spawns on the powerup cadence (but
+ * is NOT collectible); the first skater to skate over it wipes out. Removed on
+ * trigger or after it expires.
+ */
+export interface BananaPeel {
+  readonly id: string;
+  readonly position: Vec2;
+  readonly spawnedAtMs: number;
+}
+
 export interface WorldEvent {
   readonly id: string;
   readonly type: string;
@@ -214,6 +225,7 @@ export interface WorldState {
   goalies: GoalieEntity[];
   puck: PuckState;
   powerupPickups: PowerupPickup[];
+  bananaPeels: BananaPeel[];
   activePowerups: ActivePowerup[];
   eventQueue: WorldEvent[];
 }

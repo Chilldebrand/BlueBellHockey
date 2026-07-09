@@ -6,6 +6,10 @@ import { expDecay, magnitude, normalizeOrZero } from "./physics.js";
 import { passAimDirection, passDirectionWithAssist } from "./actions.js";
 import { clearPendingRelease } from "./gestures.js";
 import { bladeWorldPosition, bladeWorldVelocity } from "./stick.js";
+import { hasActivePowerup } from "./powerups.js";
+
+/** Shot-speed multiplier while the hard-shot powerup is active. */
+export const HARD_SHOT_MULTIPLIER = 1.35;
 
 export interface PuckConfig {
   readonly radius: number;
@@ -289,11 +293,16 @@ function releaseGestureShot(
   const power = gesture.pendingReleasePower;
   const isOneTimer = world.time.nowMs < carrier.oneTimerUntilMs;
   const oneTimerBoost = isOneTimer ? config.oneTimerPowerMultiplier : 1;
+  const hardShot = hasActivePowerup(world, carrier.id, "hard-shot")
+    ? HARD_SHOT_MULTIPLIER
+    : 1;
   const speed =
     (isSlap
       ? config.wristShotSpeed +
         (config.maxChargedShotSpeed - config.wristShotSpeed) * power
-      : config.wristShotSpeed * (0.78 + 0.22 * power)) * oneTimerBoost;
+      : config.wristShotSpeed * (0.78 + 0.22 * power)) *
+    oneTimerBoost *
+    hardShot;
 
   // Placement from the left stick at release (world space, clamped).
   const lateralAim = Math.max(-1, Math.min(1, input?.moveY ?? 0));

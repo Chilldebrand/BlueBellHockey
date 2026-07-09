@@ -16,7 +16,8 @@ export type SkaterAnimationState =
   | "down"
   | "getUp"
   | "juke"
-  | "celebrate";
+  | "celebrate"
+  | "frozen";
 
 export type GoalieAnimationState =
   | "ready"
@@ -40,7 +41,10 @@ export const SKATER_CLIP_MAP: Record<SkaterAnimationState, string> = {
   down: "knockdown",
   getUp: "get_up",
   juke: "juke",
-  celebrate: "celebrate_goal"
+  celebrate: "celebrate_goal",
+  // No dedicated clip: a frozen skater holds the idle pose (the ice-block
+  // visual is drawn in CharacterModel). Reuses idle_ready so no new required clip.
+  frozen: "idle_ready"
 };
 
 export const GOALIE_CLIP_MAP: Record<GoalieAnimationState, string> = {
@@ -59,7 +63,8 @@ const SKATER_FALLBACKS: Partial<Record<SkaterAnimationState, SkaterAnimationStat
   chargeShot: "wristShot",
   getUp: "idle",
   juke: "skate",
-  celebrate: "idle"
+  celebrate: "idle",
+  frozen: "idle"
 };
 
 const GOALIE_FALLBACKS: Partial<Record<GoalieAnimationState, GoalieAnimationState>> = {

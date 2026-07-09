@@ -23,7 +23,7 @@ import {
 import { clearPendingRelease, createGestureState, stepGesture } from "./gestures.js";
 import { resolveSkaterCollisions } from "./collision.js";
 import { createStickState, updateStick } from "./stick.js";
-import { stepPowerups } from "./powerups.js";
+import { hasActivePowerup, stepPowerups } from "./powerups.js";
 import { resolveSpecials } from "./specials.js";
 import { createInitialStats } from "./stats.js";
 import { stepGoalies } from "./goalie.js";
@@ -108,6 +108,7 @@ export function createWorld(
       y: RINK_CONFIG.height / 2
     }),
     powerupPickups: [],
+    bananaPeels: [],
     activePowerups: [],
     eventQueue: []
   };
@@ -132,7 +133,13 @@ export function stepWorld(
     // Gestures first (windup slows skating), then the body, then the stick
     // follows from the new pose so the puck step reads a current blade.
     stepGesture(skater, input, world.time.nowMs, dtSeconds, TUNING.gestures);
-    stepSkater(skater, input, dtMs, TUNING.skater);
+    stepSkater(
+      skater,
+      input,
+      dtMs,
+      TUNING.skater,
+      hasActivePowerup(world, skater.id, "speed-boost")
+    );
     updateStick(skater, input, dtSeconds, TUNING.stick);
   }
 

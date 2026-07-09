@@ -25,6 +25,10 @@ export function selectSkaterAnimation({
     return "celebrate";
   }
 
+  if (skater.contactState === "frozen") {
+    return "frozen";
+  }
+
   if (skater.contactState === "knockedDown" || skater.contactState === "diving") {
     return "down";
   }

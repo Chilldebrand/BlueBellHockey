@@ -2,6 +2,10 @@ import { getCharacterById } from "../config/characters.js";
 import type { InputFrame, SkaterEntity, Vec2, WorldState } from "./types.js";
 import { clearPendingRelease } from "./gestures.js";
 import { fromAngle, magnitude, normalizeOrZero } from "./physics.js";
+import { hasActivePowerup } from "./powerups.js";
+
+/** Check-force multiplier while the bulldozer (Big Hit) powerup is active. */
+export const BULLDOZER_FORCE_MULTIPLIER = 2.5;
 
 export interface CheckConfig {
   readonly radius: number;
@@ -231,6 +235,13 @@ function resolveHit(
   config: CheckConfig
 ): void {
   const now = world.time.nowMs;
+
+  // A frozen target is an ice block: it absorbs the check without being
+  // shoved or knocked around. The checker's attempt is simply spent.
+  if (target.contactState === "frozen") {
+    return;
+  }
+
   const hitterStats = getCharacterById(hitter.characterId).stats;
   const targetStats = getCharacterById(target.characterId).stats;
 
@@ -245,6 +256,7 @@ function resolveHit(
     direction.x * toTarget.x + direction.y * toTarget.y
   );
 
+  const bulldozing = hasActivePowerup(world, hitter.id, "bulldozer");
   const powerScale = 1 + (hitterStats.power - 3) * config.powerStatScale;
   const flickScale =
     config.flickPowerFloor + (1 - config.flickPowerFloor) * attemptPower;
@@ -252,7 +264,8 @@ function resolveHit(
     (magnitude(hitter.velocity) * (0.75 + alignment * 0.5) +
       config.baseCheckForce) *
     powerScale *
-    flickScale;
+    flickScale *
+    (bulldozing ? BULLDOZER_FORCE_MULTIPLIER : 1);
 
   const resistScale = 1 + (targetStats.balance - 3) * config.balanceStatScale;
   const anchored = magnitude(target.velocity) < config.anchorSpeed;
@@ -274,7 +287,9 @@ function resolveHit(
   world.stats[hitter.teamId].hits += 1;
   world.stats.hits[hitter.teamId] += 1;
 
-  if (force >= knockdownThreshold) {
+  // Bulldozer flattens on any contact — force the knockdown branch (the
+  // amplified force also clears the strip threshold below, taking the puck).
+  if (force >= knockdownThreshold || bulldozing) {
     target.contactState = "knockedDown";
     target.contactStateUntilMs = now + config.knockdownMs;
     const slide = facingDirection(hitter);
