@@ -2,7 +2,7 @@ import { RINK_CONFIG, goalLineX } from "../../config/rink.js";
 import { TUNING } from "../../config/tuning.js";
 import type { SkaterEntity, Vec2, WorldState } from "../types.js";
 import type { BotIntent } from "./decision.js";
-import type { TacticalContext } from "./tactics.js";
+import { rankDefensiveThreats, type TacticalContext } from "./tactics.js";
 import { tendencyForSkater } from "./tendencies.js";
 
 export interface BotIntentChoice {
@@ -71,10 +71,7 @@ export function candidateForIntent(
         ? world.skaters.find((skater) => skater.id === context.threatId)?.position ?? puck
         : puck;
     case "cover":
-      return clampToRink({
-        x: puck.x - direction * 180,
-        y: puck.y + lateral * 280
-      });
+      return coverThreatTarget(bot, world, context);
     case "protect-slot":
       return clampToRink({
         x: goalLineX(bot.teamId) + direction * 300,
@@ -245,6 +242,31 @@ function isClosest(
 
 function teamSkaters(world: WorldState, bot: SkaterEntity): SkaterEntity[] {
   return world.skaters.filter((skater) => skater.teamId === bot.teamId);
+}
+
+function coverThreatTarget(
+  bot: SkaterEntity,
+  world: WorldState,
+  context: TacticalContext
+): Vec2 {
+  const rankedThreats = rankDefensiveThreats(world, bot.teamId);
+  const mark =
+    rankedThreats.find((threat) => threat.id !== context.threatId) ??
+    rankedThreats[0];
+
+  if (!mark) {
+    return candidateForIntent(bot, world, context, "protect-slot");
+  }
+
+  const ownGoal = { x: goalLineX(bot.teamId), y: RINK_CONFIG.height / 2 };
+  const toGoalX = ownGoal.x - mark.position.x;
+  const toGoalY = ownGoal.y - mark.position.y;
+  const toGoalLength = Math.hypot(toGoalX, toGoalY) || 1;
+
+  return clampToRink({
+    x: mark.position.x + (toGoalX / toGoalLength) * 140,
+    y: mark.position.y + (toGoalY / toGoalLength) * 140
+  });
 }
 
 function attackingGoal(bot: SkaterEntity): Vec2 {

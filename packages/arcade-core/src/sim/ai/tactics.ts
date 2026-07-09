@@ -1,4 +1,5 @@
 import type { TeamId } from "../../config/teams.js";
+import { RINK_CONFIG, goalLineX } from "../../config/rink.js";
 import { TUNING } from "../../config/tuning.js";
 import type { SkaterEntity, Vec2, WorldState } from "../types.js";
 
@@ -32,6 +33,7 @@ export function buildTacticalContext(
     ? world.skaters.find((skater) => skater.id === world.puck.carrierSlotId) ?? null
     : null;
   const recentPossessionTeamId = recentPossessionTeam(world);
+  const defensiveThreats = rankDefensiveThreats(world, teamId);
   const state = tacticalState({
     teamId,
     teammates,
@@ -45,7 +47,8 @@ export function buildTacticalContext(
     teamId,
     state,
     carrierId: carrier?.id ?? null,
-    threatId: carrier?.teamId === teamId ? null : carrier?.id ?? null,
+    threatId:
+      carrier?.teamId === teamId ? null : defensiveThreats[0]?.id ?? null,
     puckPosition: { ...world.puck.position },
     pressureBySlotId: pressureBySlotId(teammates, opponents),
     openLaneScores: openLaneScores(teammates, opponents, world.puck.position),
@@ -56,6 +59,24 @@ export function buildTacticalContext(
       world.puck.position
     )
   };
+}
+
+/** Most dangerous opponents first, with slot danger outranking a wide carrier. */
+export function rankDefensiveThreats(
+  world: WorldState,
+  defendingTeamId: TeamId
+): SkaterEntity[] {
+  const ownGoal = { x: goalLineX(defendingTeamId), y: RINK_CONFIG.height / 2 };
+  const maxGoalDistance = Math.hypot(RINK_CONFIG.width, RINK_CONFIG.height);
+
+  return world.skaters
+    .filter((skater) => skater.teamId !== defendingTeamId)
+    .sort((left, right) => {
+      const scoreDifference =
+        defensiveThreatScore(right, world, ownGoal, maxGoalDistance) -
+        defensiveThreatScore(left, world, ownGoal, maxGoalDistance);
+      return scoreDifference === 0 ? compareIds(left.id, right.id) : scoreDifference;
+    });
 }
 
 /** Context state is already precedence-resolved during snapshot derivation. */
@@ -141,6 +162,26 @@ function recentPossessionTeam(world: WorldState): TeamId | null {
   return possessionEvent?.sourceSlotId
     ? skaterById(world, possessionEvent.sourceSlotId)?.teamId ?? null
     : null;
+}
+
+function defensiveThreatScore(
+  skater: SkaterEntity,
+  world: WorldState,
+  ownGoal: Vec2,
+  maxGoalDistance: number
+): number {
+  const goalDanger = 1 - Math.min(1, distance(skater.position, ownGoal) / maxGoalDistance);
+  const slotDanger = Math.max(
+    0,
+    1 - Math.abs(skater.position.y - RINK_CONFIG.height / 2) / (RINK_CONFIG.height / 2)
+  );
+  const puckAccess = Math.max(
+    0,
+    1 - distance(skater.position, world.puck.position) / TUNING.ai.awarenessRange
+  );
+  const carrierBonus = world.puck.carrierSlotId === skater.id ? 0.7 : 0;
+
+  return goalDanger * 1.4 + slotDanger * 1.35 + puckAccess * 0.8 + carrierBonus;
 }
 
 function pressureBySlotId(

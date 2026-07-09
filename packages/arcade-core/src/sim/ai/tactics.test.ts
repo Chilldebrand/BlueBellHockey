@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { RINK_CONFIG, createWorld, type SkaterEntity, type Vec2 } from "../../index";
 import {
   buildTacticalContext,
+  rankDefensiveThreats,
   selectTacticalState
 } from "./tactics.js";
 
@@ -58,6 +59,22 @@ describe("tactical context", () => {
     expect(context.pressureBySlotId.get(nearDefender.id)).toBeGreaterThan(
       context.pressureBySlotId.get(farDefender.id) ?? 0
     );
+  });
+
+  it("ranks a deep slot threat ahead of a wide puck carrier", () => {
+    const world = createWorld(1, "arcade3v3");
+    const carrier = skater(world, "away-skater-1");
+    const slotThreat = skater(world, "away-skater-2");
+    carrier.position = { x: 1650, y: 1400 };
+    slotThreat.position = { x: 620, y: RINK_CONFIG.height / 2 };
+    world.puck.position = { ...carrier.position };
+    world.puck.carrierSlotId = carrier.id;
+
+    const threats = rankDefensiveThreats(world, "home");
+    const context = buildTacticalContext(world, "home");
+
+    expect(threats[0]?.id).toBe(slotThreat.id);
+    expect(context.threatId).toBe(slotThreat.id);
   });
 
   it("uses recent simulation-time possession signals for transition", () => {

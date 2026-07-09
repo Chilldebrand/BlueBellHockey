@@ -232,6 +232,25 @@ describe("bot decision helpers", () => {
     expect(decision.check).toBe(true);
   });
 
+  it("pressures the ranked slot threat instead of a wide low-danger carrier", () => {
+    const world = createWorld(1, "arcade3v3");
+    const defender = skater(world, "home-skater-1");
+    const support = skater(world, "home-skater-2");
+    const carrier = skater(world, "away-skater-1");
+    const slotThreat = skater(world, "away-skater-2");
+    defender.position = { x: 700, y: RINK_CONFIG.height / 2 };
+    support.position = { x: 1250, y: 1200 };
+    carrier.position = { x: 1650, y: 1400 };
+    slotThreat.position = { x: 620, y: RINK_CONFIG.height / 2 };
+    world.puck.position = { ...carrier.position };
+    world.puck.carrierSlotId = carrier.id;
+
+    const decision = selectBotDecision(defender, world, alwaysAct);
+
+    expect(decision.intent).toBe("pressure");
+    expect(decision.moveTarget).toEqual(slotThreat.position);
+  });
+
   it("exposes tactical context metadata alongside the compatible role decision", () => {
     const world = createWorld(1, "arcade3v3");
     const defender = skater(world, "home-skater-1");

@@ -124,9 +124,7 @@ export function selectBotDecision(
   const intentChoice = chooseBotIntent(bot, world, context);
   const moveTarget =
     choosePickupTarget(bot, world, difficulty) ??
-    (role === "cover"
-      ? targetForPlannedRole(bot, world, role, plan)
-      : intentChoice.target);
+    intentChoice.target;
   const pass = shouldPass(bot, world, difficulty);
   const passTarget = pass ? findPassTarget(bot, world, difficulty) : null;
   const shoot = !pass && shouldShoot(bot, world, difficulty);
