@@ -23,6 +23,7 @@ export * from "./net/messages.js";
 export * from "./sim/actions.js";
 export * from "./sim/ai/bot.js";
 export * from "./sim/ai/decision.js";
+export * from "./sim/ai/tactics.js";
 export * from "./sim/boards.js";
 export * from "./sim/collision.js";
 export * from "./sim/control.js";

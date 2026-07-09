@@ -20,6 +20,7 @@ const GROUP_LABELS: Record<TuningGroup, string> = {
   check: "Checking",
   collision: "Body Contact",
   goalie: "Goalie",
+  ai: "Arcade AI",
   flags: "Flags"
 };
 

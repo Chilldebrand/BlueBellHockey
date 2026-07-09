@@ -210,6 +210,25 @@ describe("bot decision helpers", () => {
     expect(decision.check).toBe(true);
   });
 
+  it("exposes tactical context metadata alongside the compatible role decision", () => {
+    const world = createWorld(1, "arcade3v3");
+    const defender = skater(world, "home-skater-1");
+    const carrier = skater(world, "away-skater-1");
+    defender.position = { x: 960, y: 500 };
+    carrier.position = { x: 1000, y: 500 };
+    world.puck.carrierSlotId = carrier.id;
+    world.time.nowMs = 640;
+
+    const decision = selectBotDecision(defender, world, alwaysAct);
+
+    expect(decision.role).toBe("pressure");
+    expect(decision.state).toBe("defend");
+    expect(decision.intent).toBe("pressure");
+    expect(decision.reason).toBe("defend:pressure");
+    expect(decision.decisionScore).toBeGreaterThan(0);
+    expect(decision.intentChangedAtMs).toBe(640);
+  });
+
   it("puts both off-puck defenders in man coverage on their marks", () => {
     const world = createWorld(1, "arcade3v3");
     placeAll(world, {

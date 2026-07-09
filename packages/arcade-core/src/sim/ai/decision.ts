@@ -3,6 +3,10 @@ import { RINK_CONFIG, goalLineX } from "../../config/rink.js";
 import type { TeamId } from "../../config/teams.js";
 import { CHECK_CONFIG } from "../actions.js";
 import type { SkaterEntity, Vec2, WorldState } from "../types.js";
+import {
+  buildTacticalContext,
+  type TacticalState
+} from "./tactics.js";
 
 /**
  * Positional roles, assigned per TEAM per tick (see computeTeamPlan) so the
@@ -30,6 +34,20 @@ export type PositionalRole =
 
 export type BotRole = PositionalRole;
 
+export type BotIntent =
+  | "carry"
+  | "support"
+  | "cut"
+  | "screen"
+  | "stretch"
+  | "trail"
+  | "pressure"
+  | "cover"
+  | "protect-slot"
+  | "recover"
+  | "challenge-loose-puck"
+  | "reset-shape";
+
 export interface BotDifficulty {
   readonly reactionRange: number;
   readonly shotAggression: number;
@@ -50,6 +68,11 @@ export const DEFAULT_BOT_DIFFICULTY: BotDifficulty = BOT_DIFFICULTY.pro;
 
 export interface BotDecision {
   readonly role: BotRole;
+  readonly state: TacticalState;
+  readonly intent: BotIntent;
+  readonly reason: string;
+  readonly decisionScore: number;
+  readonly intentChangedAtMs: number;
   readonly moveTarget: Vec2;
   readonly aimTarget: Vec2;
   readonly pass: boolean;
@@ -94,8 +117,10 @@ export function selectBotDecision(
   world: WorldState,
   difficulty: BotDifficulty = DEFAULT_BOT_DIFFICULTY
 ): BotDecision {
+  const context = buildTacticalContext(world, bot.teamId);
   const plan = computeTeamPlan(world, bot.teamId);
   const role = plan.roles.get(bot.id) ?? "hold-back";
+  const intent = intentForRole(role);
   const moveTarget =
     choosePickupTarget(bot, world, difficulty) ??
     targetForPlannedRole(bot, world, role, plan);
@@ -108,6 +133,14 @@ export function selectBotDecision(
 
   return {
     role,
+    state: context.state,
+    intent,
+    reason: `${context.state}:${intent}`,
+    decisionScore:
+      context.pressureBySlotId.get(bot.id) ??
+      context.openLaneScores.get(bot.id) ??
+      0,
+    intentChangedAtMs: world.time.nowMs,
     moveTarget,
     aimTarget: aimTargetForDecision({
       bot,
@@ -127,6 +160,25 @@ export function selectBotDecision(
     usePowerup,
     special
   };
+}
+
+function intentForRole(role: PositionalRole): BotIntent {
+  switch (role) {
+    case "carrier":
+      return "carry";
+    case "chase":
+      return "challenge-loose-puck";
+    case "attack-slot":
+      return "support";
+    case "hold-back":
+      return "trail";
+    case "pressure":
+      return "pressure";
+    case "cover":
+      return "cover";
+    case "protect-net":
+      return "protect-slot";
+  }
 }
 
 export const selectBotRole = chooseBotRole;
