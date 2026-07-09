@@ -37,6 +37,10 @@ Preferred way to run servers with the assistant: the preview tools + `.claude/la
 > `npm run build:arcade-core` + an arcade-server restart to reach ONLINE play (Free Skate aliases core src).
 
 ## GIT STATE
+
+**Current status (2026-07-09):** the AI positioning implementation is committed locally through
+`8b90b78`; verify exact branch/push state with `git status --short --branch`. The current verified
+baseline is `npm test` (300), `npm run typecheck`, and the two-client server smoke test.
 **Documentation is committed locally** — confirm the exact branch and push state with
 `git status --short --branch` before beginning work. The recent AI planning commits are
 `9629dbe docs(ai): plan arcade positioning system`, `22a2555 docs(ai): add active positioning
@@ -71,6 +75,20 @@ deterministic (distance ranks, slotId tiebreak; replays stay byte-identical):
 - Bots get ARRIVAL damping on station roles (ease into spots, no orbiting) and only throw checks
   with momentum (speed gate in `shouldCheckCarrier`). AI constants are code-level in decision.ts
   (NOT in Feel Lab) — `// TODO: fold into TUNING`.
+
+### Arcade tactical bot AI (current 2026-07-09)
+`tactics.ts` derives deterministic attack/defend/transition/loose-puck/reset context from the world
+snapshot. `tendencies.ts` maps character identity to attack/support/safety/net-drive/shooter/checker,
+and `positions.ts` produces bounded relative intent targets. `TUNING.ai` is live in Feel Lab.
+
+- Offense creates separated support, safety-trail, cut, stretch, and deep-zone screen options.
+  Active cuts stay full-throttle; support/safety intents settle at their targets.
+- Defense ranks slot danger, goal proximity, puck access, and carrier status. Pressure follows the
+  highest threat while coverage plays goal-side on the next-ranked attacker.
+- Transitions and loose pucks send one racer, a support outlet, and a recovery option instead of
+  three identical chases.
+- Autonomous passes and shots reject occupied deterministic lanes; powerup, special, input, and
+  control-switch contracts remain unchanged.
 
 ### NHL-style hitting (stat-driven, tiered)
 `resolveChecks` in `arcade-core/src/sim/actions.ts`: attempts (B button OR right-stick UP-FLICK
@@ -175,6 +193,11 @@ but a neutral full slap with `slapLiftSpeed 860` peaked ~83. Dropped to **680** 
 ~52 (one-timers ~69), scores clean; aiming UP is now what risks the bar for top-shelf. A slap is
 HARDER (faster) not loftier — the gestures-test invariant was updated to match, plus a puck regression
 test asserts a neutral full slap stays under the scoring ceiling.
+
+### Arcade AI positioning (implemented; playtest follow-up)
+Implemented through WO-AI-05. The older plan prose below is historical context; the remaining work is
+Free Skate feel tuning and browser playtesting of spacing, screens, defensive threat weights, and
+lane-block radius.
 
 ### Arcade AI positioning plan (approved, not implemented)
 The next feature track is a larger shared-core bot AI rework for arcade-style hockey intelligence:
