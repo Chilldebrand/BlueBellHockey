@@ -5,15 +5,19 @@ import {
   DEFAULT_BOT_DIFFICULTY,
   selectBotDecision,
   type BotDifficulty,
-  type PositionalRole
+  type BotIntent
 } from "./decision.js";
 
 /** Roles that hold a station — ease in and settle rather than orbiting it. */
-const STATION_ROLES: ReadonlySet<PositionalRole> = new Set([
-  "attack-slot",
-  "hold-back",
+const SETTLING_INTENTS: ReadonlySet<BotIntent> = new Set([
+  "support",
+  "screen",
+  "stretch",
+  "trail",
   "cover",
-  "protect-net"
+  "protect-slot",
+  "recover",
+  "reset-shape"
 ]);
 
 /**
@@ -36,7 +40,7 @@ export function createBotInputFrame(
   // Arrival damping for station roles: full stick far out, easing to neutral
   // at the spot — otherwise bots overshoot their station and circle it
   // forever. Puck-attacking roles (chase/pressure/carrier) stay full-tilt.
-  const throttle = STATION_ROLES.has(decision.role)
+  const throttle = SETTLING_INTENTS.has(decision.intent)
     ? Math.min(1, Math.hypot(toTarget.x, toTarget.y) / ARRIVAL_RADIUS)
     : 1;
   const direction = normalizeOrZero(toTarget);

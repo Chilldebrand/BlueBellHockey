@@ -49,7 +49,7 @@ export function candidateForIntent(
     case "support":
       return clampToRink({
         x: anchor.x + direction * 300,
-        y: anchor.y + lateral * 260
+        y: anchor.y + lateral * 420
       });
     case "cut":
       return clampToRink({
@@ -157,6 +157,9 @@ function chooseIntent(
       if (tendency === "shooter") {
         return "stretch";
       }
+      if (tendency === "net-drive" && carrierIsDeepInAttack(bot, world, context)) {
+        return "screen";
+      }
       if (tendency === "attack" || tendency === "net-drive") {
         return "cut";
       }
@@ -189,6 +192,24 @@ function isClosestToThreat(
     : null;
 
   return threat ? isClosest(bot, teamSkaters(world, bot), threat.position) : false;
+}
+
+function carrierIsDeepInAttack(
+  bot: SkaterEntity,
+  world: WorldState,
+  context: TacticalContext
+): boolean {
+  const carrier = context.carrierId
+    ? world.skaters.find((skater) => skater.id === context.carrierId) ?? null
+    : null;
+
+  if (!carrier || carrier.teamId !== bot.teamId) {
+    return false;
+  }
+
+  return carrier.teamId === "home"
+    ? carrier.position.x >= RINK_CONFIG.width * 0.72
+    : carrier.position.x <= RINK_CONFIG.width * 0.28;
 }
 
 function distanceToThreat(

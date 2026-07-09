@@ -69,6 +69,7 @@ describe("bot input frames", () => {
     const world = createWorld(1, "arcade3v3");
     const carrier = world.skaters.find((s) => s.id === "home-skater-1")!;
     const slotMan = world.skaters.find((s) => s.id === "home-skater-2")!;
+    slotMan.characterId = "luna-thread";
     world.puck.carrierSlotId = carrier.id;
     carrier.position = { x: 900, y: 500 };
     // Park the slot man exactly at his station; a third mate stays far back so
@@ -79,6 +80,7 @@ describe("bot input frames", () => {
     };
     slotMan.position = { ...slotPositionTarget("home", world) };
     expect(assignTeamRoles(world, "home").get(slotMan.id)).toBe("attack-slot");
+    expect(selectBotDecision(slotMan, world).intent).toBe("support");
 
     // The slot station cycles, so park him exactly on the CURRENT cycled
     // target and confirm he eases off there.
@@ -90,5 +92,23 @@ describe("bot input frames", () => {
     // drives at the net.
     const attacking = createBotInputFrame(carrier, world, 1);
     expect(Math.hypot(attacking.moveX, attacking.moveY)).toBeCloseTo(1);
+  });
+
+  it("keeps a cutting attacker at full throttle near its moving lane", () => {
+    const world = createWorld(1, "arcade3v3");
+    const carrier = world.skaters.find((s) => s.id === "home-skater-1")!;
+    const cutter = world.skaters.find((s) => s.id === "home-skater-2")!;
+    carrier.position = { x: 1800, y: RINK_CONFIG.height / 2 };
+    cutter.characterId = "milo-ghost";
+    world.puck.position = { ...carrier.position };
+    world.puck.carrierSlotId = carrier.id;
+
+    const target = selectBotDecision(cutter, world).moveTarget;
+    cutter.position = { x: target.x - 20, y: target.y };
+
+    const frame = createBotInputFrame(cutter, world, 9);
+
+    expect(selectBotDecision(cutter, world).intent).toBe("cut");
+    expect(Math.hypot(frame.moveX, frame.moveY)).toBeCloseTo(1);
   });
 });

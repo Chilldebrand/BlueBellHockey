@@ -63,6 +63,35 @@ describe("relative AI positions", () => {
     ).toBeGreaterThan(300);
   });
 
+  it("gives a deep carrier a net-front screen and a cross-ice support lane", () => {
+    const world = createWorld(1, "arcade3v3");
+    const carrier = skater(world, "home-skater-1");
+    const screen = skater(world, "home-skater-2");
+    const support = skater(world, "home-skater-3");
+    carrier.position = { x: 2050, y: 560 };
+    screen.position = { x: 1750, y: 760 };
+    support.position = { x: 1500, y: 980 };
+    screen.characterId = "nova-screen";
+    support.characterId = "luna-thread";
+    world.puck.position = { ...carrier.position };
+    world.puck.carrierSlotId = carrier.id;
+    const context = buildTacticalContext(world, "home");
+
+    const screenChoice = chooseBotIntent(screen, world, context);
+    const supportChoice = chooseBotIntent(support, world, context);
+
+    expect(screenChoice.intent).toBe("screen");
+    expect(screenChoice.target.x).toBeGreaterThan(carrier.position.x);
+    expect(supportChoice.intent).toBe("support");
+    expect(supportChoice.target.y).toBeGreaterThan(carrier.position.y);
+    expect(
+      Math.hypot(
+        screenChoice.target.x - supportChoice.target.x,
+        screenChoice.target.y - supportChoice.target.y
+      )
+    ).toBeGreaterThan(250);
+  });
+
   it("rewards an open separated lane over a blocked teammate cluster", () => {
     const world = createWorld(1, "arcade3v3");
     const bot = skater(world, "home-skater-2");

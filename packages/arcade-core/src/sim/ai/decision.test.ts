@@ -166,7 +166,7 @@ describe("bot decision helpers", () => {
     expect(safetyDecision.role).toBe("hold-back");
     expect(supportDecision.intent).toBe("support");
     expect(safetyDecision.intent).toBe("trail");
-    expect(supportDecision.moveTarget).toEqual({ x: 1500, y: 520 });
+    expect(supportDecision.moveTarget).toEqual({ x: 1500, y: 360 });
     expect(safetyDecision.moveTarget).toEqual({ x: 700, y: 590 });
   });
 
