@@ -2,6 +2,34 @@
 
 Paste this into a new chat to continue. Captures full state as of the end of the last session (2026-07-09).
 
+## Paste Into Next Chat
+
+Continue work in `C:\Users\hilde\OneDrive\Desktop\3V3 Hockey Files\BBellHockey` on `main`.
+Read this handoff first. Work only in `packages/arcade-core`, `packages/arcade-server`, and
+`packages/arcade-client`; `packages/shared`, `packages/server`, and `packages/client` are legacy
+prototype references and must not be changed.
+
+Arcade tactical AI work is implemented through commit `f7c5a0f fix(ai): route teammates to pass
+intercepts`, with `main` currently 14 commits ahead of `origin/main`. The implementation covers
+deterministic tactical context, tendencies, relative positioning intents, offense, defense,
+transitions, loose-puck organization, autonomous lane-aware passes/shots, and a pass-reception
+intercept assignment. The pass-reception fix was added after playtesting found that a teammate could
+move away while a pass was in flight: one eligible lane-aligned teammate now claims the remaining
+puck path during the fresh-pass window.
+
+Before further changes, run `git status --short --branch`, `npm test`, `npm run typecheck`, and
+`npm run smoke --workspace @bbh/arcade-server`. The verified baseline at this handoff is 301 passing
+tests (185 arcade-core, 45 arcade-server, 71 arcade-client), typecheck green, and the two-client
+smoke green. A local dev server is running at `http://localhost:5173` with the server on port 2567.
+
+Immediate next step: have the user playtest `f7c5a0f`, especially normal and leading passes to AI
+teammates. If a receiver still leaves a pass, first determine whether the puck trajectory/release
+is the issue or whether `passReceptionTarget` in `arcade-core/src/sim/ai/decision.ts` selects an
+unhelpful intercept. Preserve deterministic sim behavior and add a focused test before tuning.
+
+The historical notes below are useful context but may describe older checkpoints. This section is
+authoritative for the current continuation state.
+
 ## What this project is
 A 3v3 online multiplayer **arcade hockey game** with grounded core physics (NHL-Threes-style skating,
 checking, puck feel) and **NHL-style skill-stick controls** (right stick = puck control). Browser
@@ -21,7 +49,7 @@ superseded, though the underlying skating/checking sim stays grounded.
 ```
 cd "C:\Users\hilde\OneDrive\Desktop\3V3 Hockey Files\BBellHockey"
 npm run dev      # arcade server (ws://localhost:2567) + client (http://localhost:5173)
-npm test         # 277 tests (161 arcade-core / 45 arcade-server / 71 arcade-client)
+npm test         # 301 tests (185 arcade-core / 45 arcade-server / 71 arcade-client)
 npm run typecheck
 npm run smoke --workspace @bbh/arcade-server   # 2-client websocket end-to-end
 ```
@@ -39,8 +67,8 @@ Preferred way to run servers with the assistant: the preview tools + `.claude/la
 ## GIT STATE
 
 **Current status (2026-07-09):** the AI positioning implementation is committed locally through
-`8b90b78`; verify exact branch/push state with `git status --short --branch`. The current verified
-baseline is `npm test` (300), `npm run typecheck`, and the two-client server smoke test.
+`f7c5a0f`; verify exact branch/push state with `git status --short --branch`. The current verified
+baseline is `npm test` (301), `npm run typecheck`, and the two-client server smoke test.
 **Documentation is committed locally** — confirm the exact branch and push state with
 `git status --short --branch` before beginning work. The recent AI planning commits are
 `9629dbe docs(ai): plan arcade positioning system`, `22a2555 docs(ai): add active positioning
@@ -89,6 +117,8 @@ and `positions.ts` produces bounded relative intent targets. `TUNING.ai` is live
   three identical chases.
 - Autonomous passes and shots reject occupied deterministic lanes; powerup, special, input, and
   control-switch contracts remain unchanged.
+- Fresh friendly passes now assign one lane-aligned teammate to a reachable intercept on the remaining
+  puck path, so the receiver does not abandon a normal pass while it is still in flight.
 
 ### NHL-style hitting (stat-driven, tiered)
 `resolveChecks` in `arcade-core/src/sim/actions.ts`: attempts (B button OR right-stick UP-FLICK
