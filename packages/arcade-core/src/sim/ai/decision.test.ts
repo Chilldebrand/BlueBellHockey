@@ -19,7 +19,9 @@ import {
   coverTarget,
   findPassTarget,
   selectBotDecision,
-  slotPositionTarget
+  slotPositionTarget,
+  shouldPass,
+  shouldShoot
 } from "./decision.js";
 
 function skater(world: ReturnType<typeof createWorld>, id: string): SkaterEntity {
@@ -91,7 +93,7 @@ describe("bot decision helpers", () => {
     const defender = skater(world, "away-skater-1");
     carrier.position = { x: 920, y: 500 };
     support.position = { x: 1240, y: 720 };
-    defender.position = { x: 980, y: 510 };
+    defender.position = { x: 960, y: 380 };
     world.puck.carrierSlotId = carrier.id;
 
     const decision = selectBotDecision(carrier, world, alwaysAct);
@@ -100,6 +102,32 @@ describe("bot decision helpers", () => {
     expect(decision.pass).toBe(true);
     expect(decision.switchTarget).toBe(true);
     expect(decision.aimTarget).toEqual(support.position);
+  });
+
+  it("rejects an autonomous pass lane occupied by a defender", () => {
+    const world = createWorld(1, "arcade3v3");
+    const carrier = skater(world, "home-skater-1");
+    const support = skater(world, "home-skater-3");
+    const blocker = skater(world, "away-skater-1");
+    carrier.position = { x: 900, y: 500 };
+    support.position = { x: 1240, y: 720 };
+    blocker.position = { x: 1070, y: 610 };
+    skater(world, "home-skater-2").position = { x: 500, y: 780 };
+    world.puck.carrierSlotId = carrier.id;
+
+    expect(findPassTarget(carrier, world, alwaysAct)).toBeNull();
+    expect(shouldPass(carrier, world, alwaysAct)).toBe(false);
+  });
+
+  it("rejects an autonomous shot lane occupied by a defender", () => {
+    const world = createWorld(1, "arcade3v3");
+    const carrier = skater(world, "home-skater-1");
+    const blocker = skater(world, "away-skater-1");
+    carrier.position = { x: 2100, y: RINK_CONFIG.height / 2 };
+    blocker.position = { x: 2260, y: RINK_CONFIG.height / 2 };
+    world.puck.carrierSlotId = carrier.id;
+
+    expect(shouldShoot(carrier, world, alwaysAct)).toBe(false);
   });
 
   it("spreads the attacking team into carrier + attack-slot + hold-back", () => {

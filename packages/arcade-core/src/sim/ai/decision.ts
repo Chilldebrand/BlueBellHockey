@@ -1,6 +1,7 @@
 import { POWERUP_PICKUP_RADIUS } from "../../config/powerups.js";
 import { RINK_CONFIG, goalLineX } from "../../config/rink.js";
 import type { TeamId } from "../../config/teams.js";
+import { TUNING } from "../../config/tuning.js";
 import { CHECK_CONFIG } from "../actions.js";
 import type { SkaterEntity, Vec2, WorldState } from "../types.js";
 import {
@@ -504,7 +505,8 @@ export function shouldShoot(
   const shotRange = SLOT_SHOT_RANGE * difficulty.shotAggression;
   return (
     distance(bot.position, goal) <= shotRange &&
-    Math.abs(bot.position.y - goal.y) <= SLOT_Y_RANGE
+    Math.abs(bot.position.y - goal.y) <= SLOT_Y_RANGE &&
+    isLaneOpen(bot.teamId, bot.position, goal, world)
   );
 }
 
@@ -664,6 +666,7 @@ export function findPassTarget(
       forward >= 80 * difficulty.passWillingness &&
       laneWidth >= 70 &&
       separation <= 520 &&
+      isPassingLaneOpen(bot, teammate, world) &&
       score > bestScore
     ) {
       best = teammate;
@@ -672,6 +675,28 @@ export function findPassTarget(
   }
 
   return best;
+}
+
+function isPassingLaneOpen(
+  passer: SkaterEntity,
+  receiver: SkaterEntity,
+  world: WorldState
+): boolean {
+  return isLaneOpen(passer.teamId, passer.position, receiver.position, world);
+}
+
+function isLaneOpen(
+  attackingTeamId: TeamId,
+  start: Vec2,
+  end: Vec2,
+  world: WorldState
+): boolean {
+  return !world.skaters.some(
+    (candidate) =>
+      candidate.teamId !== attackingTeamId &&
+      distanceToSegment(candidate.position, start, end) <=
+        TUNING.ai.openLaneBlockRadius
+  );
 }
 
 export function needsRecoveryTurbo(
@@ -786,4 +811,27 @@ function clampToRink(position: Vec2): Vec2 {
 
 function distance(a: Vec2, b: Vec2): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function distanceToSegment(point: Vec2, start: Vec2, end: Vec2): number {
+  const segmentX = end.x - start.x;
+  const segmentY = end.y - start.y;
+  const segmentLengthSquared = segmentX * segmentX + segmentY * segmentY;
+
+  if (segmentLengthSquared === 0) {
+    return distance(point, start);
+  }
+
+  const projection = Math.max(
+    0,
+    Math.min(
+      1,
+      ((point.x - start.x) * segmentX + (point.y - start.y) * segmentY) /
+        segmentLengthSquared
+    )
+  );
+  return distance(point, {
+    x: start.x + segmentX * projection,
+    y: start.y + segmentY * projection
+  });
 }

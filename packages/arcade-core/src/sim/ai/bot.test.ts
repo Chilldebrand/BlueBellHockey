@@ -52,7 +52,7 @@ describe("bot input frames", () => {
 
     bot.position = { x: 900, y: 500 };
     support.position = { x: 1220, y: 700 };
-    defender.position = { x: 960, y: 500 };
+    defender.position = { x: 960, y: 380 };
     world.puck.carrierSlotId = bot.id;
 
     const frame = createBotInputFrame(bot, world, 8, {
