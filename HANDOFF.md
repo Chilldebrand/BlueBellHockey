@@ -37,9 +37,12 @@ Preferred way to run servers with the assistant: the preview tools + `.claude/la
 > `npm run build:arcade-core` + an arcade-server restart to reach ONLINE play (Free Skate aliases core src).
 
 ## GIT STATE
-**Everything is committed AND pushed** — clean tree, `main` in sync with origin (HEAD `23c8505`).
-All green: `npm test` (277), `npm run typecheck`, smoke. Stale merged branches
-`DalesMajorPLan` / `arcade-hockey-game-i4zwau` are fully contained in `main` (safe to prune).
+**Everything is committed** — clean tree, `main` is two documentation commits ahead of origin
+(HEAD `22a2555`). The commits are `9629dbe docs(ai): plan arcade positioning system` and
+`22a2555 docs(ai): add active positioning work orders`. They have not been pushed yet.
+The last verified gameplay baseline remains `npm test` (277), `npm run typecheck`, and smoke green.
+Stale merged branches `DalesMajorPLan` / `arcade-hockey-game-i4zwau` are fully contained in `main`
+(safe to prune).
 
 ## Feature state (everything shipped, newest last)
 
@@ -171,6 +174,18 @@ but a neutral full slap with `slapLiftSpeed 860` peaked ~83. Dropped to **680** 
 ~52 (one-timers ~69), scores clean; aiming UP is now what risks the bar for top-shelf. A slap is
 HARDER (faster) not loftier — the gestures-test invariant was updated to match, plus a puck regression
 test asserts a neutral full slap stays under the scoring ceiling.
+
+### Arcade AI positioning plan (approved, not implemented)
+The next feature track is a larger shared-core bot AI rework for arcade-style hockey intelligence:
+hybrid human support plus independent team play, fluid role tendencies, bounded awareness, situational
+defensive pressure, and autonomous passes/shots when the opportunity is clear. The approved design is
+`docs/superpowers/specs/2026-07-09-arcade-ai-positioning-design.md`; the execution plan is
+`docs/superpowers/plans/2026-07-09-arcade-ai-positioning.md`.
+
+Seven active work orders now break the work into tactical context, role tendencies/spacing, offensive
+movement, defensive positioning, transitions/loose pucks, autonomous actions, and final tuning. Start
+with `docs/workorders/WO-AI-00-tactical-context.md`, then follow the dependency sequence in
+`docs/workorders/README.md`. This work is deliberately not implemented yet.
 
 ## Controls (current)
 Gamepad: Left stick skate, **Right stick = skill stick** (up-flick = wrist shot with puck, HIT
