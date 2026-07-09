@@ -16,6 +16,17 @@ export interface TuningFlags {
   readonly specialsEnabled: boolean;
 }
 
+/** Live knobs for deterministic arcade AI context and intent selection. */
+export interface AiTuning {
+  readonly awarenessRange: number;
+  readonly reactionDelayMs: number;
+  readonly transitionWindowMs: number;
+  readonly loosePuckContestMargin: number;
+  readonly pressureRange: number;
+  readonly openLaneBlockRadius: number;
+  readonly intentSwitchHysteresis: number;
+}
+
 /**
  * Every gameplay-feel constant, grouped by system. The sim step functions read
  * the live TUNING object each tick, so a dev tuning panel can mutate values
@@ -31,6 +42,7 @@ export interface Tuning {
   readonly check: CheckConfig;
   readonly collision: CollisionConfig;
   readonly goalie: GoalieConfig;
+  readonly ai: AiTuning;
   readonly flags: TuningFlags;
 }
 
@@ -42,6 +54,7 @@ type MutableTuning = {
   check: Mutable<CheckConfig>;
   collision: Mutable<CollisionConfig>;
   goalie: Mutable<GoalieConfig>;
+  ai: Mutable<AiTuning>;
   flags: Mutable<TuningFlags>;
 };
 
@@ -54,6 +67,15 @@ function buildDefaults(): MutableTuning {
     check: { ...CHECK_CONFIG },
     collision: { ...COLLISION_CONFIG },
     goalie: { ...GOALIE_CONFIG },
+    ai: {
+      awarenessRange: 900,
+      reactionDelayMs: 180,
+      transitionWindowMs: 700,
+      loosePuckContestMargin: 120,
+      pressureRange: 300,
+      openLaneBlockRadius: 90,
+      intentSwitchHysteresis: 0.15
+    },
     // Arcade powerups are now live (speed, hard-shot, freeze, big-hit,
     // mini/giant goalie + banana-peel hazards). Character specials stay
     // dormant until that system is designed out.
@@ -97,6 +119,7 @@ export function snapshotTuning(): Tuning {
     check: { ...TUNING.check },
     collision: { ...TUNING.collision },
     goalie: { ...TUNING.goalie },
+    ai: { ...TUNING.ai },
     flags: { ...TUNING.flags }
   };
 }

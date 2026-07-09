@@ -21,15 +21,34 @@ describe("tuning", () => {
   });
 
   it("applies overrides and resets back to defaults", () => {
-    applyTuning({ skater: { maxSpeed: 999 }, flags: { powerupsEnabled: false } });
+    applyTuning({
+      skater: { maxSpeed: 999 },
+      flags: { powerupsEnabled: false },
+      ai: { awarenessRange: 777, reactionDelayMs: 99 }
+    });
 
     expect(TUNING.skater.maxSpeed).toBe(999);
     expect(TUNING.flags.powerupsEnabled).toBe(false);
+    expect(TUNING.ai.awarenessRange).toBe(777);
+    expect(TUNING.ai.reactionDelayMs).toBe(99);
     expect(DEFAULT_TUNING.skater.maxSpeed).not.toBe(999);
 
     resetTuning();
 
     expect(snapshotTuning()).toEqual(DEFAULT_TUNING);
+  });
+
+  it("exposes deterministic AI awareness and state thresholds", () => {
+    expect(DEFAULT_TUNING.ai).toEqual({
+      awarenessRange: 900,
+      reactionDelayMs: 180,
+      transitionWindowMs: 700,
+      loosePuckContestMargin: 120,
+      pressureRange: 300,
+      openLaneBlockRadius: 90,
+      intentSwitchHysteresis: 0.15
+    });
+    expect(Object.isFrozen(DEFAULT_TUNING.ai)).toBe(true);
   });
 
   it("feeds live values into the world step", () => {
