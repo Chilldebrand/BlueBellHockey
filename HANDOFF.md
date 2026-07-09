@@ -1,11 +1,15 @@
 # 3v3 Arcade Hockey — Session Handoff
 
-Paste this into a new chat to continue. Captures full state as of the end of the last session (2026-07-07).
+Paste this into a new chat to continue. Captures full state as of the end of the last session (2026-07-09).
 
 ## What this project is
-A **grounded 3v3 online multiplayer arcade hockey game** (NHL-Threes feel, NOT NHL-Street) with
-**NHL-style skill-stick controls** (right stick = puck control). Browser game: TypeScript, Three.js +
-react-three-fiber client, authoritative Colyseus server, deterministic shared sim.
+A 3v3 online multiplayer **arcade hockey game** with grounded core physics (NHL-Threes-style skating,
+checking, puck feel) and **NHL-style skill-stick controls** (right stick = puck control). Browser
+game: TypeScript, Three.js + react-three-fiber client, authoritative Colyseus server, deterministic
+shared sim.
+**As of 2026-07-09 the direction moved arcade-ward:** powerups + banana-peel hazards are now LIVE and
+being actively expanded (see the powerups section) — the earlier "grounded, NO powerups" framing is
+superseded, though the underlying skating/checking sim stays grounded.
 
 - **Repo:** `https://github.com/richey1406-prog/BBellHockey.git`
 - **Working dir:** `C:\Users\hilde\OneDrive\Desktop\3V3 Hockey Files\BBellHockey`
@@ -17,7 +21,7 @@ react-three-fiber client, authoritative Colyseus server, deterministic shared si
 ```
 cd "C:\Users\hilde\OneDrive\Desktop\3V3 Hockey Files\BBellHockey"
 npm run dev      # arcade server (ws://localhost:2567) + client (http://localhost:5173)
-npm test         # 263 tests (147 arcade-core / 45 arcade-server / 71 arcade-client)
+npm test         # 277 tests (161 arcade-core / 45 arcade-server / 71 arcade-client)
 npm run typecheck
 npm run smoke --workspace @bbh/arcade-server   # 2-client websocket end-to-end
 ```
@@ -33,8 +37,9 @@ Preferred way to run servers with the assistant: the preview tools + `.claude/la
 > `npm run build:arcade-core` + an arcade-server restart to reach ONLINE play (Free Skate aliases core src).
 
 ## GIT STATE
-**Everything is committed AND pushed** — clean tree, `main` in sync with origin.
-All green: `npm test` (263), `npm run typecheck`, smoke.
+**Everything is committed AND pushed** — clean tree, `main` in sync with origin (HEAD `23c8505`).
+All green: `npm test` (277), `npm run typecheck`, smoke. Stale merged branches
+`DalesMajorPLan` / `arcade-hockey-game-i4zwau` are fully contained in `main` (safe to prune).
 
 ## Feature state (everything shipped, newest last)
 
@@ -112,12 +117,60 @@ scoreboard top-left: BLU [44px digits] clock RED.
 - **Slap +20%:** maxChargedShotSpeed 1980. **Passes +20%:** passSpeed 1080, passChargeSpeedBonus 456.
 - **Loose-puck magnetism:** pickupRadius 60, pickupMaxRelativeSpeed 1000 (turbo=840 used to
   DEFLECT a resting puck — that was the skate-over-the-puck bug).
-- Shot lift (earlier fix): wristLiftSpeed 660, slapLiftSpeed 860 vs gravity 2300, GOAL_HEIGHT 95 —
+- Shot lift: wristLiftSpeed 660, **slapLiftSpeed 680** (was 860 — see crossbar fix below) vs
+  gravity 2300, GOAL_HEIGHT 95. A shot only scores below height 77 (GOAL_HEIGHT − puck radius 18);
   top-shelf wrist ≈ crossbar; aim-down stays low.
 - Emergent: skaters in a shooting lane can now catch slower wrist shots mid-flight (plays as
   tips/blocks; add a shot exception if the user dislikes it).
 - Check tiers calibrated (kip-hook neutral): standstill 130 bump / cruise ~830 stumble+strip /
   turbo ~1180 knockdown / anchored knockdown threshold 1200.
+
+### Arcade powerups — NOW LIVE (2026-07-09) — DIRECTION SHIFT
+Powerups were previously "cut from the roadmap" and flagged OFF. The user reversed that: they're a
+**functional, enabled-by-default arcade feature** now (`TUNING.flags.powerupsEnabled: true` in
+`config/tuning.ts`; character `specialsEnabled` stays false). They spawn every 9s at 3 rink points.
+The system had a latent bug — activation pushed to `world.activePowerups` but NOTHING read it — fixed
+by `hasActivePowerup(world, slotId, type)` in `sim/powerups.ts`, which every sustained effect consumes.
+Current pool (6), all in `config/powerups.ts` + effects across the sim:
+- **speed-boost** — instant velocity kick + turbo fill AND sustained ×1.25 top-speed/accel for 3.6s
+  (`SPEED_BOOST_MULTIPLIER` in skater.ts; flag read in world.ts step loop).
+- **hard-shot** — ×1.35 shot speed for 4.3s (`HARD_SHOT_MULTIPLIER` in puck.ts `releaseGestureShot`).
+- **freeze** — ice-blocks a **deterministically random opponent** (seed-based pick, replay-safe) for 5s
+  and pops their puck. New `"frozen"` contactState (skater.ts hard-locks it; `recoverContactStates`
+  thaws it). `freezeRandomOpponent` in powerups.ts.
+- **bulldozer** ("Big Hit") — ×2.5 check force AND any contact = knockdown, no bounce-off, for 4s
+  (`BULLDOZER_FORCE_MULTIPLIER` in actions.ts `resolveHit`).
+- **mini-goalie** / **giant-goalie** — shrink the ENEMY goalie (×0.45, 8s) / grow YOUR OWN goalie
+  (×2.2, 10s). Single source of truth `goalieSizeMultiplier(world, goalieTeamId)` in goalie.ts scales
+  BOTH the save reach (`resolveGoalieSave`) and the rendered model (`Scene.tsx` goalie group scale).
+- Removed: puck-magnet, shield. Bots decide usage in `shouldUseHeldPowerup` (decision.ts).
+- Client: each drop is a **themed procedural icon** (rocket/flaming-puck/snowflake/barbell/goalie-mask),
+  floating + spinning, in `render/Powerups.tsx`; HUD shows friendly labels (`PowerupHud`); freeze VFX;
+  freeze `"frozen"` renders a translucent ice-block in `CharacterModel.tsx`.
+
+### Banana peel hazard (2026-07-09)
+NOT a held/thrown powerup — a **hazard that spawns on the powerup cadence** (every 3rd spawn, via
+`isBananaSpawn` in config/powerups.ts) and rests on the ice. First skater to skate within
+`BANANA_TRIP_RADIUS` wipes out (full knockdown + drops puck); peels rot after `BANANA_LIFETIME_MS`.
+New `world.bananaPeels` array (types.ts) rides the existing full-world snapshot — no server schema
+work. Logic in `stepBananaPeels` (powerups.ts, gated by powerupsEnabled). Rendered flat as a yellow
+C-curve in `render/Powerups.tsx` (`BananaPeels`); "Slip!" VFX.
+
+### Skater posture + striding legs (2026-07-09)
+Fixed a backwards lean (SIGN bug: body authored facing +Z inside the +90° forward correction, so
+POSITIVE pitch = lean toward travel; turbo/shot/check poses were authored negative). `skaterPose` in
+`CharacterModel.tsx` now leans forward with a baseline crouch that deepens with effort, hinged at the
+hips (`HIP_PIVOT_Y`, not the ice) with the stick-arm shoulders following the pitch. Legs now STRIDE:
+a `useFrame` scissor/lift/kick cycle whose cadence tracks the skater's real sim speed (threaded via a
+new `speed` prop from `SkaterDebug.tsx`), easing in above `STRIDE_MIN_SPEED` and back to the glide
+stance when coasting; per-skater random phase (render-only, sim untouched). Tuning consts `STRIDE_*`.
+
+### Slapshot crossbar fix (2026-07-09)
+Every neutral slapper clanged the bar: a shot only scores below height 77 (GOAL_HEIGHT 95 − radius 18),
+but a neutral full slap with `slapLiftSpeed 860` peaked ~83. Dropped to **680** → neutral slap peaks
+~52 (one-timers ~69), scores clean; aiming UP is now what risks the bar for top-shelf. A slap is
+HARDER (faster) not loftier — the gestures-test invariant was updated to match, plus a puck regression
+test asserts a neutral full slap stays under the scoring ceiling.
 
 ## Controls (current)
 Gamepad: Left stick skate, **Right stick = skill stick** (up-flick = wrist shot with puck, HIT
@@ -127,9 +180,12 @@ Keyboard: WASD move, IJKL/mouse stick, Space simple shot, F pass, G check, R pok
 Shots auto-aim at the net; LEFT stick at release places them (sides/high/low).
 
 ## Known next steps / open questions
-- **User feel passes owed** on basically everything visual/AI from the last two sessions: offense
-  shape (point man + slot cycling), hitting tiers, goalie-vs-shot balance after the mutual +20%,
-  body types (knobs in `bodyScaleForCharacter`), jersey text size (`JerseyBack`), highlight discs.
+- **User feel passes owed** on the whole 2026-07-09 batch: powerup strengths/durations (all named
+  consts), goalie resize factors, banana trip radius/lifetime, forward-lean depth + stride cadence
+  (`STRIDE_*`), slap lift 680, and the pickup-icon look (procedural in `render/Powerups.tsx`). Also
+  still owed from prior sessions: offense shape, hitting tiers, body types, jersey text, highlight discs.
+- **Powerup constants** are code-level named consts, NOT in Feel Lab yet — fold into TUNING if the
+  user wants to live-tune them. Character `specials` system is still dormant (`specialsEnabled: false`).
 - **Puck-carrier cue:** gold possession ring was removed by request. If the user misses knowing who
   has the puck (esp. on defense), add a subtle non-identity cue.
 - **Online with a friend:** works via cloudflared quick tunnels (done live once):
