@@ -7,6 +7,7 @@ import {
   buildTacticalContext,
   type TacticalState
 } from "./tactics.js";
+import { chooseBotIntent } from "./positions.js";
 
 /**
  * Positional roles, assigned per TEAM per tick (see computeTeamPlan) so the
@@ -120,10 +121,12 @@ export function selectBotDecision(
   const context = buildTacticalContext(world, bot.teamId);
   const plan = computeTeamPlan(world, bot.teamId);
   const role = plan.roles.get(bot.id) ?? "hold-back";
-  const intent = intentForRole(role);
+  const intentChoice = chooseBotIntent(bot, world, context);
   const moveTarget =
     choosePickupTarget(bot, world, difficulty) ??
-    targetForPlannedRole(bot, world, role, plan);
+    (role === "cover"
+      ? targetForPlannedRole(bot, world, role, plan)
+      : intentChoice.target);
   const pass = shouldPass(bot, world, difficulty);
   const passTarget = pass ? findPassTarget(bot, world, difficulty) : null;
   const shoot = !pass && shouldShoot(bot, world, difficulty);
@@ -134,12 +137,9 @@ export function selectBotDecision(
   return {
     role,
     state: context.state,
-    intent,
-    reason: `${context.state}:${intent}`,
-    decisionScore:
-      context.pressureBySlotId.get(bot.id) ??
-      context.openLaneScores.get(bot.id) ??
-      0,
+    intent: intentChoice.intent,
+    reason: `${context.state}:${intentChoice.intent}`,
+    decisionScore: intentChoice.score,
     intentChangedAtMs: world.time.nowMs,
     moveTarget,
     aimTarget: aimTargetForDecision({
@@ -160,25 +160,6 @@ export function selectBotDecision(
     usePowerup,
     special
   };
-}
-
-function intentForRole(role: PositionalRole): BotIntent {
-  switch (role) {
-    case "carrier":
-      return "carry";
-    case "chase":
-      return "challenge-loose-puck";
-    case "attack-slot":
-      return "support";
-    case "hold-back":
-      return "trail";
-    case "pressure":
-      return "pressure";
-    case "cover":
-      return "cover";
-    case "protect-net":
-      return "protect-slot";
-  }
 }
 
 export const selectBotRole = chooseBotRole;

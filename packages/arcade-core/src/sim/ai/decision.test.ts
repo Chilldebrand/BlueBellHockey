@@ -120,17 +120,15 @@ describe("bot decision helpers", () => {
     expect(roles.get("home-skater-2")).toBe("attack-slot");
     expect(roles.get("home-skater-3")).toBe("hold-back");
 
-    // Slot man works the high slot in front of the away net (cycling around
-    // it to get open), not the carrier; the trailer stays behind the play at
-    // defensive depth for this mid-ice puck.
+    // The attack-slot compatibility role now uses a relative scoring cut,
+    // while the trailer remains behind the puck as the safety option.
     const slotDecision = selectBotDecision(
       skater(world, "home-skater-2"),
       world,
       alwaysAct
     );
-    expect(
-      Math.abs(slotDecision.moveTarget.x - (goalLineX("away") - SLOT_DEPTH))
-    ).toBeLessThanOrEqual(SLOT_CYCLE_RADIUS_X);
+    expect(slotDecision.intent).toBe("cut");
+    expect(slotDecision.moveTarget.x).toBeGreaterThan(900);
 
     const safetyDecision = selectBotDecision(
       skater(world, "home-skater-3"),
@@ -145,7 +143,34 @@ describe("bot decision helpers", () => {
     );
   });
 
-  it("cycles the slot man around the high slot instead of parking him", () => {
+  it("uses relative tendency targets while preserving compatible role labels", () => {
+    const world = createWorld(1, "arcade3v3");
+    const carrier = skater(world, "home-skater-1");
+    const support = skater(world, "home-skater-2");
+    const safety = skater(world, "home-skater-3");
+    carrier.characterId = "rook-rocket";
+    support.characterId = "luna-thread";
+    safety.characterId = "orin-pads";
+    placeAll(world, {
+      [carrier.id]: { x: 1200, y: 780 },
+      [support.id]: { x: 900, y: 500 },
+      [safety.id]: { x: 700, y: 1050 }
+    });
+    world.puck.position = { ...carrier.position };
+    world.puck.carrierSlotId = carrier.id;
+
+    const supportDecision = selectBotDecision(support, world, alwaysAct);
+    const safetyDecision = selectBotDecision(safety, world, alwaysAct);
+
+    expect(supportDecision.role).toBe("attack-slot");
+    expect(safetyDecision.role).toBe("hold-back");
+    expect(supportDecision.intent).toBe("support");
+    expect(safetyDecision.intent).toBe("trail");
+    expect(supportDecision.moveTarget).toEqual({ x: 1500, y: 520 });
+    expect(safetyDecision.moveTarget).toEqual({ x: 700, y: 590 });
+  });
+
+  it("keeps a relative cut stable instead of orbiting a fixed slot", () => {
     const world = createWorld(1, "arcade3v3");
     placeAll(world, {
       "home-skater-1": { x: 900, y: 500 },
@@ -159,19 +184,17 @@ describe("bot decision helpers", () => {
       world,
       alwaysAct
     ).moveTarget;
-    world.time.nowMs += 2500; // ~half a cycle later
+    world.time.nowMs += 2500;
     const later = selectBotDecision(
       skater(world, "home-skater-2"),
       world,
       alwaysAct
     ).moveTarget;
 
-    expect(
-      Math.hypot(later.x - early.x, later.y - early.y)
-    ).toBeGreaterThan(100);
+    expect(later).toEqual(early);
   });
 
-  it("advances the trailer to the offensive point when the attack is deep", () => {
+  it("keeps a safety tendency trailing a deep attack", () => {
     const world = createWorld(1, "arcade3v3");
     placeAll(world, {
       "home-skater-1": { x: 2350, y: 700 }, // carrier deep in the attack
@@ -180,17 +203,16 @@ describe("bot decision helpers", () => {
     });
     world.puck.carrierSlotId = "home-skater-1";
     world.puck.position = { x: 2350, y: 700 };
+    skater(world, "home-skater-3").characterId = "orin-pads";
 
     const trailer = selectBotDecision(
       skater(world, "home-skater-3"),
       world,
       alwaysAct
     );
-    // Point man: past center, parked around the offensive blue line.
     expect(trailer.role).toBe("hold-back");
-    expect(trailer.moveTarget.x).toBe(
-      RINK_CONFIG.width / 2 + POINT_LINE_OFFSET
-    );
+    expect(trailer.intent).toBe("trail");
+    expect(trailer.moveTarget.x).toBe(1850);
   });
 
   it("pressures and checks opposing puck carriers", () => {
