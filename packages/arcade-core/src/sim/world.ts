@@ -109,6 +109,7 @@ export function createWorld(
     }),
     powerupPickups: [],
     bananaPeels: [],
+    lastPowerupSpawnIndex: -1,
     activePowerups: [],
     eventQueue: []
   };

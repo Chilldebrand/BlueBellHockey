@@ -226,6 +226,7 @@ export interface WorldState {
   puck: PuckState;
   powerupPickups: PowerupPickup[];
   bananaPeels: BananaPeel[];
+  lastPowerupSpawnIndex: number;
   activePowerups: ActivePowerup[];
   eventQueue: WorldEvent[];
 }

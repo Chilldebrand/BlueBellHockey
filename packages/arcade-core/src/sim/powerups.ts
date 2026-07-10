@@ -46,17 +46,19 @@ export function stepPowerups(
 }
 
 function spawnPowerups(world: WorldState): void {
-  const spawnIndex = Math.floor(world.time.nowMs / POWERUP_SPAWN_INTERVAL_MS);
-  // One object per spawn index across BOTH lists, so re-entering the same
-  // interval doesn't double-spawn a powerup or a peel.
-  const alreadySpawned =
-    world.powerupPickups.some((pickup) => pickup.id.includes(`spawn-${spawnIndex}`)) ||
-    world.bananaPeels.some((peel) => peel.id.includes(`spawn-${spawnIndex}`));
-
-  if (world.time.nowMs === 0 || alreadySpawned) {
-    return;
+  const latestDueIndex =
+    Math.floor(world.time.nowMs / POWERUP_SPAWN_INTERVAL_MS) - 1;
+  for (
+    let spawnIndex = world.lastPowerupSpawnIndex + 1;
+    spawnIndex <= latestDueIndex;
+    spawnIndex += 1
+  ) {
+    spawnPowerupAtIndex(world, spawnIndex);
+    world.lastPowerupSpawnIndex = spawnIndex;
   }
+}
 
+function spawnPowerupAtIndex(world: WorldState, spawnIndex: number): void {
   const point = POWERUP_SPAWN_POINTS[spawnIndex % POWERUP_SPAWN_POINTS.length];
   if (!point) {
     return;

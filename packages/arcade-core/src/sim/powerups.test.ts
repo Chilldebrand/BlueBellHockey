@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   BANANA_LIFETIME_MS,
+  POWERUP_SPAWN_INTERVAL_MS,
   POWERUP_SPAWN_POINTS
 } from "../config/powerups.js";
 import { applyTuning, resetTuning } from "../config/tuning.js";
@@ -43,16 +44,35 @@ function playingWorld(): WorldState {
 }
 
 describe("powerup simulation", () => {
-  it("spawns deterministic rink pickups on cadence", () => {
+  it("does not spawn before the first cadence boundary", () => {
     const world = playingWorld();
+    world.time.nowMs = POWERUP_SPAWN_INTERVAL_MS - 1;
+    stepWorld(world, [], 1);
+    expect(world.powerupPickups).toHaveLength(0);
+    expect(world.bananaPeels).toHaveLength(0);
+    expect(world.lastPowerupSpawnIndex).toBe(-1);
+  });
 
-    stepWorld(world, [], 10000);
+  it("processes every due spawn index once even after objects are removed", () => {
+    const world = playingWorld();
+    world.time.nowMs = POWERUP_SPAWN_INTERVAL_MS * 3;
     stepWorld(world, [], 16);
-
-    expect(world.powerupPickups[0]).toMatchObject({
-      type: "freeze",
-      position: POWERUP_SPAWN_POINTS[1]
-    });
+    expect(world.lastPowerupSpawnIndex).toBe(2);
+    expect(
+      world.eventQueue.filter(
+        (event) =>
+          event.type === "powerupSpawn" || event.type === "bananaSpawn"
+      )
+    ).toHaveLength(3);
+    world.powerupPickups = [];
+    world.bananaPeels = [];
+    stepWorld(world, [], 16);
+    expect(
+      world.eventQueue.filter(
+        (event) =>
+          event.type === "powerupSpawn" || event.type === "bananaSpawn"
+      )
+    ).toHaveLength(3);
   });
 
   it("lets a skater pick up and consume one valid powerup", () => {
