@@ -72,7 +72,7 @@ function spawnPowerupAtIndex(world: WorldState, spawnIndex: number): void {
       spawnedAtMs: world.time.nowMs
     });
     world.eventQueue.push({
-      id: `banana-spawn-${world.time.tick}`,
+      id: `banana-spawn-${world.time.tick}-${spawnIndex}`,
       type: "bananaSpawn",
       atMs: world.time.nowMs
     });
@@ -87,7 +87,7 @@ function spawnPowerupAtIndex(world: WorldState, spawnIndex: number): void {
     spawnedAtMs: world.time.nowMs
   });
   world.eventQueue.push({
-    id: `powerup-spawn-${world.time.tick}`,
+    id: `powerup-spawn-${world.time.tick}-${spawnIndex}`,
     type: "powerupSpawn",
     atMs: world.time.nowMs,
     targetSlotId: type

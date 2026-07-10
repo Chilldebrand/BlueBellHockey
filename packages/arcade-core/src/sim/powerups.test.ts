@@ -53,26 +53,54 @@ describe("powerup simulation", () => {
     expect(world.lastPowerupSpawnIndex).toBe(-1);
   });
 
-  it("processes every due spawn index once even after objects are removed", () => {
+  it("processes due spawn indices in order with unique scheduler event ids", () => {
     const world = playingWorld();
-    world.time.nowMs = POWERUP_SPAWN_INTERVAL_MS * 3;
-    stepWorld(world, [], 16);
-    expect(world.lastPowerupSpawnIndex).toBe(2);
+    world.time.nowMs = POWERUP_SPAWN_INTERVAL_MS;
+    stepWorld(world, [], 1);
+    expect(world.lastPowerupSpawnIndex).toBe(0);
+    expect(world.powerupPickups.map((pickup) => pickup.id)).toEqual([
+      "powerup-spawn-0-hard-shot"
+    ]);
     expect(
-      world.eventQueue.filter(
+      world.eventQueue
+        .filter((event) => event.type === "powerupSpawn")
+        .map((event) => event.id)
+    ).toEqual(["powerup-spawn-0-0"]);
+
+    world.time.nowMs = POWERUP_SPAWN_INTERVAL_MS * 9;
+    stepWorld(world, [], 1);
+    expect(world.lastPowerupSpawnIndex).toBe(8);
+    const schedulerEventIds = world.eventQueue
+      .filter(
         (event) =>
           event.type === "powerupSpawn" || event.type === "bananaSpawn"
       )
-    ).toHaveLength(3);
+      .map((event) => event.id);
+    expect(schedulerEventIds).toEqual([
+      "powerup-spawn-1-1",
+      "banana-spawn-1-2",
+      "powerup-spawn-1-3",
+      "powerup-spawn-1-4",
+      "banana-spawn-1-5",
+      "powerup-spawn-1-6",
+      "powerup-spawn-1-7",
+      "banana-spawn-1-8"
+    ]);
+    expect(new Set(schedulerEventIds).size).toBe(schedulerEventIds.length);
+
     world.powerupPickups = [];
     world.bananaPeels = [];
-    stepWorld(world, [], 16);
+    stepWorld(world, [], 1);
+    expect(world.powerupPickups).toEqual([]);
+    expect(world.bananaPeels).toEqual([]);
     expect(
-      world.eventQueue.filter(
-        (event) =>
-          event.type === "powerupSpawn" || event.type === "bananaSpawn"
-      )
-    ).toHaveLength(3);
+      world.eventQueue
+        .filter(
+          (event) =>
+            event.type === "powerupSpawn" || event.type === "bananaSpawn"
+        )
+        .map((event) => event.id)
+    ).toEqual(schedulerEventIds);
   });
 
   it("lets a skater pick up and consume one valid powerup", () => {
