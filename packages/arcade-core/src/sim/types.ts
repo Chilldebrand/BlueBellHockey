@@ -30,8 +30,9 @@ export interface InputFrame {
   readonly poke?: boolean;
   /** Block shot: dive/lay out in the facing direction (defense). */
   readonly dive?: boolean;
-  /** Deferred systems (powerups/specials) — legacy fields, not sent on the wire. */
+  /** Activate the player's held powerup. */
   readonly usePowerup?: boolean;
+  /** Deferred special-action system — legacy field, not sent on the wire. */
   readonly special?: boolean;
 }
 

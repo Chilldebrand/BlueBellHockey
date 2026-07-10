@@ -22,6 +22,7 @@ function inputMessage(
     readonly moveY: number;
     readonly stickX: number;
     readonly stickY: number;
+    readonly usePowerup: boolean;
   }> = {}
 ): {
   readonly type: "client.input";
@@ -37,6 +38,7 @@ function inputMessage(
     readonly check: boolean;
     readonly turbo: boolean;
     readonly switchTarget: boolean;
+    readonly usePowerup: boolean;
   };
 } {
   return {
@@ -53,6 +55,7 @@ function inputMessage(
       check: false,
       turbo: false,
       switchTarget: false,
+      usePowerup: false,
       ...overrides
     }
   };
@@ -519,6 +522,33 @@ describe("ArcadeRoom", () => {
     expect(sender).toHaveBeenCalledWith(clientA, "server.error", {
       message: "Invalid input."
     });
+  });
+
+  it("preserves only literal true powerup activation from client input", () => {
+    const room = createTestRoom();
+    const clientA = client("session-a");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(clientA as never, { playerName: "Ada" });
+
+    room["handleInput"](
+      clientA as never,
+      inputMessage(1, { usePowerup: true })
+    );
+
+    expect(
+      room["latestInputBySession"].get("session-a")?.usePowerup
+    ).toBe(true);
+
+    room["handleInput"](
+      clientA as never,
+      inputMessage(2, {
+        usePowerup: "true" as unknown as boolean
+      })
+    );
+
+    expect(
+      room["latestInputBySession"].get("session-a")?.usePowerup
+    ).toBe(false);
   });
 
   it("uses fixed simulation ticks and retains held input until superseded", () => {

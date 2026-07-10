@@ -636,6 +636,7 @@ function getClientInputFrame(message: unknown): InputFrame | null {
     turbo: candidate.turbo === true,
     switchTarget: candidate.switchTarget === true,
     poke: candidate.poke === true,
-    dive: candidate.dive === true
+    dive: candidate.dive === true,
+    usePowerup: candidate.usePowerup === true
   };
 }
