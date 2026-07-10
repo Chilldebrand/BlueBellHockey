@@ -9,6 +9,18 @@ import {
 import { createBotInputFrame } from "./bot.js";
 
 describe("bot input frames", () => {
+  it("delivers bot powerup decisions in input frames", () => {
+    const world = createWorld(1, "arcade3v3");
+    const holder = world.skaters.find((skater) => skater.id === "home-skater-1")!;
+    const noPowerup = world.skaters.find((skater) => skater.id === "home-skater-2")!;
+    const opponent = world.skaters.find((skater) => skater.id === "away-skater-1")!;
+    holder.heldPowerupType = "giant-goalie";
+    world.puck.carrierSlotId = opponent.id;
+
+    expect(createBotInputFrame(holder, world, 1).usePowerup).toBe(true);
+    expect(createBotInputFrame(noPowerup, world, 1).usePowerup).toBe(false);
+  });
+
   it("converts a carrier shoot decision into a stick flick", () => {
     const world = createWorld(1, "arcade3v3");
     const bot = world.skaters.find((skater) => skater.id === "home-skater-1");

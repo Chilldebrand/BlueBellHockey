@@ -58,6 +58,7 @@ export function createBotInputFrame(
     pass: decision.pass,
     check: decision.check,
     turbo: decision.turbo,
+    usePowerup: decision.usePowerup,
     switchTarget: decision.switchTarget
   };
 }
