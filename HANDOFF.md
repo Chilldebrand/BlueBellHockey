@@ -1,34 +1,106 @@
 # 3v3 Arcade Hockey — Session Handoff
 
-Paste this into a new chat to continue. Captures full state as of the end of the last session (2026-07-09).
+Paste the **Paste Into Next Chat** section into a new chat to continue. This top section is
+authoritative as of 2026-07-10; historical notes below may describe older checkpoints.
 
 ## Paste Into Next Chat
 
 Continue work in `C:\Users\hilde\OneDrive\Desktop\3V3 Hockey Files\BBellHockey` on `main`.
-Read this handoff first. Work only in `packages/arcade-core`, `packages/arcade-server`, and
+Read `HANDOFF.md` first. Work only in `packages/arcade-core`, `packages/arcade-server`, and
 `packages/arcade-client`; `packages/shared`, `packages/server`, and `packages/client` are legacy
-prototype references and must not be changed.
+reference code and must not be modified. Use `npm.cmd` in PowerShell.
 
-Arcade tactical AI work is implemented through commit `f7c5a0f fix(ai): route teammates to pass
-intercepts`, with `main` currently 14 commits ahead of `origin/main`. The implementation covers
-deterministic tactical context, tendencies, relative positioning intents, offense, defense,
-transitions, loose-puck organization, autonomous lane-aware passes/shots, and a pass-reception
-intercept assignment. The pass-reception fix was added after playtesting found that a teammate could
-move away while a pass was in flight: one eligible lane-aligned teammate now claims the remaining
-puck path during the fresh-pass window.
+### Current repository and runtime state
 
-Before further changes, run `git status --short --branch`, `npm test`, `npm run typecheck`, and
-`npm run smoke --workspace @bbh/arcade-server`. The verified baseline at this handoff is 301 passing
-tests (185 arcade-core, 45 arcade-server, 71 arcade-client), typecheck green, and the two-client
-smoke green. A local dev server is running at `http://localhost:5173` with the server on port 2567.
+- Current HEAD: `b6eb560 fix(powerups): keep catch-up event ids unique`.
+- Git was clean before this handoff edit; `main` was 21 commits ahead of `origin/main`.
+- One clean hidden development stack is running: client `http://localhost:5173`, server
+  `ws://localhost:2567`. Three duplicate stale dev trees were stopped before this stack launched.
+- Fresh verified baseline at HEAD: **310/310 arcade tests** (187 core, 46 server, 77 client),
+  `npm.cmd run typecheck` passed, `npm.cmd run build:arcade` passed with the existing Vite
+  chunk-size warning, and the two-client smoke passed all 7 checks.
+- A Firefox game appeared frozen immediately after the server restart. Diagnosis: the restart
+  destroyed its room, while `connection.left` preserves the last `currentWorld` and phase, so the
+  client continues rendering a stale match. A fresh browser session was healthy. This is the known
+  reconnection/disconnect bug, not evidence of a Firefox-only rendering failure.
 
-Immediate next step: have the user playtest `f7c5a0f`, especially normal and leading passes to AI
-teammates. If a receiver still leaves a pass, first determine whether the puck trajectory/release
-is the issue or whether `passReceptionTarget` in `arcade-core/src/sim/ai/decision.ts` selects an
-unhelpful intercept. Preserve deterministic sim behavior and add a focused test before tuning.
+### Completed powerup cluster
 
-The historical notes below are useful context but may describe older checkpoints. This section is
-authoritative for the current continuation state.
+The first audit cluster is implemented and reviewed through these commits:
+
+- `e120dc1 docs(powerups): plan activation and scheduling`
+- `68cc62e fix(powerups): make spawn cadence persistent`
+- `8d1c4eb fix(powerups): deliver bot activation input`
+- `05174b1 fix(powerups): accept sanitized client activation`
+- `28d603d feat(powerups): add human activation controls and HUD`
+- `b6eb560 fix(powerups): keep catch-up event ids unique`
+
+Humans activate powerups with keyboard Q or gamepad Y; bots deliver their existing powerup
+decisions; the server preserves only literal `true`; the local HUD shows the held powerup; and the
+9-second spawn cadence processes each index once with unique catch-up event IDs. The approved design
+and plan are:
+
+- `docs/superpowers/specs/2026-07-09-powerup-activation-scheduling-design.md`
+- `docs/superpowers/plans/2026-07-09-powerup-activation-scheduling.md`
+
+### New user request — not implemented
+
+The user requested four changes:
+
+1. Make the end-of-match screen centered and unmistakable when a team reaches 5.
+2. Remove the powerup display and target indicator from the scoreboard/match HUD.
+3. Make on-ice powerup pickups larger and more obvious.
+4. A goalie save must not reset the puck to center ice. After a goalie cover/save, the user should
+   gain control of the goalie and direct a pass like any other player.
+
+No code or design document has been written for these changes. Brainstorming started but was
+interrupted by the handoff request. Treat the UI work and goalie-control work as two subprojects;
+each needs its own approved design → plan → TDD implementation cycle.
+
+### Current UI implementation relevant to the request
+
+- `packages/arcade-client/src/App.tsx`: when the world ends, it renders the rink plus both
+  `WinSplash` and `Postgame` simultaneously.
+- `packages/arcade-client/src/styles/arcadeTheme.css`: `.win-splash` and `.postgame` are both fixed
+  at `right: 18px; top: 88px; width: 320px`, causing overlap and making the result easy to miss.
+  Recommended direction: replace the two competing panels with one centered postgame modal/backdrop
+  that owns winner text, stats, Rematch, and Back To Lobby.
+- `packages/arcade-client/src/ui/HUD.tsx`: the local-skater block currently mounts `TurboMeter`,
+  `PowerupHud`, and `TargetIndicator`. The request is to remove `PowerupHud` and `TargetIndicator`
+  from this match HUD while preserving powerup activation and gameplay behavior.
+- `packages/arcade-client/src/render/Powerups.tsx`: pickups are primitive icons under `FloatingIcon`
+  at Y=20. Increase their parent scale and likely add a stronger emissive halo/ring or more visible
+  bobbing; keep pickup physics/radius unchanged unless the user explicitly asks for easier pickup.
+
+### Goalie-control architecture and required clarification
+
+- `packages/arcade-core/src/sim/goalie.ts`: a slow centered save is classified as `cover` and calls
+  `resetForFaceoff(world)` at line ~246. Hot saves produce live rebounds instead.
+- Goalies are `GoalieEntity` objects with `owner: "server"`; `InputFrame.slotId`, skater gestures,
+  passing, roster ownership, prediction, and control switching currently target skater slots only.
+  This is not a one-line removal of the faceoff reset: controlled goalie possession requires an
+  explicit goalie puck-carrier state/input path, server roster control transfer, client highlight
+  and camera support, and return-to-skater behavior after release.
+- First question for the user: **Should goalie control be temporary—automatically returning to the
+  previously controlled skater immediately after the goalie passes/releases the puck—or should the
+  player remain on the goalie until a manual switch?** Recommended: temporary control during a
+  covered puck, automatic return after the pass. This is closer to hockey-game convention and
+  prevents the user from accidentally skating/remaining as the goalie.
+- Recommended first-pass scope: covered saves become goalie possession instead of center faceoff;
+  the covering team's human temporarily controls the goalie; movement may remain AI/crease-bound;
+  left-stick aims the outlet and the existing pass button charges/releases a pass; after release,
+  control returns to the prior skater or the receiving skater under existing possession-switch rules.
+  Do not assume this design is approved until the user answers the question above.
+
+### Required continuation workflow
+
+1. Run `git status --short --branch` and inspect any handoff-only change/commit state.
+2. Ask the single goalie-control question above.
+3. Propose 2–3 approaches and present the decomposed UI design first, then the goalie-control design.
+4. Obtain explicit approval, write and commit the specs, then create TDD implementation plans.
+5. Preserve deterministic simulation and add focused failing regressions before production changes.
+6. After each cluster, run focused tests, all arcade tests, typecheck, production build, and the
+   two-client smoke. Keep legacy packages untouched.
 
 ## What this project is
 A 3v3 online multiplayer **arcade hockey game** with grounded core physics (NHL-Threes-style skating,
