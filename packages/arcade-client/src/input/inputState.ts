@@ -12,6 +12,7 @@ export interface ArcadeInputState {
   readonly switchTarget: boolean;
   readonly poke: boolean;
   readonly dive: boolean;
+  readonly usePowerup: boolean;
 }
 
 export function createNeutralInputState(): ArcadeInputState {
@@ -25,7 +26,8 @@ export function createNeutralInputState(): ArcadeInputState {
     turbo: false,
     switchTarget: false,
     poke: false,
-    dive: false
+    dive: false,
+    usePowerup: false
   };
 }
 
@@ -56,7 +58,8 @@ export function createInputFrame({
     turbo: input.turbo,
     switchTarget: input.switchTarget,
     poke: input.poke,
-    dive: input.dive
+    dive: input.dive,
+    usePowerup: input.usePowerup
   };
 }
 
@@ -74,7 +77,8 @@ export function mergeInputStates(
     turbo: primary.turbo || secondary.turbo,
     switchTarget: primary.switchTarget || secondary.switchTarget,
     poke: primary.poke || secondary.poke,
-    dive: primary.dive || secondary.dive
+    dive: primary.dive || secondary.dive,
+    usePowerup: primary.usePowerup || secondary.usePowerup
   };
 }
 

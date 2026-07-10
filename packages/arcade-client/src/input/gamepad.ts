@@ -34,6 +34,7 @@ export function gamepadStateFromGamepad(
     moveY: applyDeadzone(gamepad.axes[1] ?? 0, moveDeadzone),
     stickX: applyDeadzone(gamepad.axes[2] ?? 0, stickDeadzone),
     stickY: applyDeadzone(-(gamepad.axes[3] ?? 0), stickDeadzone),
+    usePowerup: gamepad.buttons[3]?.pressed === true, // Y
     pass:
       gamepad.buttons[0]?.pressed === true || // A
       gamepad.buttons[7]?.pressed === true, // RT / R2 (standard mapping)
