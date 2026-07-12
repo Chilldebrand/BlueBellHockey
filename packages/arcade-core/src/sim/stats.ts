@@ -1,4 +1,4 @@
-import type { MatchStats, TeamStatTotals } from "./types.js";
+import type { MatchStats, PlayerStatLine, TeamStatTotals } from "./types.js";
 
 function createTeamStats(): TeamStatTotals {
   return {
@@ -10,10 +10,13 @@ function createTeamStats(): TeamStatTotals {
   };
 }
 
-export function createInitialStats(): MatchStats {
+export function createInitialStats(slotIds: readonly string[]): MatchStats {
   const home = createTeamStats();
   const away = createTeamStats();
   const scoreCounters = () => ({ home: 0, away: 0 });
+  const players = Object.fromEntries(
+    slotIds.map((slotId) => [slotId, { goals: 0, assists: 0, hits: 0 }])
+  );
 
   return {
     home,
@@ -22,6 +25,14 @@ export function createInitialStats(): MatchStats {
     shots: scoreCounters(),
     saves: scoreCounters(),
     hits: scoreCounters(),
-    takeaways: scoreCounters()
+    takeaways: scoreCounters(),
+    players
   };
+}
+
+export function playerStatLine(
+  stats: MatchStats,
+  slotId: string
+): PlayerStatLine | null {
+  return stats.players[slotId] ?? null;
 }

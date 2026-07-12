@@ -36,6 +36,18 @@ describe("world lifecycle", () => {
     });
   });
 
+  it("initializes zero player stat lines for all skaters", () => {
+    const world = createWorld(12345, "arcade3v3");
+
+    for (const slot of SKATER_SLOTS) {
+      expect(world.stats.players[slot.id]).toEqual({
+        goals: 0,
+        assists: 0,
+        hits: 0
+      });
+    }
+  });
+
   it("advances the clock only while playing", () => {
     const waitingWorld = createWorld(12345, "arcade3v3");
 

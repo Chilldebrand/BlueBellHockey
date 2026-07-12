@@ -3,6 +3,7 @@ import { RINK_CONFIG } from "../config/rink.js";
 import type { TeamId } from "../config/teams.js";
 import { puckInsideGoal } from "./net.js";
 import { goalieSpawn, skaterSpawn, spawnFacing } from "./spawns.js";
+import { playerStatLine } from "./stats.js";
 import type { WorldState } from "./types.js";
 
 export function resolveGoals(world: WorldState): void {
@@ -18,6 +19,11 @@ export function resolveGoals(world: WorldState): void {
   world.score[scoringTeam] += 1;
   world.stats[scoringTeam].goals += 1;
   world.stats.goals[scoringTeam] += 1;
+  const scorerId = world.puck.shotBySlotId ?? world.puck.lastTouchSlotId;
+  const scorerStats = scorerId ? playerStatLine(world.stats, scorerId) : null;
+  if (scorerStats) {
+    scorerStats.goals += 1;
+  }
   if (world.puck.shotBySlotId) {
     world.stats[scoringTeam].shots += 1;
     world.stats.shots[scoringTeam] += 1;
@@ -26,7 +32,7 @@ export function resolveGoals(world: WorldState): void {
     id: `goal-${world.time.tick}-${scoringTeam}`,
     type: "goal",
     atMs: world.time.nowMs,
-    sourceSlotId: world.puck.shotBySlotId ?? world.puck.lastTouchSlotId ?? undefined
+    sourceSlotId: scorerId ?? undefined
   });
 
   resetForFaceoff(world);

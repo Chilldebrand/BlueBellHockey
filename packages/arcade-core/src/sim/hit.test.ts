@@ -83,6 +83,19 @@ describe("checking and knockdowns", () => {
     expect(target.velocity.x).toBeGreaterThan(0);
   });
 
+  it("credits only the hitter with a hit in player stats", () => {
+    const { hitter, target, world } = worldWithContact();
+
+    stepWorld(world, [inputFrame(hitter.id, 1, { check: true })], 16);
+
+    expect(world.stats.players[hitter.id]?.hits).toBe(1);
+    expect(world.stats.players[target.id]).toEqual({
+      goals: 0,
+      assists: 0,
+      hits: 0
+    });
+  });
+
   it("stumbles a target from an aligned cruise-speed hit", () => {
     const { hitter, target, world } = worldWithContact();
     hitter.velocity = { x: 520, y: 0 }; // force ≈ 780 vs threshold 520

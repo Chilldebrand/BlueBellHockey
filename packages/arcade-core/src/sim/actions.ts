@@ -3,6 +3,7 @@ import type { InputFrame, SkaterEntity, Vec2, WorldState } from "./types.js";
 import { clearPendingRelease } from "./gestures.js";
 import { fromAngle, magnitude, normalizeOrZero } from "./physics.js";
 import { hasActivePowerup } from "./powerups.js";
+import { playerStatLine } from "./stats.js";
 
 /** Check-force multiplier while the bulldozer (Big Hit) powerup is active. */
 export const BULLDOZER_FORCE_MULTIPLIER = 2.5;
@@ -286,6 +287,10 @@ function resolveHit(
   });
   world.stats[hitter.teamId].hits += 1;
   world.stats.hits[hitter.teamId] += 1;
+  const hitterStatsLine = playerStatLine(world.stats, hitter.id);
+  if (hitterStatsLine) {
+    hitterStatsLine.hits += 1;
+  }
 
   // Bulldozer flattens on any contact — force the knockdown branch (the
   // amplified force also clears the strip threshold below, taking the puck).

@@ -148,6 +148,12 @@ export interface TeamStatTotals {
   takeaways: number;
 }
 
+export interface PlayerStatLine {
+  goals: number;
+  assists: number;
+  hits: number;
+}
+
 export interface MatchStats {
   home: TeamStatTotals;
   away: TeamStatTotals;
@@ -156,6 +162,7 @@ export interface MatchStats {
   saves: ScoreState;
   hits: ScoreState;
   takeaways: ScoreState;
+  players: Record<string, PlayerStatLine>;
 }
 
 export interface PuckState {
