@@ -1,8 +1,6 @@
 import type { ArcadeClientState } from "../store.js";
 import { Callouts } from "./Callouts.js";
-import { PowerupHud } from "./PowerupHud.js";
 import { ScoreHud } from "./ScoreHud.js";
-import { TargetIndicator } from "./TargetIndicator.js";
 import { TurboMeter } from "./TurboMeter.js";
 
 export interface HUDProps {
@@ -20,11 +18,7 @@ export function HUD({ state }: HUDProps): JSX.Element {
     <div className="arcade-hud">
       <ScoreHud state={state} />
       {localSkater ? (
-        <>
-          <TurboMeter value={localSkater.turboMeter} />
-          <PowerupHud heldPowerupType={localSkater.heldPowerupType} />
-          <TargetIndicator targetSlotId={localSkater.selectedTargetSlotId} />
-        </>
+        <TurboMeter value={localSkater.turboMeter} />
       ) : null}
       <Callouts events={state.currentWorld?.eventQueue ?? []} />
     </div>

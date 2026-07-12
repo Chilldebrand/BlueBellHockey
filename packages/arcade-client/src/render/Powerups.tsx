@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { DoubleSide, type Group } from "three";
+import { DoubleSide, type Group, type Mesh } from "three";
 import type { BananaPeel, PowerupPickup } from "@bbh/arcade-core";
 
 /**
@@ -59,6 +59,7 @@ function FloatingIcon({
   readonly children: React.ReactNode;
 }): JSX.Element {
   const ref = useRef<Group>(null);
+  const haloRef = useRef<Mesh>(null);
   const phase = useRef(Math.random() * Math.PI * 2);
 
   useFrame((_state, delta) => {
@@ -68,12 +69,34 @@ function FloatingIcon({
     }
     phase.current += delta;
     group.rotation.y += delta * 1.4;
-    group.position.y = position[1] + Math.sin(phase.current * 2) * 3;
+    group.position.y = position[1] + Math.sin(phase.current * 2) * 6;
+    const halo = haloRef.current;
+    if (halo) {
+      const pulse = 1 + Math.sin(phase.current * 2.5) * 0.08;
+      halo.scale.set(pulse, 1, pulse);
+    }
   });
 
   return (
     <group ref={ref} position={position}>
-      {children}
+      <group name="powerup-visual" scale={1.55}>
+        {children}
+      </group>
+      <mesh
+        ref={haloRef}
+        name="powerup-halo"
+        position={[0, -17, 0]}
+        rotation={[Math.PI / 2, 0, 0]}
+      >
+        <torusGeometry args={[13, 0.8, 12, 32]} />
+        <meshStandardMaterial
+          color="#7dd3fc"
+          emissive="#38bdf8"
+          emissiveIntensity={0.7}
+          transparent
+          opacity={0.65}
+        />
+      </mesh>
     </group>
   );
 }

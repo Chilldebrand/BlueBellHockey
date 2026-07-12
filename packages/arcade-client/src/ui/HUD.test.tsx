@@ -5,7 +5,7 @@ import { createInitialArcadeClientState, type ArcadeClientState } from "../store
 import { HUD } from "./HUD.js";
 
 describe("HUD", () => {
-  it("shows the locally owned skater's held powerup", () => {
+  it("retains score and turbo content without powerup or target widgets", () => {
     const world = createWorld(1, "arcade3v3");
     const localSkater = world.skaters.find(
       (skater) => skater.id === "home-skater-1"
@@ -40,7 +40,10 @@ describe("HUD", () => {
 
     const html = renderToStaticMarkup(<HUD state={state} />);
 
-    expect(html).toContain("Held powerup");
-    expect(html).toContain("Hard Shot");
+    expect(html).toContain('aria-label="Score"');
+    expect(html).toContain('aria-label="Turbo meter"');
+    expect(html).not.toContain("Held powerup");
+    expect(html).not.toContain("Target:");
+    expect(html).not.toContain('aria-label="Assist target"');
   });
 });
