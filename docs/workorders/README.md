@@ -105,3 +105,21 @@ conversion/reference material. They are not active instructions for this AI
 track, and their legacy `packages/shared`, `packages/server`, and
 `packages/client` paths must not be used for the next coding session. Current
 AI work belongs in `packages/arcade-core`.
+
+## Active track: Postgame presentation and goalie outlets
+
+The 2026-07-10 user-requested work is split into two independently shippable
+clusters. Complete the postgame cluster first, then the goalie cluster.
+
+| WO | Title | Depends on |
+|----|-------|------------|
+| [WO-PG-00](WO-PG-00-player-stats-three-stars.md) | Player stats and three stars | - |
+| [WO-PG-01](WO-PG-01-postgame-hud-pickups.md) | Postgame, HUD, and pickup presentation | WO-PG-00 |
+| [WO-GOALIE-00](WO-GOALIE-00-cover-possession-outlet.md) | Covered save possession and outlet | - |
+| [WO-GOALIE-01](WO-GOALIE-01-control-grants-free-skate.md) | Control grants and Free Skate | WO-GOALIE-00 |
+| [WO-GOALIE-02](WO-GOALIE-02-client-presentation-verification.md) | Client presentation and verification | WO-GOALIE-01 |
+
+Postgame design: `docs/superpowers/specs/2026-07-10-postgame-pickup-presentation-design.md`.
+Postgame plan: `docs/superpowers/plans/2026-07-10-postgame-pickup-presentation.md`.
+Goalie design: `docs/superpowers/specs/2026-07-10-goalie-outlet-control-design.md`.
+Goalie plan: `docs/superpowers/plans/2026-07-10-goalie-outlet-control.md`.

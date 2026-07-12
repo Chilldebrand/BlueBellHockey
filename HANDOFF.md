@@ -43,7 +43,7 @@ and plan are:
 - `docs/superpowers/specs/2026-07-09-powerup-activation-scheduling-design.md`
 - `docs/superpowers/plans/2026-07-09-powerup-activation-scheduling.md`
 
-### New user request — not implemented
+### New user request — designed and planned, not implemented
 
 The user requested four changes:
 
@@ -53,9 +53,20 @@ The user requested four changes:
 4. A goalie save must not reset the puck to center ice. After a goalie cover/save, the user should
    gain control of the goalie and direct a pass like any other player.
 
-No code or design document has been written for these changes. Brainstorming started but was
-interrupted by the handoff request. Treat the UI work and goalie-control work as two subprojects;
-each needs its own approved design → plan → TDD implementation cycle.
+The user approved temporary goalie control and both subproject designs. Documentation is complete;
+production code has not changed. The user explicitly requested an approval gate after plans/work
+orders and before implementation.
+
+- Postgame design: `docs/superpowers/specs/2026-07-10-postgame-pickup-presentation-design.md`
+- Postgame plan: `docs/superpowers/plans/2026-07-10-postgame-pickup-presentation.md`
+- Goalie design: `docs/superpowers/specs/2026-07-10-goalie-outlet-control-design.md`
+- Goalie plan: `docs/superpowers/plans/2026-07-10-goalie-outlet-control.md`
+- Active work orders: `WO-PG-00`, `WO-PG-01`, `WO-GOALIE-00`, `WO-GOALIE-01`,
+  and `WO-GOALIE-02` under `docs/workorders`.
+
+The approved three-stars request requires authoritative per-player goals, one primary assist, and
+hits because the current world stores only team totals. This narrow stat addition is included in
+WO-PG-00 and is not a general analytics or season-stat system.
 
 ### Current UI implementation relevant to the request
 
@@ -72,34 +83,30 @@ each needs its own approved design → plan → TDD implementation cycle.
   at Y=20. Increase their parent scale and likely add a stronger emissive halo/ring or more visible
   bobbing; keep pickup physics/radius unchanged unless the user explicitly asks for easier pickup.
 
-### Goalie-control architecture and required clarification
+### Goalie-control architecture and approved direction
 
 - `packages/arcade-core/src/sim/goalie.ts`: a slow centered save is classified as `cover` and calls
   `resetForFaceoff(world)` at line ~246. Hot saves produce live rebounds instead.
 - Goalies are `GoalieEntity` objects with `owner: "server"`; `InputFrame.slotId`, skater gestures,
   passing, roster ownership, prediction, and control switching currently target skater slots only.
   This is not a one-line removal of the faceoff reset: controlled goalie possession requires an
-  explicit goalie puck-carrier state/input path, server roster control transfer, client highlight
+  explicit goalie puck-carrier state/input path, server temporary control grant, client highlight
   and camera support, and return-to-skater behavior after release.
-- First question for the user: **Should goalie control be temporary—automatically returning to the
-  previously controlled skater immediately after the goalie passes/releases the puck—or should the
-  player remain on the goalie until a manual switch?** Recommended: temporary control during a
-  covered puck, automatic return after the pass. This is closer to hockey-game convention and
-  prevents the user from accidentally skating/remaining as the goalie.
-- Recommended first-pass scope: covered saves become goalie possession instead of center faceoff;
-  the covering team's human temporarily controls the goalie; movement may remain AI/crease-bound;
+- Approved: goalie control is temporary and automatically returns to the previously controlled
+  skater immediately after the goalie passes/releases the puck.
+- Approved first-pass scope: covered saves become goalie possession instead of center faceoff;
+  the covering team's human temporarily controls the goalie; movement remains AI/crease-bound;
   left-stick aims the outlet and the existing pass button charges/releases a pass; after release,
-  control returns to the prior skater or the receiving skater under existing possession-switch rules.
-  Do not assume this design is approved until the user answers the question above.
+  control returns to the prior skater or the receiving skater under existing possession-switch rules;
+  a deterministic 2500ms fallback prevents a dead puck.
 
 ### Required continuation workflow
 
-1. Run `git status --short --branch` and inspect any handoff-only change/commit state.
-2. Ask the single goalie-control question above.
-3. Propose 2–3 approaches and present the decomposed UI design first, then the goalie-control design.
-4. Obtain explicit approval, write and commit the specs, then create TDD implementation plans.
-5. Preserve deterministic simulation and add focused failing regressions before production changes.
-6. After each cluster, run focused tests, all arcade tests, typecheck, production build, and the
+1. Obtain explicit approval to implement the written plans and work orders.
+2. Execute the postgame cluster first (`WO-PG-00` then `WO-PG-01`) using TDD.
+3. Execute the goalie cluster next (`WO-GOALIE-00` through `WO-GOALIE-02`) using TDD.
+4. Preserve deterministic simulation and add focused failing regressions before production changes.
+5. After each cluster, run focused tests, all arcade tests, typecheck, production build, and the
    two-client smoke. Keep legacy packages untouched.
 
 ## What this project is
