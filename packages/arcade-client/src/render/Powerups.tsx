@@ -58,18 +58,18 @@ function FloatingIcon({
   readonly position: [number, number, number];
   readonly children: React.ReactNode;
 }): JSX.Element {
-  const ref = useRef<Group>(null);
+  const visualRef = useRef<Group>(null);
   const haloRef = useRef<Mesh>(null);
   const phase = useRef(Math.random() * Math.PI * 2);
 
   useFrame((_state, delta) => {
-    const group = ref.current;
-    if (!group) {
+    const visual = visualRef.current;
+    if (!visual) {
       return;
     }
     phase.current += delta;
-    group.rotation.y += delta * 1.4;
-    group.position.y = position[1] + Math.sin(phase.current * 2) * 6;
+    visual.rotation.y += delta * 1.4;
+    visual.position.y = Math.sin(phase.current * 2) * 6;
     const halo = haloRef.current;
     if (halo) {
       const pulse = 1 + Math.sin(phase.current * 2.5) * 0.08;
@@ -78,8 +78,8 @@ function FloatingIcon({
   });
 
   return (
-    <group ref={ref} position={position}>
-      <group name="powerup-visual" scale={1.55}>
+    <group position={position}>
+      <group ref={visualRef} name="powerup-visual" scale={1.55}>
         {children}
       </group>
       <mesh

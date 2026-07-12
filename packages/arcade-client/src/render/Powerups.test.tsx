@@ -3,6 +3,10 @@ import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { Powerups } from "./Powerups.js";
 
+function elementRef(element: ReactElement): unknown {
+  return (element as ReactElement & { ref: unknown }).ref;
+}
+
 vi.mock("@react-three/fiber", () => ({
   useFrame: vi.fn()
 }));
@@ -15,7 +19,7 @@ vi.mock("react", async () => {
 });
 
 describe("Powerups", () => {
-  it("wraps each pickup in an enlarged named visual with an emissive halo", () => {
+  it("keeps the halo outside the bobbing visual group above the ice", () => {
     const pickup: PowerupPickup = {
       id: "pickup-1",
       type: "speed-boost",
@@ -29,16 +33,21 @@ describe("Powerups", () => {
       floatingIcon.type as (props: typeof floatingIcon.props) => ReactElement
     )(floatingIcon.props);
     const visualElements = floatingGroup.props.children as ReactElement[];
-
-    expect(visualElements.map((element) => element.props.name)).toContain(
-      "powerup-visual"
+    const visual = visualElements.find(
+      (element) => element.props.name === "powerup-visual"
     );
-    expect(
-      visualElements.find((element) => element.props.name === "powerup-visual")
-        ?.props.scale
-    ).toBe(1.55);
-    expect(visualElements.map((element) => element.props.name)).toContain(
-      "powerup-halo"
+    const halo = visualElements.find(
+      (element) => element.props.name === "powerup-halo"
+    );
+
+    expect(floatingGroup.props.position).toEqual([12, 20, -8]);
+    expect(elementRef(floatingGroup)).toBeNull();
+    expect(visual?.props.scale).toBe(1.55);
+    expect(visual && elementRef(visual)).toBeDefined();
+    expect(halo?.props.position).toEqual([0, -17, 0]);
+    expect(halo && elementRef(halo)).toBeDefined();
+    expect(visualElements.indexOf(halo as ReactElement)).toBeGreaterThan(
+      visualElements.indexOf(visual as ReactElement)
     );
   });
 });
