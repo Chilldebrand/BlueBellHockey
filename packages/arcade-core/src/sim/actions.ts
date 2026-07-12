@@ -353,6 +353,7 @@ function resolveHit(
   if (world.puck.carrierSlotId === target.id && force >= stripThreshold) {
     world.puck.carrierSlotId = null;
     world.puck.lastTouchSlotId = hitter.id;
+    world.puck.assistCandidateSlotId = null;
     world.puck.pickupDisabledForSlotId = target.id;
     world.puck.pickupDisabledUntilMs = now + 250;
     world.puck.velocity = {

@@ -234,6 +234,7 @@ function resolveGoalieSave(
     force: speed,
     detail: saveType
   });
+  puck.assistCandidateSlotId = null;
 
   if (saveType === "cover") {
     // Frozen under the goalie: whistle, center-ice faceoff.

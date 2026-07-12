@@ -173,6 +173,7 @@ export interface PuckState {
   verticalVelocity: number;
   carrierSlotId: string | null;
   lastTouchSlotId: string | null;
+  assistCandidateSlotId: string | null;
   shotBySlotId: string | null;
   shotPower: number;
   isChargedShot: boolean;

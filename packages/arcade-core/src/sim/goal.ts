@@ -24,6 +24,23 @@ export function resolveGoals(world: WorldState): void {
   if (scorerStats) {
     scorerStats.goals += 1;
   }
+  const scorer = scorerId
+    ? world.skaters.find((skater) => skater.id === scorerId)
+    : undefined;
+  const assistCandidate = world.puck.assistCandidateSlotId
+    ? world.skaters.find(
+        (skater) => skater.id === world.puck.assistCandidateSlotId
+      )
+    : undefined;
+  if (
+    scorer &&
+    assistCandidate &&
+    scorer.id !== assistCandidate.id &&
+    scorer.teamId === scoringTeam &&
+    assistCandidate.teamId === scoringTeam
+  ) {
+    playerStatLine(world.stats, assistCandidate.id)!.assists += 1;
+  }
   if (world.puck.shotBySlotId) {
     world.stats[scoringTeam].shots += 1;
     world.stats.shots[scoringTeam] += 1;
@@ -52,6 +69,7 @@ export function resetForFaceoff(world: WorldState): void {
   world.puck.height = 0;
   world.puck.verticalVelocity = 0;
   world.puck.carrierSlotId = null;
+  world.puck.assistCandidateSlotId = null;
   world.puck.shotBySlotId = null;
   world.puck.shotPower = 0;
   world.puck.isChargedShot = false;

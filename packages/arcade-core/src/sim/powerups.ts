@@ -135,6 +135,7 @@ function stepBananaPeels(world: WorldState): void {
     if (world.puck.carrierSlotId === victim.id) {
       world.puck.carrierSlotId = null;
       world.puck.lastTouchSlotId = victim.id;
+      world.puck.assistCandidateSlotId = null;
       world.puck.pickupDisabledForSlotId = victim.id;
       world.puck.pickupDisabledUntilMs = now + 250;
     }
@@ -263,6 +264,7 @@ function freezeRandomOpponent(world: WorldState, user: SkaterEntity): void {
   if (world.puck.carrierSlotId === target.id) {
     world.puck.carrierSlotId = null;
     world.puck.lastTouchSlotId = target.id;
+    world.puck.assistCandidateSlotId = null;
     world.puck.pickupDisabledForSlotId = target.id;
     world.puck.pickupDisabledUntilMs = now + 250;
   }

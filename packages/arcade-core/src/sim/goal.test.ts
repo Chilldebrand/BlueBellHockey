@@ -65,6 +65,39 @@ describe("goal scoring and match loop", () => {
     });
   });
 
+  it("credits one primary assist to a distinct same-team passer", () => {
+    const world = worldWithOpenAwayNet();
+    world.puck.position = {
+      x: goalLineX("away") - 10,
+      y: RINK_CONFIG.height / 2
+    };
+    world.puck.velocity = { x: 1000, y: 0 };
+    world.puck.shotBySlotId = "home-skater-2";
+    world.puck.lastTouchSlotId = "home-skater-2";
+    world.puck.assistCandidateSlotId = "home-skater-1";
+
+    stepWorld(world, [], 16);
+
+    expect(world.stats.players["home-skater-1"]?.assists).toBe(1);
+    expect(world.stats.players["home-skater-2"]?.assists).toBe(0);
+  });
+
+  it("does not award a self-assist", () => {
+    const world = worldWithOpenAwayNet();
+    world.puck.position = {
+      x: goalLineX("away") - 10,
+      y: RINK_CONFIG.height / 2
+    };
+    world.puck.velocity = { x: 1000, y: 0 };
+    world.puck.shotBySlotId = "home-skater-1";
+    world.puck.lastTouchSlotId = "home-skater-1";
+    world.puck.assistCandidateSlotId = "home-skater-1";
+
+    stepWorld(world, [], 16);
+
+    expect(world.stats.players["home-skater-1"]?.assists).toBe(0);
+  });
+
   it("returns skaters and goalies to their faceoff spots after a goal", () => {
     const world = worldWithOpenAwayNet();
     const scorer = world.skaters.find((s) => s.id === "home-skater-1")!;

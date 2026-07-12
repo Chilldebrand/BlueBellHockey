@@ -132,6 +132,7 @@ export function createInitialPuckState(position: Vec2): PuckState {
     verticalVelocity: 0,
     carrierSlotId: null,
     lastTouchSlotId: null,
+    assistCandidateSlotId: null,
     shotBySlotId: null,
     shotPower: 0,
     isChargedShot: false,
@@ -220,6 +221,7 @@ function stepCarriedPuck(
 
     puck.carrierSlotId = null;
     puck.lastTouchSlotId = poker.id;
+    puck.assistCandidateSlotId = null;
     puck.pickupDisabledForSlotId = carrier.id;
     puck.pickupDisabledUntilMs = world.time.nowMs + 250;
     puck.velocity = {
@@ -642,6 +644,15 @@ function tryPickupLoosePuck(
     // lies (no teleport onto the blade).
     puck.carrierSlotId = skater.id;
     puck.lastTouchSlotId = skater.id;
+    if (isPassReception && passer) {
+      puck.assistCandidateSlotId = passer.id;
+    } else if (
+      puck.assistCandidateSlotId &&
+      world.skaters.find((candidate) => candidate.id === puck.assistCandidateSlotId)
+        ?.teamId !== skater.teamId
+    ) {
+      puck.assistCandidateSlotId = null;
+    }
     puck.shotBySlotId = null;
     puck.shotPower = 0;
     puck.isChargedShot = false;

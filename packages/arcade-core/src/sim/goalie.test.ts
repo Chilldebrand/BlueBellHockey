@@ -118,12 +118,14 @@ describe("goalie simulation", () => {
     world.puck.velocity = { x: -3200, y: 0 };
     world.puck.shotBySlotId = "away-skater-1";
     world.puck.lastTouchSlotId = "away-skater-1";
+    world.puck.assistCandidateSlotId = "away-skater-2";
 
     stepWorld(world, [], 16);
 
     expect(world.score.away).toBe(0);
     expect(world.stats.saves.home).toBe(1);
     expect(world.puck.velocity.x).toBeGreaterThan(0);
+    expect(world.puck.assistCandidateSlotId).toBeNull();
   });
 
   it("reacts with latency so a fast cross-crease puck opens the far side", () => {

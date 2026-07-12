@@ -6,6 +6,7 @@ import {
   bladeWorldPosition,
   createWorld,
   goalLineX,
+  resetForFaceoff,
   netBackX,
   stepWorld,
   type InputFrame,
@@ -88,6 +89,7 @@ describe("puck simulation", () => {
     stepWorld(world, [inputFrame(receiver.id, 1)], 16);
 
     expect(world.puck.carrierSlotId).toBe(receiver.id);
+    expect(world.puck.assistCandidateSlotId).toBe("home-skater-1");
   });
 
   it("does not extend the catch assist to opponents intercepting a pass", () => {
@@ -102,6 +104,26 @@ describe("puck simulation", () => {
 
     // Too hot to handle for anyone but the intended team.
     expect(world.puck.carrierSlotId).not.toBe(interceptor.id);
+  });
+
+  it("clears the primary-assist candidate when an opponent takes possession", () => {
+    const world = playingWorld();
+    const interceptor = world.skaters.find((s) => s.id === "away-skater-1")!;
+    world.puck.assistCandidateSlotId = "home-skater-1";
+    world.puck.position = { ...bladeWorldPosition(interceptor) };
+
+    stepWorld(world, [inputFrame(interceptor.id, 1)], 16);
+
+    expect(world.puck.assistCandidateSlotId).toBeNull();
+  });
+
+  it("clears the primary-assist candidate on a faceoff reset", () => {
+    const world = playingWorld();
+    world.puck.assistCandidateSlotId = "home-skater-1";
+
+    resetForFaceoff(world);
+
+    expect(world.puck.assistCandidateSlotId).toBeNull();
   });
 
   it("applies ice friction to a loose puck", () => {
