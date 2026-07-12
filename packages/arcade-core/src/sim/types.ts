@@ -138,6 +138,14 @@ export interface GoalieEntity {
   readonly owner: "server";
   position: Vec2;
   velocity: Vec2;
+  /** Accumulated pass-button hold time while covering the puck. */
+  passChargeMs: number;
+  /** Last non-neutral outlet direction supplied while the puck is covered. */
+  outletAim: Vec2;
+  /** Deterministic sim time when this goalie began the current possession. */
+  possessionStartedAtMs: number;
+  /** Whether pass was held on the previous goalie-outlet step. */
+  passWasHeld: boolean;
 }
 
 export interface TeamStatTotals {

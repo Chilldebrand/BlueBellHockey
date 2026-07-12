@@ -94,6 +94,17 @@ export function goalieHoldPosition(goalie: GoalieEntity): Vec2 {
   };
 }
 
+/** Clears transient outlet state, keeping an idle goalie pointed safely up ice. */
+export function resetGoalieOutletState(
+  goalie: GoalieEntity,
+  possessionStartedAtMs = 0
+): void {
+  goalie.passChargeMs = 0;
+  goalie.outletAim = { x: goalie.teamId === "home" ? 1 : -1, y: 0 };
+  goalie.possessionStartedAtMs = possessionStartedAtMs;
+  goalie.passWasHeld = false;
+}
+
 export function stepGoalies(
   world: WorldState,
   dtMs: number,
@@ -111,6 +122,7 @@ export function stepGoalies(
       holdPuckByGoalie(world, goalie);
       continue;
     }
+    resetGoalieOutletState(goalie);
     resolveGoalieSave(world, goalie, dtMs, config);
   }
 }
@@ -271,6 +283,7 @@ function resolveGoalieSave(
     puck.passedAtMs = 0;
     puck.pickupDisabledForSlotId = null;
     puck.pickupDisabledUntilMs = 0;
+    resetGoalieOutletState(goalie, world.time.nowMs);
     return;
   }
 

@@ -26,7 +26,8 @@ import { createStickState, updateStick } from "./stick.js";
 import { hasActivePowerup, stepPowerups } from "./powerups.js";
 import { resolveSpecials } from "./specials.js";
 import { createInitialStats } from "./stats.js";
-import { stepGoalies } from "./goalie.js";
+import { resetGoalieOutletState, stepGoalies } from "./goalie.js";
+import { stepGoalieOutlet } from "./goalieOutlet.js";
 import { resolveGoals } from "./goal.js";
 import { goalieSpawn, skaterSpawn, spawnFacing } from "./spawns.js";
 
@@ -81,7 +82,11 @@ export function createWorld(
       teamId: slot.teamId,
       owner: slot.owner,
       position: goalieSpawn(teamSide),
-      velocity: zeroVector()
+      velocity: zeroVector(),
+      passChargeMs: 0,
+      outletAim: { x: slot.teamId === "home" ? 1 : -1, y: 0 },
+      possessionStartedAtMs: 0,
+      passWasHeld: false
     };
   });
 
@@ -156,8 +161,26 @@ export function stepWorld(
     resolveSpecials(world, latestInputBySlot);
   }
   stepPuck(world, latestInputBySlot, dtMs, TUNING.puck);
+  const activeGoalie = world.puck.goalieCarrierId
+    ? world.goalies.find((goalie) => goalie.id === world.puck.goalieCarrierId)
+    : undefined;
+  if (activeGoalie) {
+    stepGoalieOutlet(
+      world,
+      activeGoalie,
+      latestInputBySlot.get(activeGoalie.id),
+      dtMs
+    );
+  }
   stepGoalies(world, dtMs, TUNING.goalie);
   resolveGoals(world);
+  // Goal resolution can perform a faceoff reset after goalie tracking. Clear
+  // outlet state here as well so that reset leaves no stale charge or aim.
+  for (const goalie of world.goalies) {
+    if (world.puck.goalieCarrierId !== goalie.id) {
+      resetGoalieOutletState(goalie);
+    }
+  }
   // A release only fires on the tick it was latched (non-carriers just whiff).
   for (const skater of world.skaters) {
     clearPendingRelease(skater.gesture);
