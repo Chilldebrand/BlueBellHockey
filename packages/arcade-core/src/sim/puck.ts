@@ -480,6 +480,7 @@ function deflectOffDivingBodies(world: WorldState, config: PuckConfig): void {
     }
 
     puck.lastTouchSlotId = skater.id;
+    puck.assistCandidateSlotId = null;
     puck.shotBySlotId = null;
     puck.pickupDisabledForSlotId = null;
     puck.pickupDisabledUntilMs = world.time.nowMs + 120;

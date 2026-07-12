@@ -7,6 +7,7 @@ import {
   createWorld,
   goalLineX,
   resetForFaceoff,
+  stepPuck,
   netBackX,
   stepWorld,
   type InputFrame,
@@ -403,6 +404,24 @@ describe("puck simulation", () => {
     expect(
       world.eventQueue.some((event) => event.type === "poke")
     ).toBe(true);
+  });
+
+  it("clears the primary-assist candidate when an opponent diving block is the last touch", () => {
+    const world = playingWorld();
+    const blocker = world.skaters.find((skater) => skater.id === "away-skater-1")!;
+    world.puck.assistCandidateSlotId = "home-skater-1";
+    blocker.contactState = "diving";
+    blocker.position = { x: RINK_CONFIG.width / 2, y: RINK_CONFIG.height / 2 };
+    world.puck.position = {
+      x: blocker.position.x - 40,
+      y: blocker.position.y
+    };
+    world.puck.velocity = { x: 900, y: 0 };
+
+    stepPuck(world, new Map(), 16);
+
+    expect(world.puck.lastTouchSlotId).toBe(blocker.id);
+    expect(world.puck.assistCandidateSlotId).toBeNull();
   });
 
   it("deflects off a goal post", () => {
