@@ -34,9 +34,14 @@ export function Postgame({
 
   return (
     <section className="postgame-backdrop" aria-label="Postgame">
-      <div className="postgame-modal" role="dialog" aria-modal="true">
+      <div
+        className="postgame-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="postgame-result-heading"
+      >
         <header className="postgame-result">
-          <h1>
+          <h1 id="postgame-result-heading">
             {world.winnerTeamId ? `${world.winnerTeamId.toUpperCase()} WINS` : "DRAW"}
           </h1>
           <p>FIRST TO 5</p>

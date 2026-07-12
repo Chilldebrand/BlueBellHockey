@@ -5,6 +5,23 @@ import { postgameRows } from "./Postgame.js";
 import { Postgame } from "./Postgame.js";
 
 describe("Postgame", () => {
+  it("gives the result dialog an accessible name from its winner heading", () => {
+    const world = createWorld(7, "arcade3v3");
+
+    const html = renderToStaticMarkup(
+      <Postgame
+        world={world}
+        onRematch={vi.fn()}
+        onBackToLobby={vi.fn()}
+      />
+    );
+
+    expect(html).toContain(
+      'role="dialog" aria-modal="true" aria-labelledby="postgame-result-heading"'
+    );
+    expect(html).toContain('id="postgame-result-heading">DRAW</h1>');
+  });
+
   it("maps authoritative server stats into table rows", () => {
     const world = createWorld(7, "arcade3v3");
     world.stats.home.goals = 3;

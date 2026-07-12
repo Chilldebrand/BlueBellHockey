@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { createWorld, type WorldState } from "@bbh/arcade-core";
+import { MATCH_CONFIG, createWorld, type WorldState } from "@bbh/arcade-core";
 import { selectThreeStars } from "./threeStars.js";
 
 function worldWithStats(
   stats: Record<string, { goals: number; assists: number; hits: number }>
 ): WorldState {
-  const world = createWorld(7, "quickplay");
+  const world = createWorld(7, MATCH_CONFIG.mode);
   for (const [slotId, line] of Object.entries(stats)) {
     world.stats.players[slotId] = line;
   }
