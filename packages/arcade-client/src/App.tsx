@@ -57,7 +57,6 @@ import { FreeSkate } from "./ui/FreeSkate.js";
 import { Lobby } from "./ui/Lobby.js";
 import { MainMenu } from "./ui/MainMenu.js";
 import { Postgame } from "./ui/Postgame.js";
-import { WinSplash } from "./ui/WinSplash.js";
 
 export interface AppConnectionApi {
   readonly connectQuickMatch: typeof connectQuickMatch;
@@ -347,10 +346,8 @@ export function App({
           predictedPuck={predictedPuck}
           highlightColorBySlotId={highlightColorBySlotId}
         />
-        <WinSplash winnerTeamId={state.currentWorld.winnerTeamId} />
         <Postgame
-          stats={state.currentWorld.stats}
-          winnerTeamId={state.currentWorld.winnerTeamId}
+          world={state.currentWorld}
           onRematch={handleRematch}
           onBackToLobby={handleBackToLobby}
         />

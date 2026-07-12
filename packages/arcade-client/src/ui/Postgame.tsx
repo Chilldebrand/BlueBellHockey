@@ -1,4 +1,9 @@
-import type { MatchStats, TeamId } from "@bbh/arcade-core";
+import {
+  getCharacterById,
+  type MatchStats,
+  type WorldState
+} from "@bbh/arcade-core";
+import { selectThreeStars } from "./threeStars.js";
 
 export interface PostgameRow {
   readonly label: string;
@@ -17,36 +22,82 @@ export function postgameRows(stats: MatchStats): readonly PostgameRow[] {
 }
 
 export function Postgame({
-  stats,
-  winnerTeamId,
+  world,
   onRematch,
   onBackToLobby
 }: {
-  readonly stats: MatchStats;
-  readonly winnerTeamId: TeamId | null;
+  readonly world: WorldState;
   readonly onRematch: () => void;
   readonly onBackToLobby: () => void;
 }): JSX.Element {
+  const stars = selectThreeStars(world);
+
   return (
-    <section className="postgame" aria-label="Postgame">
-      <h2>{winnerTeamId ? `${winnerTeamId.toUpperCase()} victory` : "Draw"}</h2>
-      <table>
-        <tbody>
-          {postgameRows(stats).map((row) => (
-            <tr key={row.label}>
-              <th>{row.label}</th>
-              <td>{row.home}</td>
-              <td>{row.away}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <button type="button" onClick={onRematch}>
-        Rematch
-      </button>
-      <button type="button" onClick={onBackToLobby}>
-        Back To Lobby
-      </button>
+    <section className="postgame-backdrop" aria-label="Postgame">
+      <div className="postgame-modal" role="dialog" aria-modal="true">
+        <header className="postgame-result">
+          <h1>
+            {world.winnerTeamId ? `${world.winnerTeamId.toUpperCase()} WINS` : "DRAW"}
+          </h1>
+          <p>FIRST TO 5</p>
+          <p className="postgame-score">
+            {world.score.home} - {world.score.away}
+          </p>
+        </header>
+
+        <section aria-labelledby="three-stars-heading">
+          <h2 id="three-stars-heading">THREE STARS</h2>
+          <div className="postgame-stars">
+            {stars.map((star) => (
+              <article
+                className={`postgame-star postgame-star--${star.teamId}`}
+                key={star.slotId}
+              >
+                <h3>{starLabel(star.rank)}</h3>
+                <p>{getCharacterById(star.characterId).displayName}</p>
+                <p className="postgame-star-stats">
+                  G {star.goals} · A {star.assists} · H {star.hits}
+                </p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section aria-labelledby="team-totals-heading">
+          <h2 id="team-totals-heading">TEAM TOTALS</h2>
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Stat</th>
+                <th scope="col">Home</th>
+                <th scope="col">Away</th>
+              </tr>
+            </thead>
+            <tbody>
+              {postgameRows(world.stats).map((row) => (
+                <tr key={row.label}>
+                  <th scope="row">{row.label}</th>
+                  <td>{row.home}</td>
+                  <td>{row.away}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <div className="postgame-actions">
+          <button type="button" onClick={onRematch}>
+            Rematch
+          </button>
+          <button type="button" onClick={onBackToLobby}>
+            Back To Lobby
+          </button>
+        </div>
+      </div>
     </section>
   );
+}
+
+function starLabel(rank: number): string {
+  return ["First Star", "Second Star", "Third Star"][rank - 1] ?? "Star";
 }

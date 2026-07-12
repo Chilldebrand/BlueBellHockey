@@ -37,7 +37,7 @@ input {
 }
 
 .menu-screen button,
-.postgame button {
+.postgame-actions button {
   min-width: 180px;
   padding: 10px 16px;
 }
@@ -129,9 +129,7 @@ input {
 }
 
 .controller-prompt,
-.faceoff-intro,
-.win-splash,
-.postgame {
+.faceoff-intro {
   background: rgba(8, 19, 32, 0.82);
   border: 1px solid rgba(119, 207, 255, 0.32);
   color: #eff8ff;
@@ -156,21 +154,121 @@ input {
   transform: translateX(-50%);
 }
 
-.win-splash,
-.postgame {
-  right: 18px;
-  top: 88px;
-  width: 320px;
+.postgame-backdrop {
+  align-items: center;
+  background: rgba(3, 9, 17, 0.68);
+  display: grid;
+  inset: 0;
+  padding: 16px;
+  place-items: center;
+  position: fixed;
+  z-index: 5;
 }
 
-.win-splash,
-.postgame {
-  padding: 14px;
+.postgame-modal {
+  background: rgba(8, 19, 32, 0.96);
+  border: 1px solid rgba(119, 207, 255, 0.55);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.48);
+  color: #eff8ff;
+  max-height: calc(100vh - 32px);
+  max-width: 760px;
+  overflow-y: auto;
+  padding: 24px;
+  width: min(760px, calc(100vw - 32px));
 }
 
-.postgame table {
-  margin-bottom: 12px;
+.postgame-result {
+  text-align: center;
+}
+
+.postgame-result h1,
+.postgame-modal h2,
+.postgame-star h3 {
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.postgame-result h1 {
+  color: #ffdf6e;
+  font-size: clamp(28px, 5vw, 46px);
+}
+
+.postgame-result p {
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  margin: 6px 0;
+}
+
+.postgame-score {
+  font-size: clamp(30px, 5vw, 48px);
+  font-variant-numeric: tabular-nums;
+}
+
+.postgame-modal h2 {
+  font-size: 15px;
+  letter-spacing: 0.1em;
+  margin-top: 24px;
+}
+
+.postgame-stars {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 10px;
+}
+
+.postgame-star {
+  background: rgba(255, 255, 255, 0.06);
+  border-left: 4px solid #eff8ff;
+  padding: 12px;
+}
+
+.postgame-star--home {
+  border-left-color: #1f8fff;
+}
+
+.postgame-star--away {
+  border-left-color: #ff4f5e;
+}
+
+.postgame-star h3 {
+  color: #9fc4e0;
+  font-size: 12px;
+}
+
+.postgame-star p {
+  margin: 8px 0 0;
+}
+
+.postgame-star-stats {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.postgame-modal table {
+  border-collapse: collapse;
+  margin-top: 10px;
   width: 100%;
+}
+
+.postgame-modal th,
+.postgame-modal td {
+  border-bottom: 1px solid rgba(159, 196, 224, 0.22);
+  padding: 7px;
+  text-align: left;
+}
+
+.postgame-modal td {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.postgame-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 24px;
 }
 
 .arcade-rink-shell {
@@ -378,6 +476,20 @@ input {
     grid-template-columns: 1fr;
     max-height: calc(100vh - 90px);
     overflow-y: auto;
+  }
+}
+
+@media (max-width: 620px) {
+  .postgame-modal {
+    padding: 18px;
+  }
+
+  .postgame-stars {
+    grid-template-columns: 1fr;
+  }
+
+  .postgame-actions button {
+    width: 100%;
   }
 }
 
