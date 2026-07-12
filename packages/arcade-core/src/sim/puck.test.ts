@@ -424,6 +424,24 @@ describe("puck simulation", () => {
     expect(world.puck.assistCandidateSlotId).toBeNull();
   });
 
+  it("preserves the primary-assist candidate when a teammate diving block is the last touch", () => {
+    const world = playingWorld();
+    const blocker = world.skaters.find((skater) => skater.id === "home-skater-2")!;
+    world.puck.assistCandidateSlotId = "home-skater-1";
+    blocker.contactState = "diving";
+    blocker.position = { x: RINK_CONFIG.width / 2, y: RINK_CONFIG.height / 2 };
+    world.puck.position = {
+      x: blocker.position.x - 40,
+      y: blocker.position.y
+    };
+    world.puck.velocity = { x: 900, y: 0 };
+
+    stepPuck(world, new Map(), 16);
+
+    expect(world.puck.lastTouchSlotId).toBe(blocker.id);
+    expect(world.puck.assistCandidateSlotId).toBe("home-skater-1");
+  });
+
   it("deflects off a goal post", () => {
     const world = playingWorld();
     const postY = RINK_CONFIG.height / 2 + RINK_CONFIG.goalWidth / 2 + PUCK_CONFIG.postRadius;

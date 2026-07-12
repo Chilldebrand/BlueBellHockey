@@ -127,3 +127,56 @@ Commit:
 - Confirmed the regression test uses `stepPuck` to isolate the puck block path from unrelated world collision/possession clearing.
 - Confirmed focused and full core suites pass, and `git diff --check` reports no whitespace errors.
 - Confirmed no unrelated files are staged or included in the follow-up commit.
+
+## Task 2 second focused fix
+
+### TDD evidence
+
+Added a focused regression test for a same-team diving block preserving the assist candidate, then ran the required RED command:
+
+```text
+npm.cmd run test --workspace @bbh/arcade-core -- src/sim/puck.test.ts src/sim/goal.test.ts src/sim/goalie.test.ts
+```
+
+Observed RED:
+
+- 2 test files passed and 1 test file failed.
+- 39 tests passed and 1 test failed.
+- The failing test was `preserves the primary-assist candidate when a teammate diving block is the last touch`.
+- Failure: expected `"home-skater-1"`, received `null`; `lastTouchSlotId` was the same-team blocker.
+
+Implemented the minimal team-aware candidate clear, retaining the existing opponent-block clear, then reran the focused command.
+
+Observed GREEN:
+
+- 3 test files passed.
+- 40 tests passed.
+
+Full suite evidence:
+
+```text
+npm.cmd run test --workspace @bbh/arcade-core
+```
+
+- 26 test files passed.
+- 196 tests passed.
+
+### Files and commit
+
+Modified only:
+
+- `packages/arcade-core/src/sim/puck.ts`
+- `packages/arcade-core/src/sim/puck.test.ts`
+- `.superpowers/sdd/task-pg-2-report.md` (append-only)
+
+Commit:
+
+`fix(stats): preserve assists on teammate blocks`
+
+### Self-review
+
+- Confirmed the production change compares the assist candidate's team with the diving blocker's team and clears only for an opponent or unknown candidate.
+- Confirmed the same-team regression uses `stepPuck` and asserts both the blocker touch and preserved candidate.
+- Confirmed the existing opponent-block regression remains green.
+- Confirmed focused and full core suites pass, and `git diff --check` reports no whitespace errors.
+- Confirmed no unrelated files are staged or included in the commit.
