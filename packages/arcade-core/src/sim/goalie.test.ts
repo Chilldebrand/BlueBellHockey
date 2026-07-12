@@ -5,6 +5,7 @@ import {
   MINI_GOALIE_SIZE,
   RINK_CONFIG,
   createWorld,
+  goalieHoldPosition,
   goalieSizeMultiplier,
   stepWorld,
   type GoalieEntity,
@@ -74,6 +75,7 @@ describe("goalie simulation", () => {
     expect(world.stats.shots.away).toBe(1);
     expect(world.puck.velocity.x).toBeGreaterThan(0);
     expect(world.puck.lastTouchSlotId).toBe("home-goalie");
+    expect(world.puck.goalieCarrierId).toBeNull();
     expect(lastSave(world)).toMatchObject({ targetSlotId: "home-goalie" });
   });
 
@@ -94,19 +96,49 @@ describe("goalie simulation", () => {
     expect(lastSave(blockerWorld)?.detail).toBe("blocker");
   });
 
-  it("covers a slow centered shot and resets to a center faceoff", () => {
+  it("covers a slow centered shot without a faceoff reset while preserving save events and stats", () => {
     const world = playingWorld();
+    const skater = world.skaters[0]!;
+    skater.position = { x: 321, y: 456 };
+    const beforeRemainingMs = world.remainingMs;
     shotAtHomeGoalie(world, { speed: 300, lateral: 5 });
 
     stepWorld(world, [], 16);
 
     expect(lastSave(world)?.detail).toBe("cover");
     expect(world.eventQueue.some((event) => event.type === "cover")).toBe(true);
-    expect(world.puck.position).toEqual({
-      x: RINK_CONFIG.width / 2,
-      y: RINK_CONFIG.height / 2
-    });
+    expect(world.eventQueue).toContainEqual(
+      expect.objectContaining({ type: "save", targetSlotId: "home-goalie" })
+    );
+    expect(world.stats.saves.home).toBe(1);
+    expect(world.stats.shots.away).toBe(1);
+    expect(world.puck.goalieCarrierId).toBe("home-goalie");
+    expect(world.puck.carrierSlotId).toBeNull();
+    expect(world.puck.position).toEqual(goalieHoldPosition(homeGoalieOf(world)));
+    expect(world.puck.velocity).toEqual({ x: 0, y: 0 });
+    expect(world.puck.height).toBe(0);
+    expect(world.puck.verticalVelocity).toBe(0);
     expect(world.score).toEqual({ home: 0, away: 0 });
+    expect(world.phase).toBe("playing");
+    expect(world.remainingMs).toBe(beforeRemainingMs - 16);
+    expect(skater.position).toEqual({ x: 321, y: 456 });
+  });
+
+  it("attaches a held puck to its goalie after goalie tracking", () => {
+    const world = playingWorld();
+    const goalie = homeGoalieOf(world);
+    world.puck.goalieCarrierId = goalie.id;
+    world.puck.position = { x: RINK_CONFIG.width / 2, y: RINK_CONFIG.height - 80 };
+    world.puck.velocity = { x: 900, y: 500 };
+    world.puck.height = 20;
+    world.puck.verticalVelocity = 300;
+
+    stepWorld(world, [], 100);
+
+    expect(world.puck.position).toEqual(goalieHoldPosition(goalie));
+    expect(world.puck.velocity).toEqual({ x: 0, y: 0 });
+    expect(world.puck.height).toBe(0);
+    expect(world.puck.verticalVelocity).toBe(0);
   });
 
   it("sweeps the puck path so a rocket cannot tunnel through the goalie", () => {

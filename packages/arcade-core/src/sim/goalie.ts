@@ -1,9 +1,8 @@
 import { RINK_CONFIG, goalLineX } from "../config/rink.js";
 import type { TeamId } from "../config/teams.js";
-import type { GoalieEntity, WorldState } from "./types.js";
+import type { GoalieEntity, Vec2, WorldState } from "./types.js";
 import { clamp } from "./physics.js";
 import { GOAL_HEIGHT } from "./puck.js";
-import { resetForFaceoff } from "./goal.js";
 
 // Goalie-resize powerups. Giant grows the user's OWN goalie into a near-wall;
 // Mini shrinks the OPPOSING goalie so the user scores easier. The multiplier
@@ -85,6 +84,16 @@ export const GOALIE_CONFIG: GoalieConfig = {
 
 export type GoalieSaveType = "pad" | "body" | "glove" | "blocker" | "cover";
 
+const GOALIE_HOLD_UP_ICE_OFFSET = 28;
+
+export function goalieHoldPosition(goalie: GoalieEntity): Vec2 {
+  const upIce = goalie.teamId === "home" ? 1 : -1;
+  return {
+    x: goalie.position.x + upIce * GOALIE_HOLD_UP_ICE_OFFSET,
+    y: goalie.position.y
+  };
+}
+
 export function stepGoalies(
   world: WorldState,
   dtMs: number,
@@ -98,6 +107,10 @@ export function stepGoalies(
       dtMs,
       config
     );
+    if (world.puck.goalieCarrierId === goalie.id) {
+      holdPuckByGoalie(world, goalie);
+      continue;
+    }
     resolveGoalieSave(world, goalie, dtMs, config);
   }
 }
@@ -148,7 +161,7 @@ function resolveGoalieSave(
 ): void {
   const puck = world.puck;
 
-  if (puck.carrierSlotId || puck.height >= GOAL_HEIGHT) {
+  if (puck.carrierSlotId || puck.goalieCarrierId || puck.height >= GOAL_HEIGHT) {
     return;
   }
 
@@ -237,14 +250,27 @@ function resolveGoalieSave(
   puck.assistCandidateSlotId = null;
 
   if (saveType === "cover") {
-    // Frozen under the goalie: whistle, center-ice faceoff.
     world.eventQueue.push({
       id: `cover-${world.time.tick}-${goalie.id}`,
       type: "cover",
       atMs: world.time.nowMs,
       targetSlotId: goalie.id
     });
-    resetForFaceoff(world);
+    puck.carrierSlotId = null;
+    puck.goalieCarrierId = goalie.id;
+    puck.position = goalieHoldPosition(goalie);
+    puck.velocity = { x: 0, y: 0 };
+    puck.height = 0;
+    puck.verticalVelocity = 0;
+    puck.lastTouchSlotId = goalie.id;
+    puck.assistCandidateSlotId = null;
+    puck.shotBySlotId = null;
+    puck.shotPower = 0;
+    puck.isChargedShot = false;
+    puck.passedFromSlotId = null;
+    puck.passedAtMs = 0;
+    puck.pickupDisabledForSlotId = null;
+    puck.pickupDisabledUntilMs = 0;
     return;
   }
 
@@ -263,10 +289,20 @@ function resolveGoalieSave(
     y: goalie.position.y + lateralSign * 12
   };
   puck.verticalVelocity = Math.max(120, Math.abs(puck.verticalVelocity) * 0.35);
+  puck.goalieCarrierId = null;
   puck.shotBySlotId = null;
   puck.lastTouchSlotId = goalie.id;
   puck.pickupDisabledForSlotId = null;
   puck.pickupDisabledUntilMs = world.time.nowMs + 100;
+}
+
+function holdPuckByGoalie(world: WorldState, goalie: GoalieEntity): void {
+  const puck = world.puck;
+  puck.carrierSlotId = null;
+  puck.position = goalieHoldPosition(goalie);
+  puck.velocity = { x: 0, y: 0 };
+  puck.height = 0;
+  puck.verticalVelocity = 0;
 }
 
 function goalieSaveType(

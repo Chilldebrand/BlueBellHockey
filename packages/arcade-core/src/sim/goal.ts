@@ -7,7 +7,7 @@ import { playerStatLine } from "./stats.js";
 import type { WorldState } from "./types.js";
 
 export function resolveGoals(world: WorldState): void {
-  if (world.puck.carrierSlotId) {
+  if (world.puck.carrierSlotId || world.puck.goalieCarrierId) {
     return;
   }
 
@@ -68,6 +68,7 @@ export function resetForFaceoff(world: WorldState): void {
   world.puck.velocity = { x: 0, y: 0 };
   world.puck.height = 0;
   world.puck.verticalVelocity = 0;
+  world.puck.goalieCarrierId = null;
   world.puck.carrierSlotId = null;
   world.puck.assistCandidateSlotId = null;
   world.puck.shotBySlotId = null;

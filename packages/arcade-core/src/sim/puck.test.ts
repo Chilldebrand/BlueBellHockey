@@ -121,10 +121,47 @@ describe("puck simulation", () => {
   it("clears the primary-assist candidate on a faceoff reset", () => {
     const world = playingWorld();
     world.puck.assistCandidateSlotId = "home-skater-1";
+    world.puck.goalieCarrierId = "home-goalie";
 
     resetForFaceoff(world);
 
     expect(world.puck.assistCandidateSlotId).toBeNull();
+    expect(world.puck.carrierSlotId).toBeNull();
+    expect(world.puck.goalieCarrierId).toBeNull();
+  });
+
+  it("does not drift or allow skater pickup while a goalie holds the puck", () => {
+    const world = playingWorld();
+    const skater = world.skaters[0]!;
+    const goalie = world.goalies.find((candidate) => candidate.teamId === "home")!;
+    const heldPosition = { ...bladeWorldPosition(skater) };
+    world.puck.goalieCarrierId = goalie.id;
+    world.puck.position = heldPosition;
+    world.puck.velocity = { x: 600, y: -300 };
+    world.puck.height = 30;
+    world.puck.verticalVelocity = 400;
+
+    stepPuck(world, new Map(), 100);
+
+    expect(world.puck.goalieCarrierId).toBe(goalie.id);
+    expect(world.puck.carrierSlotId).toBeNull();
+    expect(world.puck.position).toEqual(heldPosition);
+    expect(world.puck.velocity).toEqual({ x: 600, y: -300 });
+    expect(world.puck.height).toBe(30);
+    expect(world.puck.verticalVelocity).toBe(400);
+  });
+
+  it("repairs conflicting possession in favor of the goalie holder", () => {
+    const world = playingWorld();
+    const skater = world.skaters.find((candidate) => candidate.id === "home-skater-1")!;
+    world.puck.carrierSlotId = "home-skater-1";
+    world.puck.goalieCarrierId = "home-goalie";
+    world.puck.position = { ...bladeWorldPosition(skater) };
+
+    stepPuck(world, new Map(), 16);
+
+    expect(world.puck.carrierSlotId).toBeNull();
+    expect(world.puck.goalieCarrierId).toBe("home-goalie");
   });
 
   it("applies ice friction to a loose puck", () => {

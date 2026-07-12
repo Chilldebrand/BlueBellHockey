@@ -171,6 +171,8 @@ export interface PuckState {
   /** Height above the ice (0 = on the deck); shots can lift the puck. */
   height: number;
   verticalVelocity: number;
+  /** Goalie-only possession for a covered save; mutually exclusive with skater possession. */
+  goalieCarrierId: string | null;
   carrierSlotId: string | null;
   lastTouchSlotId: string | null;
   assistCandidateSlotId: string | null;

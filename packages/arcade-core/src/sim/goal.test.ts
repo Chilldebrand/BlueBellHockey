@@ -4,6 +4,7 @@ import {
   RINK_CONFIG,
   createWorld,
   goalLineX,
+  resolveGoals,
   stepWorld,
   type WorldState
 } from "../index";
@@ -129,6 +130,20 @@ describe("goal scoring and match loop", () => {
 
     expect(world.score.home).toBe(0);
     expect(world.score.away).toBe(0);
+  });
+
+  it("does not score a goalie-held puck even if its position is in the goal", () => {
+    const world = worldWithOpenAwayNet();
+    world.puck.goalieCarrierId = "home-goalie";
+    world.puck.position = {
+      x: goalLineX("away") + 10,
+      y: RINK_CONFIG.height / 2
+    };
+
+    resolveGoals(world);
+
+    expect(world.score).toEqual({ home: 0, away: 0 });
+    expect(world.eventQueue.some((event) => event.type === "goal")).toBe(false);
   });
 
   it("ends the match when the target score is reached", () => {

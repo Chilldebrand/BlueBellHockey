@@ -130,6 +130,7 @@ export function createInitialPuckState(position: Vec2): PuckState {
     velocity: { x: 0, y: 0 },
     height: 0,
     verticalVelocity: 0,
+    goalieCarrierId: null,
     carrierSlotId: null,
     lastTouchSlotId: null,
     assistCandidateSlotId: null,
@@ -149,6 +150,14 @@ export function stepPuck(
   dtMs: number,
   config: PuckConfig = PUCK_CONFIG
 ): void {
+  if (world.puck.goalieCarrierId) {
+    // Covered saves belong exclusively to goalies. Repair malformed external
+    // state here as the common puck entry point, then let goalie tracking
+    // attach the puck after it moves.
+    world.puck.carrierSlotId = null;
+    return;
+  }
+
   const carrier = world.puck.carrierSlotId
     ? world.skaters.find((skater) => skater.id === world.puck.carrierSlotId)
     : undefined;
@@ -648,6 +657,7 @@ function tryPickupLoosePuck(
 
     // Gather: possession starts, the tether reels the puck in from where it
     // lies (no teleport onto the blade).
+    puck.goalieCarrierId = null;
     puck.carrierSlotId = skater.id;
     puck.lastTouchSlotId = skater.id;
     if (isPassReception && passer) {
@@ -704,6 +714,7 @@ function releasePuck(
   const blade = bladeWorldPosition(carrier, undefined, world.time.nowMs);
 
   world.puck.carrierSlotId = null;
+  world.puck.goalieCarrierId = null;
   world.puck.lastTouchSlotId = carrier.id;
   world.puck.shotBySlotId = release.shotBySlotId;
   world.puck.shotPower = release.shotPower;
