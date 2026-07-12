@@ -45,6 +45,7 @@ const puck: PuckState = {
   velocity: { x: 0, y: 0 },
   height: 0,
   verticalVelocity: 0,
+  goalieCarrierId: null,
   carrierSlotId: null,
   assistCandidateSlotId: null,
   lastTouchSlotId: null,
