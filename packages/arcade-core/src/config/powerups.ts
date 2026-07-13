@@ -20,20 +20,22 @@ export interface PowerupDefinition {
 export const POWERUP_SPAWN_INTERVAL_MS = 9000;
 export const POWERUP_PICKUP_RADIUS = 80;
 
+// Labels are the announcer copy (banner + any HUD): arcade-caster style by
+// user request 2026-07-13.
 export const POWERUP_DEFINITIONS: Record<PowerupType, PowerupDefinition> = {
-  "speed-boost": { type: "speed-boost", label: "Speed", durationMs: 3600 },
+  "speed-boost": { type: "speed-boost", label: "Super Speed", durationMs: 3600 },
   "hard-shot": { type: "hard-shot", label: "Hard Shot", durationMs: 4300 },
   // Freeze locks a random opponent as an ice block; the duration is the freeze
   // length applied to that target (not an aura on the user).
   freeze: { type: "freeze", label: "Freeze", durationMs: 5000 },
   // Big Hit: turns the user into a wrecking ball for its duration.
   bulldozer: { type: "bulldozer", label: "Big Hit", durationMs: 4000 },
-  // Mini Goalie: shrinks the OPPOSING goalie so the user scores easier.
-  "mini-goalie": { type: "mini-goalie", label: "Mini Goalie", durationMs: 8000 },
-  // Giant Goalie: grows the user's OWN goalie into a wall for its duration.
+  // Tiny Goalie: shrinks the OPPOSING goalie so the user scores easier.
+  "mini-goalie": { type: "mini-goalie", label: "Tiny Goalie", durationMs: 8000 },
+  // Huge Goalie: grows the user's OWN goalie into a wall for its duration.
   "giant-goalie": {
     type: "giant-goalie",
-    label: "Giant Goalie",
+    label: "Huge Goalie",
     durationMs: 10000
   }
 };

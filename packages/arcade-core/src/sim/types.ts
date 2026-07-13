@@ -34,7 +34,10 @@ export interface InputFrame {
   readonly poke?: boolean;
   /** Block shot: dive/lay out in the facing direction (defense). */
   readonly dive?: boolean;
-  /** Activate the player's held powerup. */
+  /**
+   * @deprecated Powerups activate on pickup (2026-07-13) — there is no held
+   * slot to trigger anymore. Tolerated on the wire, ignored by the sim.
+   */
   readonly usePowerup?: boolean;
   /** Deferred special-action system — legacy field, not sent on the wire. */
   readonly special?: boolean;
@@ -129,7 +132,6 @@ export interface SkaterEntity {
   oneTimerUntilMs: number;
   /** Accumulated pass-button hold time (ms) — charges a stronger pass. */
   passChargeMs: number;
-  heldPowerupType: PowerupType | null;
   specialCharge: number;
   specialCooldownUntilMs: number;
 }
@@ -202,7 +204,8 @@ export interface ActivePowerup {
   readonly type: PowerupType;
   readonly slotId: string | null;
   readonly position: Vec2 | null;
-  readonly expiresAtMs: number;
+  /** Mutable: re-collecting the same type refreshes the window in place. */
+  expiresAtMs: number;
 }
 
 export interface PowerupPickup {

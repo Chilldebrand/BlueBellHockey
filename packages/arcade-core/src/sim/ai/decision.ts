@@ -81,7 +81,6 @@ export interface BotDecision {
   readonly shoot: boolean;
   readonly check: boolean;
   readonly turbo: boolean;
-  readonly usePowerup: boolean;
   readonly special: boolean;
 }
 
@@ -131,8 +130,7 @@ export function selectBotDecision(
   const passTarget = pass ? findPassTarget(bot, world, difficulty) : null;
   const shoot = !pass && shouldShoot(bot, world, difficulty);
   const check = shouldCheckCarrier(bot, world, difficulty);
-  const usePowerup = shouldUseHeldPowerup(bot, world, difficulty);
-  const special = !usePowerup && shouldUseSpecial(bot, world, difficulty);
+  const special = shouldUseSpecial(bot, world, difficulty);
 
   return {
     role,
@@ -156,7 +154,6 @@ export function selectBotDecision(
     turbo:
       bot.turboMeter > 0.18 &&
       (isBreakaway(bot, world) || needsRecoveryTurbo(bot, world)),
-    usePowerup,
     special
   };
 }
@@ -460,7 +457,7 @@ export function choosePickupTarget(
   world: WorldState,
   difficulty: BotDifficulty
 ): Vec2 | null {
-  if (bot.heldPowerupType || world.powerupPickups.length === 0) {
+  if (world.powerupPickups.length === 0) {
     return null;
   }
 
@@ -576,51 +573,6 @@ export function isBreakaway(bot: SkaterEntity, world: WorldState): boolean {
       distance(candidate.position, bot.position) <= 360
     );
   });
-}
-
-export function shouldUseHeldPowerup(
-  bot: SkaterEntity,
-  world: WorldState,
-  difficulty: BotDifficulty = BOT_DIFFICULTY.pro
-): boolean {
-  if (!bot.heldPowerupType) {
-    return false;
-  }
-
-  if (bot.heldPowerupType === "hard-shot") {
-    return shouldShoot(bot, world, difficulty);
-  }
-
-  if (bot.heldPowerupType === "speed-boost") {
-    return isBreakaway(bot, world) || needsRecoveryTurbo(bot, world);
-  }
-
-  if (bot.heldPowerupType === "bulldozer") {
-    // Trigger the wrecking ball right before laying a hit on the carrier.
-    return shouldCheckCarrier(bot, world, difficulty);
-  }
-
-  if (bot.heldPowerupType === "freeze") {
-    // Fire-and-forget: freezes a random opponent. Save it for the attack,
-    // when a frozen defender opens the most ice.
-    return (
-      isAttackingZone(bot) &&
-      distance(bot.position, world.puck.position) <= difficulty.reactionRange
-    );
-  }
-
-  if (bot.heldPowerupType === "mini-goalie") {
-    // Offensive: shrink the enemy net while pressing the attack.
-    return isAttackingZone(bot);
-  }
-
-  if (bot.heldPowerupType === "giant-goalie") {
-    // Defensive: wall up the moment an opponent has possession.
-    const carrier = findCarrier(world);
-    return carrier !== null && carrier.teamId !== bot.teamId;
-  }
-
-  return isAttackingZone(bot);
 }
 
 export function shouldUseSpecial(

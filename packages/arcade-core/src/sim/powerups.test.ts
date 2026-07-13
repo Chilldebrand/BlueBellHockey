@@ -99,7 +99,7 @@ describe("powerup simulation", () => {
     ).toEqual(schedulerEventIds);
   });
 
-  it("lets a skater pick up and consume one valid powerup", () => {
+  it("activates a powerup the moment a skater skates over it", () => {
     const world = playingWorld();
     const skater = world.skaters[0];
     skater.position = { ...POWERUP_SPAWN_POINTS[0] };
@@ -112,16 +112,49 @@ describe("powerup simulation", () => {
 
     stepWorld(world, [], 16);
 
-    expect(skater.heldPowerupType).toBe("speed-boost");
+    // No held slot, no use button: the effect is live from the pickup tick.
     expect(world.powerupPickups).toHaveLength(0);
-
-    stepWorld(world, [input(skater.id, { usePowerup: true })], 16);
-
-    expect(skater.heldPowerupType).toBeNull();
     expect(world.activePowerups.at(-1)).toMatchObject({
       type: "speed-boost",
       slotId: skater.id
     });
+    expect(
+      world.eventQueue.some((event) => event.type === "powerupPickup")
+    ).toBe(true);
+    expect(
+      world.eventQueue.some((event) => event.type === "powerupUse")
+    ).toBe(false);
+  });
+
+  it("refreshes the active window when re-collecting the same type", () => {
+    const world = playingWorld();
+    const skater = world.skaters[0];
+    skater.position = { ...POWERUP_SPAWN_POINTS[0] };
+    world.powerupPickups.push({
+      id: "pickup-speed-1",
+      type: "speed-boost",
+      position: { ...POWERUP_SPAWN_POINTS[0] },
+      spawnedAtMs: 0
+    });
+    stepWorld(world, [], 16);
+    const firstExpiry = world.activePowerups.at(-1)!.expiresAtMs;
+
+    world.powerupPickups.push({
+      id: "pickup-speed-2",
+      type: "speed-boost",
+      position: { ...skater.position },
+      spawnedAtMs: 0
+    });
+    stepWorld(world, [], 16);
+
+    // One entry, later expiry — never a stacked duplicate (a doubled entry
+    // would multiply goalie-resize effects).
+    const actives = world.activePowerups.filter(
+      (powerup) =>
+        powerup.slotId === skater.id && powerup.type === "speed-boost"
+    );
+    expect(actives).toHaveLength(1);
+    expect(actives[0].expiresAtMs).toBeGreaterThan(firstExpiry);
   });
 
   it("validates special charge and cooldown before activation", () => {
@@ -157,9 +190,15 @@ describe("reworked powerup effects", () => {
     away[2].contactStateUntilMs = 1_000_000;
     const target = away[0];
     world.puck.carrierSlotId = target.id;
-    user.heldPowerupType = "freeze";
+    user.position = { ...POWERUP_SPAWN_POINTS[0] };
+    world.powerupPickups.push({
+      id: "pickup-freeze",
+      type: "freeze",
+      position: { ...POWERUP_SPAWN_POINTS[0] },
+      spawnedAtMs: 0
+    });
 
-    stepWorld(world, [input(user.id, { usePowerup: true })], 16);
+    stepWorld(world, [], 16);
 
     expect(target.contactState).toBe("frozen");
     expect(target.contactStateUntilMs).toBeGreaterThan(world.time.nowMs);
@@ -173,39 +212,54 @@ describe("reworked powerup effects", () => {
   it("freeze never targets the user's own team", () => {
     const world = playingWorld();
     const user = world.skaters.find((s) => s.teamId === "home")!;
-    user.heldPowerupType = "freeze";
+    user.position = { ...POWERUP_SPAWN_POINTS[0] };
+    world.powerupPickups.push({
+      id: "pickup-freeze",
+      type: "freeze",
+      position: { ...POWERUP_SPAWN_POINTS[0] },
+      spawnedAtMs: 0
+    });
 
-    stepWorld(world, [input(user.id, { usePowerup: true })], 16);
+    stepWorld(world, [], 16);
 
     const frozen = world.skaters.filter((s) => s.contactState === "frozen");
     expect(frozen).toHaveLength(1);
     expect(frozen[0].teamId).toBe("away");
   });
 
-  it("blocks powerup activation while frozen or knocked down", () => {
+  it("blocks pickup while frozen or knocked down", () => {
     const world = playingWorld();
     const skater = world.skaters[0];
-    skater.heldPowerupType = "freeze";
+    skater.position = { ...POWERUP_SPAWN_POINTS[0] };
     skater.contactState = "frozen";
     skater.contactStateUntilMs = 1_000_000;
+    world.powerupPickups.push({
+      id: "pickup-freeze",
+      type: "freeze",
+      position: { ...POWERUP_SPAWN_POINTS[0] },
+      spawnedAtMs: 0
+    });
 
-    stepWorld(world, [input(skater.id, { usePowerup: true })], 16);
+    stepWorld(world, [], 16);
 
-    // No counter-freeze from inside the ice: the powerup stays held.
-    expect(skater.heldPowerupType).toBe("freeze");
+    // No counter-freeze from inside the ice: the drop stays on the ice.
+    expect(world.powerupPickups).toHaveLength(1);
     expect(
       world.skaters.filter((s) => s.contactState === "frozen")
     ).toHaveLength(1);
 
     skater.contactState = "knockedDown";
-    stepWorld(world, [input(skater.id, { usePowerup: true, sequence: 2 })], 16);
-    expect(skater.heldPowerupType).toBe("freeze");
+    stepWorld(world, [], 16);
+    expect(world.powerupPickups).toHaveLength(1);
 
-    // Back on their feet, the same press works.
+    // Back on their feet, skating over it fires immediately.
     skater.contactState = "ready";
     skater.contactStateUntilMs = 0;
-    stepWorld(world, [input(skater.id, { usePowerup: true, sequence: 3 })], 16);
-    expect(skater.heldPowerupType).toBeNull();
+    stepWorld(world, [], 16);
+    expect(world.powerupPickups).toHaveLength(0);
+    expect(
+      world.skaters.filter((s) => s.contactState === "frozen")
+    ).toHaveLength(1);
   });
 
   it("a frozen skater is locked in place and ignores input", () => {

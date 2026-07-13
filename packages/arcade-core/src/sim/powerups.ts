@@ -11,7 +11,7 @@ import {
   powerupTypeForSpawn,
   type PowerupType
 } from "../config/powerups.js";
-import type { InputFrame, SkaterEntity, WorldState } from "./types.js";
+import type { SkaterEntity, WorldState } from "./types.js";
 import { magnitude, normalizeOrZero } from "./physics.js";
 
 /** How long a frozen skater stays an ice block. */
@@ -33,14 +33,10 @@ export function hasActivePowerup(
   );
 }
 
-export function stepPowerups(
-  world: WorldState,
-  inputsBySlot: ReadonlyMap<string, InputFrame>
-): void {
+export function stepPowerups(world: WorldState): void {
   expireActivePowerups(world);
   spawnPowerups(world);
   pickUpPowerups(world);
-  useHeldPowerups(world, inputsBySlot);
   stepBananaPeels(world);
   chargeSpecials(world);
 }
@@ -166,9 +162,18 @@ function stepBananaPeels(world: WorldState): void {
   world.bananaPeels = survivors;
 }
 
+/**
+ * Powerups activate the moment a skater skates over them (user decision
+ * 2026-07-13 — no held slot, no use button). Frozen and flattened skaters
+ * can't trigger a drop they happen to be lying on, matching the old rule
+ * that an ice block couldn't press the button.
+ */
 function pickUpPowerups(world: WorldState): void {
   for (const skater of world.skaters) {
-    if (skater.heldPowerupType) {
+    if (
+      skater.contactState === "frozen" ||
+      skater.contactState === "knockedDown"
+    ) {
       continue;
     }
 
@@ -184,10 +189,10 @@ function pickUpPowerups(world: WorldState): void {
       continue;
     }
 
-    skater.heldPowerupType = pickup.type;
     world.powerupPickups = world.powerupPickups.filter(
       (candidate) => candidate.id !== pickup.id
     );
+    activatePowerup(world, skater, pickup.type);
     world.eventQueue.push({
       id: `powerup-pickup-${world.time.tick}-${skater.id}`,
       type: "powerupPickup",
@@ -198,52 +203,40 @@ function pickUpPowerups(world: WorldState): void {
   }
 }
 
-function useHeldPowerups(
+function activatePowerup(
   world: WorldState,
-  inputsBySlot: ReadonlyMap<string, InputFrame>
+  skater: SkaterEntity,
+  powerupType: PowerupType
 ): void {
-  for (const skater of world.skaters) {
-    const input = inputsBySlot.get(skater.id);
-    if (!input?.usePowerup || !skater.heldPowerupType) {
-      continue;
-    }
+  if (powerupType === "freeze") {
+    // Freeze doesn't buff the user — it turns a random opponent into an
+    // ice block. No active-window entry for the user.
+    freezeRandomOpponent(world, skater);
+    return;
+  }
 
-    // An ice block or a flattened skater can't reach the button: no
-    // counter-freezing from inside the ice, no bulldozer from the floor.
-    if (
-      skater.contactState === "frozen" ||
-      skater.contactState === "knockedDown"
-    ) {
-      continue;
-    }
+  const expiresAtMs =
+    world.time.nowMs + POWERUP_DEFINITIONS[powerupType].durationMs;
+  const existing = world.activePowerups.find(
+    (powerup) => powerup.slotId === skater.id && powerup.type === powerupType
+  );
 
-    const powerupType = skater.heldPowerupType;
-    skater.heldPowerupType = null;
-
-    if (powerupType === "freeze") {
-      // Freeze doesn't buff the user — it turns a random opponent into an
-      // ice block. No active-window entry for the user.
-      freezeRandomOpponent(world, skater);
-    } else {
-      world.activePowerups.push({
-        id: `active-${world.time.tick}-${skater.id}-${powerupType}`,
-        type: powerupType,
-        slotId: skater.id,
-        position: null,
-        expiresAtMs:
-          world.time.nowMs + POWERUP_DEFINITIONS[powerupType].durationMs
-      });
-      applyImmediateEffect(skater, powerupType);
-    }
-
-    world.eventQueue.push({
-      id: `powerup-use-${world.time.tick}-${skater.id}`,
-      type: "powerupUse",
-      atMs: world.time.nowMs,
-      sourceSlotId: skater.id,
-      targetSlotId: powerupType
+  // Re-collecting a type already in effect refreshes its window instead of
+  // stacking a duplicate entry — two Huge Goalies must not multiply into a
+  // x4.84 wall (goalieSizeMultiplier multiplies per active entry).
+  if (existing) {
+    existing.expiresAtMs = expiresAtMs;
+  } else {
+    world.activePowerups.push({
+      id: `active-${world.time.tick}-${skater.id}-${powerupType}`,
+      type: powerupType,
+      slotId: skater.id,
+      position: null,
+      expiresAtMs
     });
   }
+
+  applyImmediateEffect(skater, powerupType);
 }
 
 function applyImmediateEffect(skater: SkaterEntity, powerupType: string): void {

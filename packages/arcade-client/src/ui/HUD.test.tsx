@@ -15,8 +15,6 @@ describe("HUD", () => {
       throw new Error("Expected home-skater-1 in the initial world");
     }
 
-    localSkater.heldPowerupType = "hard-shot";
-
     const state: ArcadeClientState = {
       ...createInitialArcadeClientState(),
       currentWorld: world,

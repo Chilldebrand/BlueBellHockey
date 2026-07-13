@@ -9,7 +9,6 @@ const EVENT_LABELS: Record<string, string> = {
   stumble: "Stumble",
   knockdown: "Knockdown",
   powerupPickup: "Powerup",
-  powerupUse: "Use",
   specialUse: "Special",
   freeze: "Freeze!",
   bananaSlip: "Slip!"
@@ -47,7 +46,6 @@ function eventColor(type: string): string {
     case "knockdown":
       return "#ffdf6e";
     case "powerupPickup":
-    case "powerupUse":
       return "#72f1d1";
     case "freeze":
       return "#8ee9ff";

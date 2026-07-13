@@ -57,7 +57,6 @@ export function createBotInputFrame(
     stickY: shootFlick ? 1 : 0,
     pass: decision.pass,
     check: decision.check,
-    turbo: decision.turbo,
-    usePowerup: decision.usePowerup
+    turbo: decision.turbo
   };
 }

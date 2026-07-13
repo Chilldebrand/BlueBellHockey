@@ -424,26 +424,4 @@ describe("bot decision helpers", () => {
     expect(point.y).toBeCloseTo(mark.y, 5);
   });
 
-  it("uses held powerups in situational offensive and defensive contexts", () => {
-    const world = createWorld(1, "arcade3v3");
-    const carrier = skater(world, "home-skater-1");
-    const defender = skater(world, "away-skater-1");
-    carrier.position = {
-      x: RINK_CONFIG.width - 400,
-      y: RINK_CONFIG.height / 2
-    };
-    defender.position = {
-      x: RINK_CONFIG.width - 460,
-      y: RINK_CONFIG.height / 2
-    };
-    carrier.heldPowerupType = "speed-boost";
-    // Bulldozer fires right before a hit: the defender is closing on the
-    // carrier at speed and in check range.
-    defender.heldPowerupType = "bulldozer";
-    defender.velocity = { x: 400, y: 0 };
-    world.puck.carrierSlotId = carrier.id;
-
-    expect(selectBotDecision(carrier, world, alwaysAct).usePowerup).toBe(true);
-    expect(selectBotDecision(defender, world, alwaysAct).usePowerup).toBe(true);
-  });
 });

@@ -66,7 +66,6 @@ export function createWorld(
       turboCooldownUntilMs: 0,
       oneTimerUntilMs: 0,
       passChargeMs: 0,
-      heldPowerupType: null,
       specialCharge: 0,
       specialCooldownUntilMs: 0
     };
@@ -152,7 +151,7 @@ export function stepWorld(
   resolveChecks(world, latestInputBySlot, TUNING.check);
   resolveSkaterCollisions(world, TUNING.collision);
   if (TUNING.flags.powerupsEnabled) {
-    stepPowerups(world, latestInputBySlot);
+    stepPowerups(world);
   }
   if (TUNING.flags.specialsEnabled) {
     resolveSpecials(world, latestInputBySlot);
