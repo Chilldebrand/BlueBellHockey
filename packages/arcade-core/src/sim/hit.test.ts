@@ -130,8 +130,13 @@ describe("checking and knockdowns", () => {
   });
 
   it("knocks down high-speed targets and recovers them automatically", () => {
-    const { hitter, target, world } = worldWithContact();
-    hitter.velocity = { x: 800, y: 0 }; // force ≈ 1130 vs threshold 1000
+    // Speed is clamped at the turbo ceiling (~840, force ≈ 1180), so with the
+    // 1300 threshold a knockdown needs a power edge: dash-iron (power 5)
+    // at turbo ≈ 1180 × 1.24 ≈ 1463 ≥ 1300.
+    const { hitter, target, world } = worldWithContact({
+      "home-skater-1": "dash-iron"
+    });
+    hitter.velocity = { x: 840, y: 0 };
 
     stepWorld(world, [inputFrame(hitter.id, 1, { check: true })], 16);
 
@@ -150,9 +155,9 @@ describe("checking and knockdowns", () => {
 });
 
 describe("stat-scaled hitting", () => {
-  it("lets a power-5 hitter flatten at cruise speed where a neutral one can't", () => {
+  it("lets a power-5 hitter flatten at a speed where a neutral one can't", () => {
     const neutral = worldWithContact();
-    neutral.hitter.velocity = { x: 600, y: 0 }; // force ≈ 860 < 1000
+    neutral.hitter.velocity = { x: 800, y: 0 }; // force ≈ 1130 < 1300
     stepWorld(
       neutral.world,
       [inputFrame(neutral.hitter.id, 1, { check: true })],
@@ -161,40 +166,45 @@ describe("stat-scaled hitting", () => {
     expect(neutral.target.contactState).toBe("stumbling");
 
     const heavy = worldWithContact({ "home-skater-1": "dash-iron" }); // power 5
-    heavy.hitter.velocity = { x: 600, y: 0 }; // same speed, ×1.24 ≈ 1066
+    heavy.hitter.velocity = { x: 800, y: 0 }; // same speed, ×1.24 ≈ 1401
     stepWorld(heavy.world, [inputFrame(heavy.hitter.id, 1, { check: true })], 16);
     expect(heavy.target.contactState).toBe("knockedDown");
   });
 
   it("lets a balance-5 target stay up through a hit that fells a neutral one", () => {
-    const neutral = worldWithContact();
-    neutral.hitter.velocity = { x: 800, y: 0 };
+    // Power-5 turbo hit ≈ 1463: enough for a neutral target (1300)…
+    const neutral = worldWithContact({ "home-skater-1": "dash-iron" });
+    neutral.hitter.velocity = { x: 840, y: 0 };
     stepWorld(
       neutral.world,
       [inputFrame(neutral.hitter.id, 1, { check: true })],
       16
     );
-    expect(neutral.target.contactState).toBe("knockedDown"); // 1130 ≥ 1000
+    expect(neutral.target.contactState).toBe("knockedDown"); // 1463 ≥ 1300
 
-    const tank = worldWithContact({ "away-skater-1": "tess-flash" }); // balance 5
-    tank.hitter.velocity = { x: 800, y: 0 };
+    // …but a balance-5 tank raises the bar to 1560 and stays up.
+    const tank = worldWithContact({
+      "home-skater-1": "dash-iron",
+      "away-skater-1": "tess-flash" // balance 5
+    });
+    tank.hitter.velocity = { x: 840, y: 0 };
     stepWorld(tank.world, [inputFrame(tank.hitter.id, 1, { check: true })], 16);
-    expect(tank.target.contactState).toBe("stumbling"); // threshold 1200
+    expect(tank.target.contactState).toBe("stumbling"); // threshold 1560
   });
 
   it("makes anchored (braced) targets harder to knock down", () => {
-    const moving = worldWithContact();
-    moving.hitter.velocity = { x: 840, y: 0 }; // force ≈ 1180
+    const moving = worldWithContact({ "home-skater-1": "dash-iron" });
+    moving.hitter.velocity = { x: 840, y: 0 }; // force ≈ 1463
     stepWorld(
       moving.world,
       [inputFrame(moving.hitter.id, 1, { check: true })],
       16
     );
-    expect(moving.target.contactState).toBe("knockedDown"); // 1180 ≥ 1000
+    expect(moving.target.contactState).toBe("knockedDown"); // 1463 ≥ 1300
 
-    const braced = worldWithContact();
+    const braced = worldWithContact({ "home-skater-1": "dash-iron" });
     braced.hitter.velocity = { x: 840, y: 0 };
-    braced.target.velocity = { x: 0, y: 0 }; // anchored → threshold 1200
+    braced.target.velocity = { x: 0, y: 0 }; // anchored → threshold 1560
     stepWorld(
       braced.world,
       [inputFrame(braced.hitter.id, 1, { check: true })],

@@ -62,11 +62,14 @@ export const CHECK_CONFIG: CheckConfig = {
   activeMs: 150,
   stumbleMs: 390,
   knockdownMs: 960,
-  // NHL-style hitting: calibrated against cruise 560 / turbo 840 so a
-  // standstill press only bumps, an aligned cruise hit stumbles, and
-  // knockdowns need turbo or a power edge (see hit.test.ts table).
+  // NHL-style hitting: a standstill press only bumps (force 130), an aligned
+  // cruise hit (~780) stumbles + can strip, and knockdowns need a genuine
+  // freight-train hit (see hit.test.ts table). knockdownForce was 1000 until
+  // 2026-07-13; raised 30% by user request — a neutral turbo hit (~1180) now
+  // only stumbles, so flattening someone takes a power edge (power 4-5), a
+  // weak-balance victim (balance < 3), or the Big Hit powerup.
   stumbleForce: 520,
-  knockdownForce: 1000,
+  knockdownForce: 1300,
   puckStripForce: 600,
   slideSpeed: 380,
   baseCheckForce: 130,
