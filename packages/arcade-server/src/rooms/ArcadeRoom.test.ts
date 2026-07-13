@@ -891,6 +891,72 @@ describe("ArcadeRoom", () => {
     ).toBe("home-skater-1");
   });
 
+  it("re-seats an uncleanly dropped player in their old slot on reconnect", async () => {
+    const room = createTestRoom();
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(client("session-a") as never, { playerName: "Ada" });
+
+    let grantReconnect: (value: unknown) => void = () => undefined;
+    room["allowReconnection"] = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          grantReconnect = resolve;
+        })
+    ) as never;
+
+    const leavePromise = room.onLeave(client("session-a") as never, false);
+
+    // The body is a bot for the whole grace window — no AFK statue.
+    expect(room.state.teams.home.slots[0]).toMatchObject({
+      slotId: "home-skater-1",
+      kind: "bot"
+    });
+
+    grantReconnect(client("session-a"));
+    await leavePromise;
+
+    expect(room.state.teams.home.slots[0]).toMatchObject({
+      slotId: "home-skater-1",
+      kind: "human",
+      sessionId: "session-a",
+      playerName: "Ada"
+    });
+  });
+
+  it("keeps the slot released when the reconnect grace expires", async () => {
+    const room = createTestRoom();
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(client("session-a") as never, { playerName: "Ada" });
+
+    room["allowReconnection"] = vi.fn(() =>
+      Promise.reject(new Error("grace expired"))
+    ) as never;
+
+    await room.onLeave(client("session-a") as never, false);
+
+    expect(room.state.teams.home.slots[0]).toMatchObject({
+      slotId: "home-skater-1",
+      kind: "bot",
+      sessionId: null
+    });
+  });
+
+  it("releases a consented leave immediately without holding a seat", async () => {
+    const room = createTestRoom();
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(client("session-a") as never, { playerName: "Ada" });
+    const allowReconnection = vi.fn();
+    room["allowReconnection"] = allowReconnection as never;
+
+    await room.onLeave(client("session-a") as never, true);
+
+    expect(allowReconnection).not.toHaveBeenCalled();
+    expect(room.state.teams.home.slots[0]).toMatchObject({
+      kind: "bot",
+      sessionId: null
+    });
+  });
+
   it("acknowledges each session's latest input sequence in snapshots", () => {
     const room = createTestRoom();
     const broadcast = vi

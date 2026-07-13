@@ -68,6 +68,9 @@ const MAX_SIMULATION_STEPS_PER_TICK = 5;
 // schema state and room metadata, so both are strictly bounded here.
 const PRIVATE_CODE_PATTERN = /^[A-Z0-9]{1,12}$/;
 const MAX_PLAYER_NAME_LENGTH = 24;
+// Must cover the client's RECONNECT_WINDOW_MS (30s) so a stored ticket is
+// still honored server-side after a page reload.
+const RECONNECT_GRACE_SECONDS = 30;
 
 function generateRoomCode(): string {
   return Math.random().toString(36).slice(2, 8).toUpperCase().padEnd(6, "0");
@@ -201,7 +204,16 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     this.syncRosterState();
   }
 
-  onLeave(client: Client): void {
+  async onLeave(client: Client, consented?: boolean): Promise<void> {
+    const slot = this.roster.find(
+      (candidate) =>
+        candidate.kind === "human" && candidate.sessionId === client.sessionId
+    );
+    const playerName = slot?.playerName ?? undefined;
+    const previousSlotId = slot?.slotId;
+
+    // Release immediately either way: a bot takes the body over so the match
+    // never carries an input-starved statue while we wait out the grace.
     releaseHuman(this.roster, client.sessionId);
     this.latestInputBySession.delete(client.sessionId);
     this.lastInputSequenceBySession.delete(client.sessionId);
@@ -210,6 +222,31 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     this.pendingManualSwitchBySession.delete(client.sessionId);
     fillRosterWithBots(this.roster);
     this.syncRosterState();
+
+    if (consented || !previousSlotId) {
+      return;
+    }
+
+    // Unclean drop (reload, network blip): hold a reconnection seat so the
+    // client's stored ticket can bring them back — this also keeps a solo
+    // player's room alive across a refresh instead of disposing it.
+    try {
+      await this.allowReconnection(client, RECONNECT_GRACE_SECONDS);
+    } catch {
+      return;
+    }
+
+    try {
+      assignHumanToOpenSlot(this.roster, {
+        sessionId: client.sessionId,
+        playerName,
+        preferredSlotId: previousSlotId
+      });
+      fillRosterWithBots(this.roster);
+      this.syncRosterState();
+    } catch {
+      // Roster filled up during the grace window — nothing to re-seat.
+    }
   }
 
   tick(dtMs = MATCH_CONFIG.fixedTickMs): void {

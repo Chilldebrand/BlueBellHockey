@@ -32,6 +32,12 @@ export interface RoomRosterSlot {
 export interface HumanAssignment {
   readonly sessionId: string;
   readonly playerName?: string;
+  /**
+   * Seat this slot if it's still available (reconnect flow: put a returning
+   * player back in the body they left). Falls back to the normal open/bot
+   * search when the slot is gone or another human took it.
+   */
+  readonly preferredSlotId?: string;
 }
 
 export class RosterFullError extends Error {
@@ -118,7 +124,15 @@ export function assignHumanToOpenSlot(
     return existing;
   }
 
+  const preferred = assignment.preferredSlotId
+    ? roster.find(
+        (candidate) =>
+          candidate.slotId === assignment.preferredSlotId &&
+          candidate.kind !== "human"
+      )
+    : undefined;
   const slot =
+    preferred ??
     roster.find((candidate) => candidate.kind === "open") ??
     roster.find((candidate) => candidate.kind === "bot");
 

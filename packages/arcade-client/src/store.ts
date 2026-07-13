@@ -113,9 +113,11 @@ export function reduceArcadeClientState(
     case "connection.error":
       return { ...state, connectionStatus: "error", error: action.message };
     case "connection.left":
+      // The room is gone (server restart, network drop, dispose) — reset
+      // everything, not just the status flag. Keeping the last world/phase
+      // left the client rendering a frozen match with no way back.
       return {
-        ...state,
-        connectionStatus: "idle",
+        ...createInitialArcadeClientState(),
         error: action.message ?? state.error
       };
     default:

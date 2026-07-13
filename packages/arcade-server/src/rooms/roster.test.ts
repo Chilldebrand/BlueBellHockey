@@ -48,6 +48,25 @@ describe("room roster lifecycle", () => {
     });
   });
 
+  it("honors a preferred slot on assignment unless a human holds it", () => {
+    const roster = createRoster();
+
+    const reseated = assignHumanToOpenSlot(roster, {
+      sessionId: "session-a",
+      playerName: "Ada",
+      preferredSlotId: "away-skater-2"
+    });
+    expect(reseated.slotId).toBe("away-skater-2");
+
+    // Preferred slot occupied by another human → normal open-slot search.
+    const fallback = assignHumanToOpenSlot(roster, {
+      sessionId: "session-b",
+      playerName: "Bo",
+      preferredSlotId: "away-skater-2"
+    });
+    expect(fallback.slotId).toBe("home-skater-1");
+  });
+
   it("fills empty skater slots with deterministic bot ids", () => {
     const roster = createRoster();
     assignHumanToOpenSlot(roster, {

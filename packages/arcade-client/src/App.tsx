@@ -108,6 +108,8 @@ export function App({
     "boot"
   );
 
+  const reconnectSourceRef = useRef<ArcadeConnectionResult | null>(null);
+
   const attachRoom = useCallback((result: ArcadeConnectionResult) => {
     attachArcadeRoom(activeRoomRef, result, {
       onState: ({ room }) => dispatch({ type: "room.state", room }),
@@ -116,8 +118,29 @@ export function App({
       onWorldSnapshot: (world, inputAcks) =>
         dispatch({ type: "world.snapshot", world, inputAcks })
     });
+    reconnectSourceRef.current = result;
     saveReconnectTicket(result.room, result.options);
   }, []);
+
+  // Keep the stored reconnect ticket fresh while connected: its 30s window
+  // must be measured from the moment the connection drops, not from join,
+  // or a reload minutes into a match would never even try to reconnect.
+  useEffect(() => {
+    if (state.connectionStatus !== "connected") {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      const source = reconnectSourceRef.current;
+      if (source) {
+        saveReconnectTicket(source.room, source.options);
+      }
+    }, 10_000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [state.connectionStatus]);
 
   useEffect(() => {
     keyboardRef.current = createKeyboardInputTracker();
