@@ -51,8 +51,14 @@ export interface LocalSim {
   reset(): void;
   getWorld(): WorldState;
   getTick(): number;
-  /** The slot the human is currently controlling (moves on pass/switch). */
+  /** The skater slot the human owns (moves on pass/switch, never a goalie). */
   getControlledSlotId(): string;
+  /**
+   * The entity the human's input currently drives: their own team's goalie
+   * while it covers the puck (temporary outlet control), otherwise the
+   * controlled skater slot. Camera/highlight should follow this.
+   */
+  getControlledEntityId(): string;
 }
 
 function createFreeSkateWorld(seed: number): WorldState {
@@ -75,9 +81,26 @@ export function createLocalSim({
   let world = createFreeSkateWorld(seed);
   let accumulatorMs = 0;
   let controlledSlotId = slotId;
+  // Temporary goalie grant (server parity): non-null while the human's own
+  // goalie covers the puck. Input drives it; the skater slot stays owned.
+  let controlledGoalieId: string | null = null;
   // Rising-edge latch for the pass-as-switch control (defense / loose pucks).
   let lastHumanPass = false;
   let pendingManualSwitch = false;
+
+  function deriveControlledGoalieId(): string | null {
+    const goalieCarrierId = world.puck.goalieCarrierId;
+    if (!goalieCarrierId) {
+      return null;
+    }
+    const goalie = world.goalies.find(
+      (candidate) => candidate.id === goalieCarrierId
+    );
+    const humanTeamId = world.skaters.find(
+      (skater) => skater.id === controlledSlotId
+    )?.teamId;
+    return goalie && goalie.teamId === humanTeamId ? goalie.id : null;
+  }
 
   return {
     slotId,
@@ -92,21 +115,35 @@ export function createLocalSim({
           previousWorld = cloneWorld(world);
         }
 
+        // Grant/return goalie control from the puck state left by the LAST
+        // step, mirroring the server's post-sub-step grant timing.
+        controlledGoalieId = deriveControlledGoalieId();
+
         const humanFrame = inputForTick(world.time.tick);
-        // Drive the currently controlled body, whatever the caller tagged.
+        // Drive the currently controlled body, whatever the caller tagged —
+        // the covering goalie while the temporary grant is active.
         const controlledFrame = humanFrame
-          ? { ...humanFrame, slotId: controlledSlotId }
+          ? { ...humanFrame, slotId: controlledGoalieId ?? controlledSlotId }
           : null;
 
         // Latch a fresh pass press (only meaningful as a switch when not
         // carrying; the sim still reads `pass` for charge-and-release passing).
+        // While goalie-controlled the press charges the outlet instead, so no
+        // switch may latch or fire.
         if (controlledFrame) {
-          if (controlledFrame.pass && !lastHumanPass) {
+          if (
+            controlledFrame.pass &&
+            !lastHumanPass &&
+            controlledGoalieId === null
+          ) {
             pendingManualSwitch = true;
           }
           lastHumanPass = controlledFrame.pass;
         } else {
           lastHumanPass = false;
+        }
+        if (controlledGoalieId !== null) {
+          pendingManualSwitch = false;
         }
 
         // Bot AI for every non-controlled, non-goalie skater. Sequence keyed on
@@ -153,6 +190,7 @@ export function createLocalSim({
       world = createFreeSkateWorld(seed);
       accumulatorMs = 0;
       controlledSlotId = slotId;
+      controlledGoalieId = null;
       lastHumanPass = false;
       pendingManualSwitch = false;
     },
@@ -164,6 +202,9 @@ export function createLocalSim({
     },
     getControlledSlotId() {
       return controlledSlotId;
+    },
+    getControlledEntityId() {
+      return controlledGoalieId ?? controlledSlotId;
     }
   };
 }

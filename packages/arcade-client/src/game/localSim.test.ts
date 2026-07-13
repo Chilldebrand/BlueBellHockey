@@ -77,6 +77,81 @@ describe("local sim", () => {
     ).toBeGreaterThan(0);
   });
 
+  it("temporarily controls the covering goalie and releases an aimed outlet", () => {
+    const sim = createLocalSim({ seed: 5 });
+    const world = sim.getWorld();
+    const goalie = world.goalies.find((g) => g.id === "home-goalie")!;
+
+    // Force a covered save by the human's own goalie.
+    world.puck.carrierSlotId = null;
+    world.puck.goalieCarrierId = "home-goalie";
+    goalie.possessionStartedAtMs = world.time.nowMs;
+
+    const frame = (
+      tick: number,
+      overrides: Partial<InputFrame>
+    ): InputFrame => ({
+      playerId: "test",
+      slotId: FREE_SKATE_SLOT_ID,
+      sequence: tick + 1,
+      moveX: 0,
+      moveY: 0,
+      stickX: 0,
+      stickY: 0,
+      pass: false,
+      check: false,
+      turbo: false,
+      switchTarget: false,
+      ...overrides
+    });
+
+    // Hold the pass while aiming up-ice: input drives the goalie, not the
+    // skater, and the pass press must NOT latch a manual body switch.
+    sim.advance(MATCH_CONFIG.fixedTickMs, (tick) =>
+      frame(tick, { pass: true, moveX: 1 })
+    );
+    expect(sim.getControlledEntityId()).toBe("home-goalie");
+    expect(sim.getControlledSlotId()).toBe(FREE_SKATE_SLOT_ID);
+    expect(sim.getWorld().puck.goalieCarrierId).toBe("home-goalie");
+
+    // Bots keep skating around the frozen moment.
+    expect(
+      sim
+        .getWorld()
+        .skaters.filter(
+          (skater) =>
+            skater.id !== FREE_SKATE_SLOT_ID &&
+            Math.hypot(skater.velocity.x, skater.velocity.y) > 0
+        ).length
+    ).toBeGreaterThan(0);
+
+    // Falling edge releases the outlet along the remembered aim.
+    sim.advance(MATCH_CONFIG.fixedTickMs, (tick) =>
+      frame(tick, { pass: false, moveX: 1 })
+    );
+    expect(sim.getWorld().puck.goalieCarrierId).toBeNull();
+    expect(sim.getWorld().puck.velocity.x).toBeGreaterThan(0);
+
+    // Control returns to the remembered skater on the next tick.
+    sim.advance(MATCH_CONFIG.fixedTickMs, (tick) => frame(tick, {}));
+    expect(sim.getControlledEntityId()).toBe(FREE_SKATE_SLOT_ID);
+    expect(sim.getControlledSlotId()).toBe(FREE_SKATE_SLOT_ID);
+  });
+
+  it("never grants control of the opposing goalie", () => {
+    const sim = createLocalSim({ seed: 5 });
+    const world = sim.getWorld();
+    const goalie = world.goalies.find((g) => g.id === "away-goalie")!;
+
+    world.puck.carrierSlotId = null;
+    world.puck.goalieCarrierId = "away-goalie";
+    goalie.possessionStartedAtMs = world.time.nowMs;
+
+    sim.advance(MATCH_CONFIG.fixedTickMs, () => null);
+
+    expect(sim.getControlledEntityId()).toBe(FREE_SKATE_SLOT_ID);
+  });
+
   it("replays a recorded input script to an identical world", () => {
     const seed = 99;
     const recorder = createInputRecorder();
