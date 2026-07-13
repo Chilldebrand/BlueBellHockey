@@ -44,8 +44,27 @@ export const POWERUP_SPAWN_POINTS = [
   { x: RINK_CONFIG.width * 0.5, y: RINK_CONFIG.height * 0.5 }
 ] as const;
 
+/**
+ * Deterministic integer mixer for spawn decisions (replay-safe, no
+ * Math.random). The old linear `(seed + index) % n` selection was correlated
+ * with the round-robin spawn point (`index % 3`): one point was permanently
+ * all bananas, each other point only ever offered two fixed types, and the
+ * two types whose indices matched the banana residue — speed-boost and
+ * bulldozer — could NEVER spawn, for any seed.
+ */
+function mixSpawnHash(seed: number, index: number, salt: number): number {
+  let h = (seed | 0) ^ Math.imul(index + 1, 0x9e3779b1) ^ Math.imul(salt, 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d);
+  h = Math.imul(h ^ (h >>> 12), 0x297a2d39);
+  h ^= h >>> 15;
+  return h >>> 0;
+}
+
 export function powerupTypeForSpawn(seed: number, index: number): PowerupType {
-  return POWERUP_TYPES[(seed + index) % POWERUP_TYPES.length] ?? "speed-boost";
+  return (
+    POWERUP_TYPES[mixSpawnHash(seed, index, 2) % POWERUP_TYPES.length] ??
+    "speed-boost"
+  );
 }
 
 // Banana peel hazard: spawns on the same cadence/points as powerups, but every
@@ -63,7 +82,9 @@ export const BANANA_SLIP_SLIDE = 260;
 /**
  * Whether the spawn at this index drops a banana peel (hazard) instead of a
  * collectible powerup. Deterministic from the seed so replays stay identical.
+ * Hashed independently of the type/point selection so bananas land on every
+ * spawn point over a match instead of claiming one point forever.
  */
 export function isBananaSpawn(seed: number, index: number): boolean {
-  return (seed + index) % BANANA_SPAWN_EVERY === 0;
+  return mixSpawnHash(seed, index, 1) % BANANA_SPAWN_EVERY === 0;
 }

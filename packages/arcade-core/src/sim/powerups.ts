@@ -64,6 +64,21 @@ function spawnPowerupAtIndex(world: WorldState, spawnIndex: number): void {
     return;
   }
 
+  // One drop per point: an unclaimed pickup or peel already sitting there
+  // blocks the next spawn (otherwise they stack invisibly on the same spot,
+  // unboundedly in an endless Free Skate session).
+  const pointOccupied =
+    world.powerupPickups.some(
+      (pickup) =>
+        pickup.position.x === point.x && pickup.position.y === point.y
+    ) ||
+    world.bananaPeels.some(
+      (peel) => peel.position.x === point.x && peel.position.y === point.y
+    );
+  if (pointOccupied) {
+    return;
+  }
+
   // Every Nth spawn is a banana peel hazard instead of a collectible powerup.
   if (isBananaSpawn(world.seed, spawnIndex)) {
     world.bananaPeels.push({
@@ -190,6 +205,15 @@ function useHeldPowerups(
   for (const skater of world.skaters) {
     const input = inputsBySlot.get(skater.id);
     if (!input?.usePowerup || !skater.heldPowerupType) {
+      continue;
+    }
+
+    // An ice block or a flattened skater can't reach the button: no
+    // counter-freezing from inside the ice, no bulldozer from the floor.
+    if (
+      skater.contactState === "frozen" ||
+      skater.contactState === "knockedDown"
+    ) {
       continue;
     }
 

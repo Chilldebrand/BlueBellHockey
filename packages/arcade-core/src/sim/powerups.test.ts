@@ -58,14 +58,9 @@ describe("powerup simulation", () => {
     world.time.nowMs = POWERUP_SPAWN_INTERVAL_MS;
     stepWorld(world, [], 1);
     expect(world.lastPowerupSpawnIndex).toBe(0);
-    expect(world.powerupPickups.map((pickup) => pickup.id)).toEqual([
-      "powerup-spawn-0-hard-shot"
-    ]);
     expect(
-      world.eventQueue
-        .filter((event) => event.type === "powerupSpawn")
-        .map((event) => event.id)
-    ).toEqual(["powerup-spawn-0-0"]);
+      world.powerupPickups.length + world.bananaPeels.length
+    ).toBe(1);
 
     world.time.nowMs = POWERUP_SPAWN_INTERVAL_MS * 9;
     stepWorld(world, [], 1);
@@ -76,17 +71,18 @@ describe("powerup simulation", () => {
           event.type === "powerupSpawn" || event.type === "bananaSpawn"
       )
       .map((event) => event.id);
-    expect(schedulerEventIds).toEqual([
-      "powerup-spawn-1-1",
-      "banana-spawn-1-2",
-      "powerup-spawn-1-3",
-      "powerup-spawn-1-4",
-      "banana-spawn-1-5",
-      "powerup-spawn-1-6",
-      "powerup-spawn-1-7",
-      "banana-spawn-1-8"
-    ]);
+    // Catch-up processes indices 1..8 in order (index 0's event has aged past
+    // the 5s event-queue retention), but each point only holds ONE unclaimed
+    // drop — so exactly the first two catch-up indices land (the third point
+    // is still occupied by index 0's drop) and the rest are skipped.
     expect(new Set(schedulerEventIds).size).toBe(schedulerEventIds.length);
+    const spawnedIndices = schedulerEventIds.map((id) =>
+      Number(id.split("-").at(-1))
+    );
+    expect(spawnedIndices).toEqual([1, 2]);
+    expect(
+      world.powerupPickups.length + world.bananaPeels.length
+    ).toBeLessThanOrEqual(3);
 
     world.powerupPickups = [];
     world.bananaPeels = [];
@@ -184,6 +180,32 @@ describe("reworked powerup effects", () => {
     const frozen = world.skaters.filter((s) => s.contactState === "frozen");
     expect(frozen).toHaveLength(1);
     expect(frozen[0].teamId).toBe("away");
+  });
+
+  it("blocks powerup activation while frozen or knocked down", () => {
+    const world = playingWorld();
+    const skater = world.skaters[0];
+    skater.heldPowerupType = "freeze";
+    skater.contactState = "frozen";
+    skater.contactStateUntilMs = 1_000_000;
+
+    stepWorld(world, [input(skater.id, { usePowerup: true })], 16);
+
+    // No counter-freeze from inside the ice: the powerup stays held.
+    expect(skater.heldPowerupType).toBe("freeze");
+    expect(
+      world.skaters.filter((s) => s.contactState === "frozen")
+    ).toHaveLength(1);
+
+    skater.contactState = "knockedDown";
+    stepWorld(world, [input(skater.id, { usePowerup: true, sequence: 2 })], 16);
+    expect(skater.heldPowerupType).toBe("freeze");
+
+    // Back on their feet, the same press works.
+    skater.contactState = "ready";
+    skater.contactStateUntilMs = 0;
+    stepWorld(world, [input(skater.id, { usePowerup: true, sequence: 3 })], 16);
+    expect(skater.heldPowerupType).toBeNull();
   });
 
   it("a frozen skater is locked in place and ignores input", () => {
