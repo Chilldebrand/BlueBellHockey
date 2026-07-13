@@ -966,6 +966,212 @@ describe("ArcadeRoom", () => {
     });
   });
 
+  it("grants goalie control to the defending human on a new cover", () => {
+    const room = createTestRoom();
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(client("session-a") as never, { playerName: "Ada" });
+
+    // Post-step state: the home goalie just covered a shot mid-match.
+    room["world"]!.phase = "playing";
+    room["world"]!.puck.goalieCarrierId = "home-goalie";
+    room["applyGoalieControlGrants"](null);
+
+    expect(room.state.teams.home.slots[0]).toMatchObject({
+      slotId: "home-skater-1",
+      kind: "human",
+      sessionId: "session-a",
+      controlledGoalieId: "home-goalie"
+    });
+    // The away human list is untouched.
+    expect(
+      [...room.state.teams.away.slots].every(
+        (slot) => slot.controlledGoalieId === null
+      )
+    ).toBe(true);
+  });
+
+  it("does not grant goalie control for an attacking-team human", () => {
+    const room = createTestRoom();
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(client("session-a") as never, { playerName: "Ada" });
+
+    room["world"]!.phase = "playing";
+    room["world"]!.puck.goalieCarrierId = "away-goalie";
+    room["applyGoalieControlGrants"](null);
+
+    expect(
+      [
+        ...room.state.teams.home.slots,
+        ...room.state.teams.away.slots
+      ].every((slot) => slot.controlledGoalieId === null)
+    ).toBe(true);
+  });
+
+  it("routes the grantee's buffered and fresh input to the goalie", () => {
+    const room = createTestRoom();
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(client("session-a") as never, { playerName: "Ada" });
+
+    // Input buffered BEFORE the cover must be re-pointed by the grant...
+    room["handleInput"](client("session-a") as never, inputMessage(1));
+    room["world"]!.phase = "playing";
+    room["world"]!.puck.goalieCarrierId = "home-goalie";
+    room["applyGoalieControlGrants"](null);
+    expect(room["latestInputBySession"].get("session-a")?.slotId).toBe(
+      "home-goalie"
+    );
+
+    // ...and fresh input during the grant targets the goalie too.
+    room["handleInput"](client("session-a") as never, inputMessage(2));
+    expect(room["latestInputBySession"].get("session-a")?.slotId).toBe(
+      "home-goalie"
+    );
+  });
+
+  it("never lets another client's input reach the goalie", () => {
+    const room = createTestRoom();
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(client("session-a") as never, { playerName: "Ada" });
+    room.onJoin(client("session-b") as never, { playerName: "Bo" });
+
+    const world = room["world"]!;
+    world.phase = "playing";
+    const goalie = world.goalies.find((g) => g.id === "home-goalie")!;
+    world.skaters.find((s) => s.id === "home-skater-1")!.position = {
+      x: goalie.position.x + 100,
+      y: goalie.position.y
+    };
+    world.skaters.find((s) => s.id === "home-skater-2")!.position = {
+      x: goalie.position.x + 800,
+      y: goalie.position.y
+    };
+    world.puck.goalieCarrierId = "home-goalie";
+    room["applyGoalieControlGrants"](null);
+
+    // session-a (home-skater-1) is the grantee; session-b spoofs the goalie id.
+    room["handleInput"](client("session-b") as never, {
+      ...inputMessage(1),
+      frame: { ...inputMessage(1).frame, slotId: "home-goalie" }
+    });
+
+    expect(room["latestInputBySession"].get("session-b")?.slotId).toBe(
+      "home-skater-2"
+    );
+  });
+
+  it("clears the grant and re-points input when the goalie releases", () => {
+    const room = createTestRoom();
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(client("session-a") as never, { playerName: "Ada" });
+
+    room["world"]!.phase = "playing";
+    room["world"]!.puck.goalieCarrierId = "home-goalie";
+    room["applyGoalieControlGrants"](null);
+    room["handleInput"](client("session-a") as never, inputMessage(1));
+
+    room["world"]!.puck.goalieCarrierId = null;
+    room["applyGoalieControlGrants"]("home-goalie");
+
+    expect(room.state.teams.home.slots[0]).toMatchObject({
+      slotId: "home-skater-1",
+      controlledGoalieId: null
+    });
+    expect(room["latestInputBySession"].get("session-a")?.slotId).toBe(
+      "home-skater-1"
+    );
+  });
+
+  it("suppresses the manual switch while goalie-controlled", () => {
+    const room = createTestRoom();
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(client("session-a") as never, { playerName: "Ada" });
+
+    room["world"]!.phase = "playing";
+    room["world"]!.puck.goalieCarrierId = "home-goalie";
+    room["applyGoalieControlGrants"](null);
+
+    // Pass pressed during goalie control is a charge, not a body switch.
+    room["handleInput"](client("session-a") as never, inputMessage(1));
+    room["handleInput"](client("session-a") as never, {
+      ...inputMessage(2),
+      frame: { ...inputMessage(2).frame, pass: true }
+    });
+    room["applyControlSwitches"](null);
+
+    expect(
+      [
+        ...room.state.teams.home.slots,
+        ...room.state.teams.away.slots
+      ].find((slot) => slot.kind === "human")?.slotId
+    ).toBe("home-skater-1");
+  });
+
+  it("acknowledges goalie-controlled input under the goalie's entity id", () => {
+    const room = createTestRoom();
+    const broadcast = vi
+      .spyOn(room, "broadcast")
+      .mockImplementation(() => room as never);
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(client("session-a") as never, { playerName: "Ada" });
+
+    room["world"]!.phase = "playing";
+    room["world"]!.puck.goalieCarrierId = "home-goalie";
+    room["applyGoalieControlGrants"](null);
+    room["handleInput"](client("session-a") as never, inputMessage(7));
+    room["broadcastSnapshot"]();
+
+    const message = broadcast.mock.calls
+      .filter(([messageType]) => messageType === "server.worldSnapshot")
+      .at(-1)?.[1] as { inputAcks?: Record<string, number> };
+    expect(message.inputAcks?.["home-goalie"]).toBe(7);
+    expect(message.inputAcks?.["home-skater-1"]).toBeUndefined();
+  });
+
+  it("drops the grant when the grantee disconnects, leaving the fallback", async () => {
+    const room = createTestRoom();
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(client("session-a") as never, { playerName: "Ada" });
+    room["allowReconnection"] = vi.fn(() =>
+      Promise.reject(new Error("grace expired"))
+    ) as never;
+
+    room["world"]!.phase = "playing";
+    room["world"]!.puck.goalieCarrierId = "home-goalie";
+    room["applyGoalieControlGrants"](null);
+
+    await room.onLeave(client("session-a") as never, true);
+
+    // No slot keeps the grant; the sim's 2500 ms outlet timeout takes over.
+    expect(
+      [
+        ...room.state.teams.home.slots,
+        ...room.state.teams.away.slots
+      ].every((slot) => slot.controlledGoalieId === null)
+    ).toBe(true);
+    expect(room["world"]!.puck.goalieCarrierId).toBe("home-goalie");
+  });
+
+  it("clears goalie grants on rematch and back-to-lobby", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    vi.spyOn(room, "broadcast").mockImplementation(() => room as never);
+    const clientA = client("session-a");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(clientA as never, { playerName: "Ada" });
+    const rematch = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.rematch"
+    )?.[1];
+
+    room["world"]!.phase = "playing";
+    room["world"]!.puck.goalieCarrierId = "home-goalie";
+    room["applyGoalieControlGrants"](null);
+    room["world"]!.phase = "ended";
+    rematch?.(clientA as never, undefined);
+
+    expect(room.state.teams.home.slots[0].controlledGoalieId).toBeNull();
+    expect(room["world"]!.puck.goalieCarrierId).toBeNull();
+  });
+
   it("acknowledges each session's latest input sequence in snapshots", () => {
     const room = createTestRoom();
     const broadcast = vi

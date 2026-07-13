@@ -27,6 +27,13 @@ export interface RoomRosterSlot {
    * it with the session so the badge doesn't strobe.
    */
   teamJoinOrder: number | null;
+  /**
+   * Temporary goalie-control grant: while the team's goalie covers the puck,
+   * this human's input drives the goalie instead of their skater. Skater slot
+   * ownership never moves — the grant clears the moment the outlet releases,
+   * on leave/team move/control switch, and on every world reset.
+   */
+  controlledGoalieId: string | null;
 }
 
 export interface HumanAssignment {
@@ -64,7 +71,8 @@ function createSlot(slot: SkaterSlot): RoomRosterSlot {
     playerName: null,
     botId: null,
     characterId: characterIdForSlot(slot),
-    teamJoinOrder: null
+    teamJoinOrder: null,
+    controlledGoalieId: null
   };
 }
 
@@ -185,6 +193,7 @@ export function releaseHuman(
   slot.playerName = null;
   slot.botId = null;
   slot.teamJoinOrder = null;
+  slot.controlledGoalieId = null;
 
   return slot;
 }
@@ -219,6 +228,7 @@ export function moveHumanToTeam(
   current.botId = botIdForSlot(current.slotId);
   current.characterId = characterIdForSlot(current);
   current.teamJoinOrder = null;
+  current.controlledGoalieId = null;
 
   target.kind = "human";
   target.sessionId = sessionId;
@@ -228,6 +238,7 @@ export function moveHumanToTeam(
   // Fresh order on the NEW team: a switching captain relinquishes the old
   // team and never usurps the new team's incumbent captain.
   target.teamJoinOrder = nextTeamJoinOrder(roster);
+  target.controlledGoalieId = null;
 
   return target;
 }
@@ -267,6 +278,7 @@ export function switchHumanControl(
   current.playerName = null;
   current.botId = botIdForSlot(current.slotId);
   current.teamJoinOrder = null;
+  current.controlledGoalieId = null;
 
   target.kind = "human";
   target.sessionId = sessionId;
@@ -274,6 +286,7 @@ export function switchHumanControl(
   target.botId = null;
   // Captaincy rides with the session through mid-match control switches.
   target.teamJoinOrder = teamJoinOrder;
+  target.controlledGoalieId = null;
 
   return target;
 }
@@ -322,6 +335,56 @@ export function selectCharacterForSlot(
 
   target.characterId = characterId;
   return target;
+}
+
+/**
+ * Picks which human temporarily drives a covering goalie: the human-controlled
+ * skater on the goalie's own team nearest the goalie at the moment of cover,
+ * with ascending slot ID as the deterministic tie-break. Null when the team
+ * has no human (the sim's bounded outlet fallback handles that case).
+ */
+export function selectGoalieController(
+  roster: readonly RoomRosterSlot[],
+  world: WorldState,
+  goalieId: string
+): RoomRosterSlot | null {
+  const goalie = world.goalies.find((candidate) => candidate.id === goalieId);
+
+  if (!goalie) {
+    return null;
+  }
+
+  let nearest: RoomRosterSlot | null = null;
+  let nearestDistanceSquared = Number.POSITIVE_INFINITY;
+
+  for (const slot of roster) {
+    if (slot.kind !== "human" || !slot.sessionId || slot.teamId !== goalie.teamId) {
+      continue;
+    }
+
+    const skater = world.skaters.find(
+      (candidate) => candidate.id === slot.slotId
+    );
+
+    if (!skater) {
+      continue;
+    }
+
+    const distanceSquared =
+      (skater.position.x - goalie.position.x) ** 2 +
+      (skater.position.y - goalie.position.y) ** 2;
+
+    if (
+      distanceSquared < nearestDistanceSquared ||
+      (distanceSquared === nearestDistanceSquared &&
+        (nearest === null || slot.slotId < nearest.slotId))
+    ) {
+      nearest = slot;
+      nearestDistanceSquared = distanceSquared;
+    }
+  }
+
+  return nearest;
 }
 
 function characterIdForSlot(slot: Pick<SkaterSlot, "teamId" | "index">): CharacterId {

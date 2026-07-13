@@ -1,4 +1,4 @@
-import { SKATER_SLOTS } from "@bbh/arcade-core";
+import { createWorld, SKATER_SLOTS } from "@bbh/arcade-core";
 import { describe, expect, it } from "vitest";
 import {
   assignHumanToOpenSlot,
@@ -10,6 +10,7 @@ import {
   releaseHuman,
   RosterFullError,
   selectCharacterForSlot,
+  selectGoalieController,
   switchHumanControl
 } from "./roster.js";
 
@@ -348,5 +349,87 @@ describe("selectCharacterForSlot permissions", () => {
     expect(() =>
       selectCharacterForSlot(roster, "session-a", "home-skater-3", "not-real")
     ).toThrow(InvalidCharacterSelectionError);
+  });
+});
+
+describe("goalie control grants", () => {
+  it("starts every slot with no goalie control grant", () => {
+    const roster = createRoster();
+
+    expect(roster.every((slot) => slot.controlledGoalieId === null)).toBe(true);
+  });
+
+  it("clears a grant when the human releases their slot", () => {
+    const roster = createRoster();
+    assignHumanToOpenSlot(roster, { sessionId: "session-a", playerName: "Ada" });
+    roster[0].controlledGoalieId = "home-goalie";
+
+    releaseHuman(roster, "session-a");
+
+    expect(roster[0].controlledGoalieId).toBeNull();
+  });
+
+  it("selects the nearest same-team human skater as goalie controller", () => {
+    const roster = createRoster();
+    assignHumanToOpenSlot(roster, { sessionId: "session-a", playerName: "Ada" });
+    assignHumanToOpenSlot(roster, { sessionId: "session-b", playerName: "Bo" });
+    fillRosterWithBots(roster);
+    const world = createWorld(1, "arcade3v3");
+    const goalie = world.goalies.find((g) => g.id === "home-goalie")!;
+    // session-b's skater (home-skater-2) stands closer to the home goalie.
+    world.skaters.find((s) => s.id === "home-skater-1")!.position = {
+      x: goalie.position.x + 900,
+      y: goalie.position.y
+    };
+    world.skaters.find((s) => s.id === "home-skater-2")!.position = {
+      x: goalie.position.x + 120,
+      y: goalie.position.y
+    };
+
+    const controller = selectGoalieController(roster, world, "home-goalie");
+
+    expect(controller?.slotId).toBe("home-skater-2");
+    expect(controller?.sessionId).toBe("session-b");
+  });
+
+  it("breaks exact distance ties by ascending slot id", () => {
+    const roster = createRoster();
+    assignHumanToOpenSlot(roster, { sessionId: "session-a", playerName: "Ada" });
+    assignHumanToOpenSlot(roster, { sessionId: "session-b", playerName: "Bo" });
+    fillRosterWithBots(roster);
+    const world = createWorld(1, "arcade3v3");
+    const goalie = world.goalies.find((g) => g.id === "home-goalie")!;
+    world.skaters.find((s) => s.id === "home-skater-1")!.position = {
+      x: goalie.position.x + 300,
+      y: goalie.position.y
+    };
+    world.skaters.find((s) => s.id === "home-skater-2")!.position = {
+      x: goalie.position.x + 300,
+      y: goalie.position.y
+    };
+
+    const controller = selectGoalieController(roster, world, "home-goalie");
+
+    expect(controller?.slotId).toBe("home-skater-1");
+  });
+
+  it("only considers humans on the goalie's own team", () => {
+    const roster = createRoster();
+    assignHumanToOpenSlot(roster, { sessionId: "session-a", playerName: "Ada" });
+    fillRosterWithBots(roster);
+    moveHumanToTeam(roster, "session-a", "away");
+    fillRosterWithBots(roster);
+    const world = createWorld(1, "arcade3v3");
+
+    expect(selectGoalieController(roster, world, "home-goalie")).toBeNull();
+  });
+
+  it("returns null for an unknown goalie id", () => {
+    const roster = createRoster();
+    assignHumanToOpenSlot(roster, { sessionId: "session-a", playerName: "Ada" });
+    fillRosterWithBots(roster);
+    const world = createWorld(1, "arcade3v3");
+
+    expect(selectGoalieController(roster, world, "not-a-goalie")).toBeNull();
   });
 });

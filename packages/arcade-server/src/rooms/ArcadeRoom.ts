@@ -28,6 +28,7 @@ import {
   InvalidCharacterSelectionError,
   releaseHuman,
   selectCharacterForSlot,
+  selectGoalieController,
   switchHumanControl,
   type RoomRosterSlot
 } from "./roster.js";
@@ -256,6 +257,7 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
       steps < MAX_SIMULATION_STEPS_PER_TICK
     ) {
       const prevCarrierSlotId = this.world.puck.carrierSlotId;
+      const prevGoalieCarrierId = this.world.puck.goalieCarrierId;
       this.world = stepWorld(
         this.world,
         [
@@ -264,6 +266,7 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
         ],
         MATCH_CONFIG.fixedTickMs
       );
+      this.applyGoalieControlGrants(prevGoalieCarrierId);
       this.applyControlSwitches(prevCarrierSlotId);
       this.accumulatedTickMs -= MATCH_CONFIG.fixedTickMs;
       steps += 1;
@@ -422,6 +425,7 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     applyRosterCharactersToWorld(this.world, this.roster);
     this.world.phase = "playing";
     this.botInputSequence = 0;
+    this.clearAllGoalieGrants();
     this.syncStateFromWorld();
     this.broadcastSnapshot();
   }
@@ -436,8 +440,26 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     this.world = createWorld(this.seedGenerator(), this.roomOptions.mode);
     applyRosterCharactersToWorld(this.world, this.roster);
     this.botInputSequence = 0;
+    this.clearAllGoalieGrants();
     this.syncStateFromWorld();
     this.broadcastSnapshot();
+  }
+
+  /** Fresh worlds hold no covered puck — no grant may survive one. */
+  private clearAllGoalieGrants(): void {
+    let rosterChanged = false;
+
+    for (const slot of this.roster) {
+      if (slot.controlledGoalieId !== null) {
+        slot.controlledGoalieId = null;
+        this.repointBufferedInput(slot);
+        rosterChanged = true;
+      }
+    }
+
+    if (rosterChanged) {
+      this.syncRosterState();
+    }
   }
 
   private handleInput(client: Client, message: unknown): void {
@@ -463,17 +485,21 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     // when the player isn't carrying. Latch a fresh press (rising edge) here and
     // consume it once inside the tick loop — the wire `pass` field is left
     // untouched so charge-and-release passing still reads it every tick.
+    // While a goalie grant is active the press charges the outlet instead, so
+    // no switch is latched.
     const previousPass = this.lastPassBySession.get(client.sessionId) ?? false;
-    if (frame.pass && !previousPass) {
+    if (frame.pass && !previousPass && slot.controlledGoalieId === null) {
       this.pendingManualSwitchBySession.set(client.sessionId, true);
     }
     this.lastPassBySession.set(client.sessionId, frame.pass);
 
     this.lastInputSequenceBySession.set(client.sessionId, frame.sequence);
+    // The wire slot ID is never trusted: input always drives the sender's own
+    // skater, or their goalie while they hold that temporary grant.
     this.latestInputBySession.set(client.sessionId, {
       ...frame,
       playerId: client.sessionId,
-      slotId: slot.slotId
+      slotId: slot.controlledGoalieId ?? slot.slotId
     });
   }
 
@@ -489,7 +515,8 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
         const sequence = this.lastInputSequenceBySession.get(slot.sessionId);
 
         if (sequence !== undefined) {
-          inputAcks[slot.slotId] = sequence;
+          // Acked under the ACTIVE entity: the goalie while a grant is held.
+          inputAcks[slot.controlledGoalieId ?? slot.slotId] = sequence;
         }
       }
     }
@@ -501,6 +528,81 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     };
 
     this.broadcast("server.worldSnapshot", message satisfies ArcadeServerMessage);
+  }
+
+  /**
+   * Temporary goalie-control grants, run after each sim sub-step. A new
+   * covered save (goalieCarrierId null→goalie) grants the nearest defending
+   * human that goalie's input; a release (goalie→null) returns it. The grant
+   * is a separate roster field — skater slot ownership never moves — and every
+   * change re-points the session's buffered input frame so the rest of this
+   * tick already drives the right entity.
+   */
+  private applyGoalieControlGrants(prevGoalieCarrierId: string | null): void {
+    if (!this.world) {
+      return;
+    }
+
+    const goalieCarrierId = this.world.puck.goalieCarrierId;
+
+    if (goalieCarrierId === prevGoalieCarrierId) {
+      return;
+    }
+
+    let rosterChanged = false;
+
+    // Any grant not matching the current carrier is stale: release, faceoff,
+    // or (in principle) a different goalie covering.
+    for (const slot of this.roster) {
+      if (
+        slot.controlledGoalieId !== null &&
+        slot.controlledGoalieId !== goalieCarrierId
+      ) {
+        slot.controlledGoalieId = null;
+        this.repointBufferedInput(slot);
+        rosterChanged = true;
+      }
+    }
+
+    if (goalieCarrierId !== null && this.world.phase === "playing") {
+      const alreadyGranted = this.roster.some(
+        (slot) => slot.controlledGoalieId === goalieCarrierId
+      );
+
+      if (!alreadyGranted) {
+        const controller = selectGoalieController(
+          this.roster,
+          this.world,
+          goalieCarrierId
+        );
+
+        if (controller) {
+          controller.controlledGoalieId = goalieCarrierId;
+          this.repointBufferedInput(controller);
+          rosterChanged = true;
+        }
+      }
+    }
+
+    if (rosterChanged) {
+      this.syncRosterState();
+    }
+  }
+
+  /** Re-target a session's buffered frame at its current active entity. */
+  private repointBufferedInput(slot: RoomRosterSlot): void {
+    if (!slot.sessionId) {
+      return;
+    }
+
+    const stored = this.latestInputBySession.get(slot.sessionId);
+
+    if (stored) {
+      this.latestInputBySession.set(slot.sessionId, {
+        ...stored,
+        slotId: slot.controlledGoalieId ?? slot.slotId
+      });
+    }
   }
 
   /**
@@ -530,6 +632,13 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
           candidate.kind === "human" && candidate.sessionId === sessionId
       );
       if (!slot) {
+        continue;
+      }
+
+      // A goalie-controlling human is aiming an outlet: no body switching
+      // until the grant clears (their pass press is a charge, not a switch).
+      if (slot.controlledGoalieId !== null) {
+        this.pendingManualSwitchBySession.set(sessionId, false);
         continue;
       }
 

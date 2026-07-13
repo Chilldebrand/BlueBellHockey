@@ -25,6 +25,7 @@ export class ArcadeRoomSlotState extends Schema {
   @type("string") characterId = "";
   @type("boolean") isBot = false;
   @type("boolean") isCaptain = false;
+  @type("string") controlledGoalieId: string | null = null;
 }
 
 export class ArcadeTeamState extends Schema {
@@ -71,6 +72,7 @@ function createSlotState(
     slot.kind === "human" &&
     slot.sessionId !== null &&
     slot.sessionId === teamCaptainSessionId;
+  state.controlledGoalieId = slot.controlledGoalieId;
   return state;
 }
 
