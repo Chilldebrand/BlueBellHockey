@@ -23,7 +23,8 @@ function lobbyState(overrides: Partial<ArcadeClientState> = {}): ArcadeClientSta
         displayName: "Ada",
         isBot: false,
         isCaptain: true,
-        isOwnedByLocalPlayer: true
+        isOwnedByLocalPlayer: true,
+        controlledGoalieId: null
       },
       {
         slotId: "home-skater-2",
@@ -37,7 +38,8 @@ function lobbyState(overrides: Partial<ArcadeClientState> = {}): ArcadeClientSta
         displayName: "Bot",
         isBot: true,
         isCaptain: false,
-        isOwnedByLocalPlayer: false
+        isOwnedByLocalPlayer: false,
+        controlledGoalieId: null
       },
       {
         slotId: "away-skater-1",
@@ -51,7 +53,8 @@ function lobbyState(overrides: Partial<ArcadeClientState> = {}): ArcadeClientSta
         displayName: "Bot",
         isBot: true,
         isCaptain: false,
-        isOwnedByLocalPlayer: false
+        isOwnedByLocalPlayer: false,
+        controlledGoalieId: null
       }
     ],
     ...overrides

@@ -43,6 +43,7 @@ import {
   type ActiveRoomRef
 } from "./net/sessionBinding.js";
 import {
+  buildHighlightColorByEntityId,
   createInitialArcadeClientState,
   reduceArcadeClientState,
   type ArcadeClientAction
@@ -65,19 +66,6 @@ export interface AppConnectionApi {
   readonly reconnectPreviousRoom?: typeof reconnectPreviousRoom;
   readonly hasReconnectTicket?: typeof hasReconnectTicket;
 }
-
-/**
- * Identity colors for humans, assigned local-player-first: on your own screen
- * you are always blue, other humans take the next colors in stable order.
- */
-const PLAYER_HIGHLIGHT_COLORS = [
-  "#1f8fff", // blue — always the local player
-  "#ff4f5e", // red
-  "#3dfc9d", // green
-  "#ffdf6e", // yellow
-  "#ff9e3d", // orange
-  "#c479ff" // purple
-];
 
 const defaultConnectionApi: AppConnectionApi = {
   connectQuickMatch,
@@ -235,40 +223,26 @@ export function App({
     setScreen("lobby");
   }, []);
 
-  const localSlotId =
-    state.roster.find((slot) => slot.isOwnedByLocalPlayer)?.slotId ?? null;
+  const localSlot = state.roster.find((slot) => slot.isOwnedByLocalPlayer);
+  const localSlotId = localSlot?.slotId ?? null;
+  // Temporary goalie control: while the server grants us the covering goalie,
+  // input, highlight, and camera target it; the skater slot stays ours.
+  const localGoalieId = localSlot?.controlledGoalieId ?? null;
+  const localControlledEntityId = localGoalieId ?? localSlotId;
 
-  // Human identity colors: YOU are always blue on your own screen; other
-  // humans get stable colors (sessionId-sorted so they don't reshuffle).
-  // The map keys are CURRENT slots, so a Madden control switch moves the
-  // disc with the human automatically. AI slots aren't in the map = no disc.
-  const highlightColorBySlotId = useMemo(() => {
-    const humans = state.roster.filter(
-      (slot) => slot.kind === "human" && slot.sessionId
-    );
-    const ordered = [
-      ...humans.filter((slot) => slot.isOwnedByLocalPlayer),
-      ...humans
-        .filter((slot) => !slot.isOwnedByLocalPlayer)
-        .sort((a, b) => (a.sessionId ?? "").localeCompare(b.sessionId ?? ""))
-    ];
-    const map: Record<string, string> = {};
-    ordered.forEach((slot, index) => {
-      const color = PLAYER_HIGHLIGHT_COLORS[index % PLAYER_HIGHLIGHT_COLORS.length];
-      if (color) {
-        map[slot.slotId] = color;
-      }
-    });
-    return map;
-  }, [state.roster]);
+  const highlightColorByEntityId = useMemo(
+    () => buildHighlightColorByEntityId(state.roster),
+    [state.roster]
+  );
 
   useEffect(() => {
-    if (!localSlotId || !state.playerSessionId) {
+    if (!localControlledEntityId || !state.playerSessionId) {
       unackedFramesRef.current = [];
       return;
     }
 
     const playerSessionId = state.playerSessionId;
+    const isGoalieControlled = localControlledEntityId !== localSlotId;
     const sendInput = () => {
       const keyboardInput =
         keyboardRef.current?.read() ?? createNeutralInputState();
@@ -278,11 +252,15 @@ export function App({
       const frame = createInputFrame({
         input: mergeInputStates(keyboardInput, gamepadInput),
         playerId: playerSessionId,
-        slotId: localSlotId,
+        slotId: localControlledEntityId,
         sequence: (inputSequenceRef.current += 1)
       });
 
-      pushInputFrame(unackedFramesRef.current, frame);
+      // Goalie control renders pure authoritative snapshots — no local
+      // movement prediction — so goalie-targeted frames are never replayed.
+      if (!isGoalieControlled) {
+        pushInputFrame(unackedFramesRef.current, frame);
+      }
       activeRoomRef.current?.session.sendInput(frame);
     };
     const intervalId = window.setInterval(
@@ -295,22 +273,24 @@ export function App({
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [localSlotId, state.playerSessionId]);
+  }, [localControlledEntityId, localSlotId, state.playerSessionId]);
 
-  // Madden-style control switching reassigns which skater we own mid-play. The
-  // buffered unacked frames are tagged with the OLD slot; replaying them after a
-  // switch would drive the now-AI skater and starve the new one. Drop them (and
-  // the follow smoothing) so we fall back to the authoritative snapshot for the
-  // ~1 RTT until fresh, correctly-tagged frames refill the buffer.
-  if (localSlotId !== predictedSlotIdRef.current) {
+  // Madden-style control switching (and a goalie grant starting or ending)
+  // reassigns which entity we drive mid-play. The buffered unacked frames are
+  // tagged with the OLD entity; replaying them after a switch would drive the
+  // wrong body and starve the new one. Drop them (and the follow smoothing) so
+  // we fall back to the authoritative snapshot for the ~1 RTT until fresh,
+  // correctly-tagged frames refill the buffer.
+  if (localControlledEntityId !== predictedSlotIdRef.current) {
     unackedFramesRef.current = [];
     smoothedSkaterRef.current = null;
-    predictedSlotIdRef.current = localSlotId;
+    predictedSlotIdRef.current = localControlledEntityId;
   }
 
   // Input-replay prediction: drop server-acknowledged frames, then
-  // re-simulate the remainder on top of the freshest snapshot.
-  if (localSlotId) {
+  // re-simulate the remainder on top of the freshest snapshot. Suspended
+  // entirely while goalie-controlled (authoritative snapshots only).
+  if (localSlotId && !localGoalieId) {
     pruneAcknowledgedFrames(
       unackedFramesRef.current,
       state.inputAcks[localSlotId]
@@ -319,7 +299,7 @@ export function App({
 
   const predicted = predictLocalState(
     state.currentWorld,
-    localSlotId,
+    localGoalieId ? null : localSlotId,
     unackedFramesRef.current
   );
   const predictedLocalSkater = predicted
@@ -365,9 +345,10 @@ export function App({
           currentWorld={state.currentWorld}
           previousWorld={state.previousWorld}
           localSlotId={localSlotId}
+          localGoalieId={localGoalieId}
           predictedLocalSkater={predictedLocalSkater}
           predictedPuck={predictedPuck}
-          highlightColorBySlotId={highlightColorBySlotId}
+          highlightColorByEntityId={highlightColorByEntityId}
         />
         <Postgame
           world={state.currentWorld}
@@ -386,9 +367,10 @@ export function App({
         currentWorld={state.currentWorld}
         previousWorld={state.previousWorld}
         localSlotId={localSlotId}
+        localGoalieId={localGoalieId}
         predictedLocalSkater={predictedLocalSkater}
         predictedPuck={predictedPuck}
-        highlightColorBySlotId={highlightColorBySlotId}
+        highlightColorByEntityId={highlightColorByEntityId}
       />
       {state.phase === "playing" ? null : (
         <>

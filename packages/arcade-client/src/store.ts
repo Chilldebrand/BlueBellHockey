@@ -25,11 +25,19 @@ export interface ServerRosterSlot {
   readonly characterId: CharacterId;
   readonly isBot: boolean;
   readonly isCaptain: boolean;
+  /**
+   * Temporary goalie-control grant: while this human's team goalie covers the
+   * puck, their input drives that goalie. Null for everyone else. The local
+   * client derives its active entity as `controlledGoalieId ?? slotId`.
+   * Optional on the wire for tolerance; mapRosterSlot normalizes to null.
+   */
+  readonly controlledGoalieId?: string | null;
 }
 
 export interface ClientRosterSlot extends ServerRosterSlot {
   readonly displayName: string;
   readonly isOwnedByLocalPlayer: boolean;
+  readonly controlledGoalieId: string | null;
 }
 
 export interface ArcadeClientState {
@@ -157,9 +165,52 @@ function mapRosterSlot(
 ): ClientRosterSlot {
   return {
     ...slot,
+    controlledGoalieId: slot.controlledGoalieId ?? null,
     displayName:
       slot.kind === "human" ? slot.playerName?.trim() || "Player" : "Bot",
     isOwnedByLocalPlayer:
       slot.kind === "human" && slot.sessionId === localSessionId
   };
+}
+
+/**
+ * Identity colors for humans, assigned local-player-first: on your own screen
+ * you are always blue, other humans take the next colors in stable order.
+ */
+export const PLAYER_HIGHLIGHT_COLORS = [
+  "#1f8fff", // blue — always the local player
+  "#ff4f5e", // red
+  "#3dfc9d", // green
+  "#ffdf6e", // yellow
+  "#ff9e3d", // orange
+  "#c479ff" // purple
+];
+
+/**
+ * Human identity color per CURRENTLY-controlled entity. Keys are slot IDs —
+ * so a Madden control switch moves the disc with the human automatically —
+ * except while a human holds a temporary goalie grant, when their color keys
+ * under the goalie ID instead (disc and camera follow the goalie). AI slots
+ * aren't in the map = no disc.
+ */
+export function buildHighlightColorByEntityId(
+  roster: readonly ClientRosterSlot[]
+): Record<string, string> {
+  const humans = roster.filter(
+    (slot) => slot.kind === "human" && slot.sessionId
+  );
+  const ordered = [
+    ...humans.filter((slot) => slot.isOwnedByLocalPlayer),
+    ...humans
+      .filter((slot) => !slot.isOwnedByLocalPlayer)
+      .sort((a, b) => (a.sessionId ?? "").localeCompare(b.sessionId ?? ""))
+  ];
+  const map: Record<string, string> = {};
+  ordered.forEach((slot, index) => {
+    const color = PLAYER_HIGHLIGHT_COLORS[index % PLAYER_HIGHLIGHT_COLORS.length];
+    if (color) {
+      map[slot.controlledGoalieId ?? slot.slotId] = color;
+    }
+  });
+  return map;
 }

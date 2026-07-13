@@ -16,6 +16,7 @@ function slot(overrides: Partial<ClientRosterSlot>): ClientRosterSlot {
     isBot: false,
     isCaptain: false,
     isOwnedByLocalPlayer: false,
+    controlledGoalieId: null,
     ...overrides
   };
 }

@@ -74,8 +74,9 @@ export function FreeSkate({ onExit }: FreeSkateProps): JSX.Element {
           gamepadStateFromGamepad(navigator.getGamepads?.()[0] ?? null)
         ),
         playerId: "free-skate",
-        // Drive whichever skater the human currently controls (moves on a pass).
-        slotId: simRef.current.getControlledSlotId(),
+        // Drive whichever entity the human currently controls: their skater
+        // (moves on a pass), or their goalie while it covers the puck.
+        slotId: simRef.current.getControlledEntityId(),
         sequence: (sequenceRef.current += 1)
       });
 
@@ -205,6 +206,9 @@ export function FreeSkate({ onExit }: FreeSkateProps): JSX.Element {
 
   const world = simRef.current.getWorld();
   const localSlotId = simRef.current.getControlledSlotId();
+  // The blue identity disc follows the ACTIVE entity — the goalie during a
+  // covered-save outlet, the controlled skater otherwise.
+  const localEntityId = simRef.current.getControlledEntityId();
 
   return (
     <div className="free-skate-screen">
@@ -212,8 +216,9 @@ export function FreeSkate({ onExit }: FreeSkateProps): JSX.Element {
         currentWorld={world}
         previousWorld={previousWorldRef.current}
         localSlotId={localSlotId}
+        localGoalieId={localEntityId === localSlotId ? null : localEntityId}
         predictedLocalSkater={null}
-        highlightColorBySlotId={{ [localSlotId]: "#1f8fff" }}
+        highlightColorByEntityId={{ [localEntityId]: "#1f8fff" }}
         debugOverlays
       />
       <TuningPanel />

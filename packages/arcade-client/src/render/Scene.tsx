@@ -22,14 +22,20 @@ export interface SceneProps {
   readonly currentWorld: WorldState | null;
   readonly previousWorld: WorldState | null;
   readonly localSlotId: string | null;
+  /**
+   * The goalie the LOCAL human temporarily controls after a covered save, or
+   * null. Marks that goalie's identity disc as the local player's.
+   */
+  readonly localGoalieId?: string | null;
   readonly predictedLocalSkater: SkaterEntity | null;
   /** Fully replayed local puck (tether prediction); overrides the blade snap. */
   readonly predictedPuck?: PuckState | null;
   /**
-   * Human identity color per CURRENTLY-controlled slot (from the roster).
-   * Slots not in the map are AI-controlled and render no disc.
+   * Human identity color per CURRENTLY-controlled entity: skater slots, or a
+   * goalie ID while its cover grant is held. Entities not in the map are
+   * AI-controlled and render no disc.
    */
-  readonly highlightColorBySlotId?: Readonly<Record<string, string>>;
+  readonly highlightColorByEntityId?: Readonly<Record<string, string>>;
   /** Feel-lab overlays: velocity vectors and other sim diagnostics. */
   readonly debugOverlays?: boolean;
 }
@@ -38,9 +44,10 @@ export function Scene({
   currentWorld,
   previousWorld,
   localSlotId,
+  localGoalieId = null,
   predictedLocalSkater,
   predictedPuck = null,
-  highlightColorBySlotId = {},
+  highlightColorByEntityId = {},
   debugOverlays = false
 }: SceneProps): JSX.Element | null {
   if (!currentWorld) {
@@ -109,7 +116,7 @@ export function Scene({
               characterId={skater.characterId}
               position={renderSkater.position}
               isLocal={skater.id === localSlotId}
-              highlightColor={highlightColorBySlotId[skater.id] ?? null}
+              highlightColor={highlightColorByEntityId[skater.id] ?? null}
               velocity={renderSkater.velocity}
               facing={renderSkater.facing}
               bladeOffset={bladeBodyOffset(
@@ -140,6 +147,19 @@ export function Scene({
             // powerups — the same multiplier the sim uses for save reach.
             scale={1.5 * goalieSizeMultiplier(currentWorld, goalie.teamId)}
           >
+            {/* Identity disc while a human temporarily controls this goalie
+                (covered-save outlet). Same treatment as skater discs; sized
+                against the 1.5 base group scale so it matches on the ice. */}
+            {highlightColorByEntityId[goalie.id] ? (
+              <mesh rotation={[-Math.PI / 2, 0, 0]}>
+                <circleGeometry args={[goalie.id === localGoalieId ? 38 : 34, 24]} />
+                <meshStandardMaterial
+                  color={highlightColorByEntityId[goalie.id]}
+                  emissive={goalie.id === localGoalieId ? "#ffffff" : "#000000"}
+                  emissiveIntensity={goalie.id === localGoalieId ? 0.25 : 0}
+                />
+              </mesh>
+            ) : null}
             <GoalieModel
               teamId={goalie.teamId}
               animationState={selectGoalieAnimation({

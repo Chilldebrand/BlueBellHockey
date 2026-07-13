@@ -33,7 +33,8 @@ describe("HUD", () => {
           displayName: "Ada",
           isBot: false,
           isCaptain: true,
-          isOwnedByLocalPlayer: true
+          isOwnedByLocalPlayer: true,
+          controlledGoalieId: null
         }
       ]
     };
