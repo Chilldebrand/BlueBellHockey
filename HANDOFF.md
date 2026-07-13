@@ -22,11 +22,43 @@ deterministic fallback still backstops no-input cases. See "Goalie outlet contro
 **The user still owes an in-browser eyeball** (covered save → blue disc on goalie → aimed outlet
 → control returns), solo and ideally two-client.
 
-### Current repository and runtime state (2026-07-13, post-goalie-control)
+### Current repository and runtime state (2026-07-13, post-feel-batch)
 
 - Verify with `git status --short --branch` (push after every accepted change).
-- Certified baseline at HEAD: `npm test` **374/374** (210 core / 73 server / 91 client),
-  `npm run typecheck` clean, `npm run build:arcade` clean, two-client smoke all 7 checks PASS.
+- Certified baseline at HEAD: `npm test` **388/388** (210 core / 74 server / 104 client),
+  `npm run typecheck` clean, two-client smoke all 7 checks PASS.
+
+### Online perf fix (2026-07-13, `14fa2d9`) — quick play was melting CPUs
+
+User report: Free Skate fine, Quick Match = "airplane fans". Measured cause: the server
+broadcast full-world snapshots EVERY tick (62.5/s) even to idle lobbies, and the client
+dispatched every snapshot + every schema patch straight into React (120+ full app re-renders/s,
+each cloning the world for prediction). Fixes: idle (waiting/ended) rooms broadcast every 8th
+tick only (`IDLE_SNAPSHOT_TICK_INTERVAL`, ArcadeRoom.ts); `attachArcadeRoom` coalesces both
+streams to ≤1 delivery per animation frame keeping only the freshest (sessionBinding.ts).
+A dev **PerfHud overlay** (top-right: fps / jank / snaps / patches / renders / heap) is mounted
+in both modes — use it for any future perf claim.
+
+### Feel batch (2026-07-13, `4ddaeee..35d30d0`, user-approved plan)
+
+- **Knockdowns 30% harder:** `knockdownForce` 1000→1300 (actions.ts). Neutral checking tops out
+  ~1180 at the turbo ceiling, so flattening now requires power 4-5, a balance<3 victim, or Big
+  Hit (still unconditional). Bump/stumble/strip unchanged.
+- **Powerup pickups 4x bigger** (Powerups.tsx: ICON_SCALE 6.2, ground-ring halo) — visual only,
+  pickup radius 80 unchanged and now roughly matches the visual footprint.
+- **Airborne puck ground shadow** (Puck.tsx `puckShadowAppearance`): blob pinned to the ice,
+  shrinks/fades with height — wrist/slap lift finally reads.
+- **POWERUPS NOW ACTIVATE ON PICKUP** (user decision — supersedes the held-slot description in
+  the older powerups section below): skating over a drop fires it instantly; no held slot, no
+  use button, `heldPowerupType`/`useHeldPowerups`/bot use-decision/`powerupUse` event all
+  removed; `InputFrame.usePowerup` kept wire-tolerated-deprecated. Re-collecting an active type
+  refreshes its window (never stacks). Frozen/knocked-down skaters can't trigger drops.
+- **Labels renamed** (config/powerups.ts): Super Speed / Tiny Goalie / Huge Goalie (+ existing
+  Hard Shot / Freeze / Big Hit).
+- **Announcement banners** (ui/AnnouncementBanner.tsx, mounted in HUD + Free Skate): huge
+  GOAL!!! for 2.5s, medium "<Label>!" for 2s on pickup; goal outranks; timed on the SIM clock.
+- **User eyeballs owed on all five** (shadow readability, 4x size, knockdown feel, banner
+  look/timing) plus the goalie-outlet check from earlier today.
 
 ### Audit results (2026-07-13) — what was found and fixed
 
