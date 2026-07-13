@@ -634,6 +634,39 @@ describe("ArcadeRoom", () => {
     ).toThrow("room is full");
   });
 
+  it("throttles snapshots while idle but streams full-rate during play", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    const broadcast = vi
+      .spyOn(room, "broadcast")
+      .mockImplementation(() => room as never);
+    const clientA = client("session-a");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(clientA as never, { playerName: "Ada" });
+
+    const snapshotCount = () =>
+      broadcast.mock.calls.filter(
+        ([messageType]) => messageType === "server.worldSnapshot"
+      ).length;
+
+    // Waiting lobby: the world is static — only every 8th tick broadcasts.
+    for (let i = 0; i < 16; i += 1) {
+      room.tick(MATCH_CONFIG.fixedTickMs);
+    }
+    expect(snapshotCount()).toBe(2);
+
+    // Live play streams a snapshot on every tick again.
+    const startHandler = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.requestStart"
+    )?.[1];
+    startHandler?.(clientA as never, undefined);
+    const beforePlaying = snapshotCount();
+    for (let i = 0; i < 10; i += 1) {
+      room.tick(MATCH_CONFIG.fixedTickMs);
+    }
+    expect(snapshotCount()).toBe(beforePlaying + 10);
+  });
+
   it("broadcasts authoritative world snapshots on each tick", () => {
     const room = createTestRoom();
     const broadcast = vi

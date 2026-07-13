@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { InputFrame, WorldState } from "@bbh/arcade-core";
+import { PerfHud } from "../dev/PerfHud.js";
 import { TuningPanel } from "../dev/TuningPanel.js";
 import {
   createInputRecorder,
@@ -212,6 +213,7 @@ export function FreeSkate({ onExit }: FreeSkateProps): JSX.Element {
 
   return (
     <div className="free-skate-screen">
+      <PerfHud />
       <Scene
         currentWorld={world}
         previousWorld={previousWorldRef.current}

@@ -64,6 +64,11 @@ type StoredArcadeRoomOptions = {
 
 const DEFAULT_MODE: MatchMode = "arcade3v3";
 const MAX_SIMULATION_STEPS_PER_TICK = 5;
+// Outside live play the world is static (the sim clock doesn't advance in
+// waiting/ended), so streaming 62.5 full-world snapshots/s to the lobby is
+// pure waste — measured as the main client CPU burn. One snapshot every 8th
+// tick (~8/s) keeps joins and postgame fresh; "playing" keeps the full rate.
+const IDLE_SNAPSHOT_TICK_INTERVAL = 8;
 // Room codes and player names are hostile input: they land in replicated
 // schema state and room metadata, so both are strictly bounded here.
 const PRIVATE_CODE_PATTERN = /^[A-Z0-9]{1,12}$/;
@@ -124,6 +129,7 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
   private readonly pendingManualSwitchBySession = new Map<string, boolean>();
   private accumulatedTickMs = 0;
   private botInputSequence = 0;
+  private idleTickCounter = 0;
   private world: WorldState | null = null;
 
   constructor(dependencies: ArcadeRoomDependencies = {}) {
@@ -280,7 +286,18 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     }
 
     this.syncStateFromWorld();
-    this.broadcastSnapshot();
+
+    // Full-rate snapshots only while the sim is actually moving; an idle
+    // lobby/postgame world only needs an occasional refresh for new joins.
+    if (this.world.phase === "playing") {
+      this.idleTickCounter = 0;
+      this.broadcastSnapshot();
+    } else {
+      if (this.idleTickCounter % IDLE_SNAPSHOT_TICK_INTERVAL === 0) {
+        this.broadcastSnapshot();
+      }
+      this.idleTickCounter += 1;
+    }
   }
 
   private syncStateFromWorld(): void {

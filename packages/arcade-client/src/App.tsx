@@ -48,6 +48,7 @@ import {
   reduceArcadeClientState,
   type ArcadeClientAction
 } from "./store.js";
+import { PerfHud, perfCounters } from "./dev/PerfHud.js";
 import { Scene } from "./render/Scene.js";
 import { ModelPreview } from "./render/ModelPreview.js";
 import { HUD } from "./ui/HUD.js";
@@ -100,11 +101,16 @@ export function App({
 
   const attachRoom = useCallback((result: ArcadeConnectionResult) => {
     attachArcadeRoom(activeRoomRef, result, {
-      onState: ({ room }) => dispatch({ type: "room.state", room }),
+      onState: ({ room }) => {
+        perfCounters.roomStatePatches += 1;
+        dispatch({ type: "room.state", room });
+      },
       onError: (message) => dispatch({ type: "connection.error", message }),
       onLeave: (message) => dispatch({ type: "connection.left", message }),
-      onWorldSnapshot: (world, inputAcks) =>
-        dispatch({ type: "world.snapshot", world, inputAcks })
+      onWorldSnapshot: (world, inputAcks) => {
+        perfCounters.worldSnapshots += 1;
+        dispatch({ type: "world.snapshot", world, inputAcks });
+      }
     });
     reconnectSourceRef.current = result;
     saveReconnectTicket(result.room, result.options);
@@ -313,6 +319,7 @@ export function App({
       state.currentWorld?.puck.carrierSlotId === localSlotId)
       ? predicted.puck
       : null;
+  perfCounters.appRenders += 1;
   const isModelPreviewRoute =
     typeof window !== "undefined" && window.location.pathname === "/model-preview";
 
@@ -341,6 +348,7 @@ export function App({
   if (state.phase === "ended" && state.currentWorld) {
     return (
       <>
+        <PerfHud />
         <Scene
           currentWorld={state.currentWorld}
           previousWorld={state.previousWorld}
@@ -361,6 +369,7 @@ export function App({
 
   return (
     <>
+      <PerfHud />
       <HUD state={state} />
       <FaceoffIntro phase={state.phase} />
       <Scene
