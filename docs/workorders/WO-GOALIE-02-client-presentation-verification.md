@@ -5,7 +5,7 @@
 | **Phase** | 3 (client integration) |
 | **Depends on** | WO-GOALIE-01 |
 | **Blocks** | - |
-| **Status** | Approved, not implemented |
+| **Status** | Implemented 2026-07-13 (`bbd89e0`); manual in-browser eyeball still owed by the user |
 
 ## Objective
 

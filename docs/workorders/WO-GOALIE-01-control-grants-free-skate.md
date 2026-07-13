@@ -5,7 +5,7 @@
 | **Phase** | 2 (ownership wrappers) |
 | **Depends on** | WO-GOALIE-00 |
 | **Blocks** | WO-GOALIE-02 |
-| **Status** | Approved, not implemented |
+| **Status** | Implemented 2026-07-13 (`982f5ed`, `d27367a`) |
 
 ## Objective
 

@@ -11,15 +11,22 @@ Read `HANDOFF.md` first. Work only in `packages/arcade-core`, `packages/arcade-s
 reference code and must not be modified. Use `npm.cmd` in PowerShell.
 
 **THE FULL GAME AUDIT WAS COMPLETED 2026-07-13** — all six priorities executed, fixes landed in
-five pushed commits (`d752749..7154dc9`). Read "Audit results" below before anything else; the
-biggest single finding (goalie outlet human control was never wired) has an approved work order
-waiting.
+five pushed commits (`d752749..7154dc9`). Read "Audit results" below before anything else.
 
-### Current repository and runtime state (2026-07-13, post-audit)
+**THE AUDIT'S ONE FEATURE GAP IS NOW CLOSED (2026-07-13, same day, later session):**
+WO-GOALIE-01 + WO-GOALIE-02 are implemented in `982f5ed` (server grants), `d27367a` (Free Skate
+parity), `bbd89e0` (client presentation). After a covered save the nearest defending human now
+actually drives the goalie: aim with the left stick, hold/release pass for the outlet, control
+returns to their skater on release; unauthorized clients can't reach the goalie; the 2.5s
+deterministic fallback still backstops no-input cases. See "Goalie outlet control" below.
+**The user still owes an in-browser eyeball** (covered save → blue disc on goalie → aimed outlet
+→ control returns), solo and ideally two-client.
 
-- Everything is committed AND pushed; verify with `git status --short --branch`.
-- Certified baseline at HEAD: `npm test` **354/354** (210 core / 58 server / 86 client),
-  `npm run typecheck` clean, two-client smoke all 7 checks PASS.
+### Current repository and runtime state (2026-07-13, post-goalie-control)
+
+- Verify with `git status --short --branch` (push after every accepted change).
+- Certified baseline at HEAD: `npm test` **374/374** (210 core / 73 server / 91 client),
+  `npm run typecheck` clean, `npm run build:arcade` clean, two-client smoke all 7 checks PASS.
 
 ### Audit results (2026-07-13) — what was found and fixed
 
@@ -78,20 +85,34 @@ bound `switchTarget`; `selectedTargetSlotId` was write-only; TargetIndicator.tsx
 legacy `client.chooseCharacter` message + roster delegate. `InputFrame.switchTarget` kept as
 optional deprecated for wire tolerance. Specials scaffolding intentionally kept (flag-gated).
 
+### Goalie outlet control — COMPLETE (2026-07-13)
+
+All three layers are live (the audit had found only WO-GOALIE-00 existed):
+- **Sim (WO-GOALIE-00, was already live):** `puck.goalieCarrierId` possession on covered saves,
+  `stepGoalieOutlet` aim/charge/release, 2500ms deterministic fallback (`goalieOutlet.ts`).
+- **Server grants (WO-GOALIE-01, `982f5ed` + `d27367a`):** `RoomRosterSlot.controlledGoalieId`
+  (replicated via schema), `selectGoalieController` picks the nearest defending human (slot-ID
+  tie-break), `applyGoalieControlGrants` watches `goalieCarrierId` around each sim sub-step and
+  re-points the session's buffered input. Wire slot IDs are never trusted (spoof-proof); grants
+  clear on release/leave/team-move/switch/rematch/lobby; pass presses charge instead of latching
+  manual switches; snapshots ack under the active entity. Free Skate mirrors it in `localSim.ts`
+  (`getControlledEntityId()`).
+- **Client (WO-GOALIE-02, `bbd89e0`):** active entity = `controlledGoalieId ?? slotId`; input
+  frames target it; prediction suspended+flushed during goalie control; identity discs re-key to
+  the goalie for ALL humans (`buildHighlightColorByEntityId` in store.ts, tested); Scene renders
+  the disc under the goalie; camera already follows the covered puck at the goalie hold point.
+
 ### ⚠ Corrections to the previous handoff (found during audit)
 
-- **"Goalie outlet control" was OVERSTATED.** Only the sim side (WO-GOALIE-00) landed. The control
-  grant layer (WO-GOALIE-01) and client presentation (WO-GOALIE-02) were never implemented: NO
-  controller routes a human's input to the goalie slot, so `latestInputBySlot.get(activeGoalie.id)`
-  in `stepWorld` is always undefined in real play (server AND Free Skate). Actual behavior today:
-  every covered save holds 2.5s, then the deterministic fallback outlet fires. The human
-  aim/charge/release path only executes in unit tests. WO-GOALIE-01 is approved and ready to build.
-- Workorder `**Status**` fields in `docs/workorders/` are broadly stale (e.g. WO-GOALIE-00 and
-  WO-PG-00 say "not implemented" but ARE live) — don't trust them over the code.
+- ~~"Goalie outlet control" was OVERSTATED~~ — **now resolved, see above.**
+- Workorder `**Status**` fields in `docs/workorders/` were broadly stale; the three WO-GOALIE
+  files are now corrected, others (e.g. WO-PG-00) may still lag the code — don't trust them
+  over the code.
 
 ### Recommended next steps (in rough order)
 
-1. **WO-GOALIE-01** — goalie outlet control grants (the audit's one real feature gap; approved).
+1. **User eyeball of goalie outlet control** in the browser (Free Skate: force a cover by
+   letting the AI shoot a soft centered shot at your goalie, or online two-client).
 2. User-owed feel passes on the 2026-07-09 batch (see "Known next steps" below).
 3. Optional `/code-review ultra` (user-triggered, billed) now that targeted fixes have landed.
 4. Real deploy (Fly/Render + static host) — the server surface is now hardened for strangers;

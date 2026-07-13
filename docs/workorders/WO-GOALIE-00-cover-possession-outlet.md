@@ -1,11 +1,11 @@
-# WO-GOALIE-00 - Covered Save Possession And Outlet
+﻿# WO-GOALIE-00 - Covered Save Possession And Outlet
 
 | | |
 |---|---|
 | **Phase** | 1 (shared simulation) |
 | **Depends on** | - |
 | **Blocks** | WO-GOALIE-01 |
-| **Status** | Approved, not implemented |
+| **Status** | Implemented (landed with the sim rewrite; confirmed by 2026-07-13 audit) |
 
 ## Objective
 
