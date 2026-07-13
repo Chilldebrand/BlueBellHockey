@@ -154,6 +154,35 @@ input {
   transform: translateX(-50%);
 }
 
+/* Center-screen announcements: GOAL!!! huge, powerup activations medium. */
+.announcement-banner {
+  color: #ffffff;
+  font-weight: 900;
+  left: 50%;
+  letter-spacing: 0.06em;
+  pointer-events: none;
+  position: fixed;
+  text-align: center;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+}
+
+.announcement-goal {
+  font-size: 84px;
+  text-shadow:
+    0 0 26px #1f8fff,
+    0 4px 0 rgba(3, 9, 17, 0.85);
+}
+
+.announcement-powerup {
+  font-size: 38px;
+  color: #9ff3d9;
+  text-shadow:
+    0 0 18px #10b981,
+    0 3px 0 rgba(3, 9, 17, 0.85);
+}
+
 .postgame-backdrop {
   align-items: center;
   background: rgba(3, 9, 17, 0.68);

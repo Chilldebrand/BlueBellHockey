@@ -18,6 +18,7 @@ import {
 import { createKeyboardInputTracker } from "../input/keyboard.js";
 import { createMouseStickTracker } from "../input/mouse.js";
 import { Scene } from "../render/Scene.js";
+import { AnnouncementBanner } from "./AnnouncementBanner.js";
 
 const FREE_SKATE_SEED = 20260703;
 
@@ -222,6 +223,10 @@ export function FreeSkate({ onExit }: FreeSkateProps): JSX.Element {
         predictedLocalSkater={null}
         highlightColorByEntityId={{ [localEntityId]: "#1f8fff" }}
         debugOverlays
+      />
+      <AnnouncementBanner
+        events={world.eventQueue}
+        nowMs={world.time.nowMs}
       />
       <TuningPanel />
       <div className="free-skate-toolbar">

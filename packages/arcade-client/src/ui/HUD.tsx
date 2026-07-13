@@ -1,4 +1,5 @@
 import type { ArcadeClientState } from "../store.js";
+import { AnnouncementBanner } from "./AnnouncementBanner.js";
 import { Callouts } from "./Callouts.js";
 import { ScoreHud } from "./ScoreHud.js";
 import { TurboMeter } from "./TurboMeter.js";
@@ -21,6 +22,10 @@ export function HUD({ state }: HUDProps): JSX.Element {
         <TurboMeter value={localSkater.turboMeter} />
       ) : null}
       <Callouts events={state.currentWorld?.eventQueue ?? []} />
+      <AnnouncementBanner
+        events={state.currentWorld?.eventQueue ?? []}
+        nowMs={state.currentWorld?.time.nowMs ?? 0}
+      />
     </div>
   );
 }
