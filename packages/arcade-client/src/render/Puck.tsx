@@ -4,19 +4,65 @@ export interface PuckProps {
   readonly puck: PuckState;
 }
 
+// Shadow tuning against the sim's shot arcs (wrist/slap peak ~50-70,
+// GOAL_HEIGHT 95): grounded pucks get a tight dark blob, airborne pucks leave
+// a shrinking, fading blob on the ice — the widening gap is the lift cue.
+const SHADOW_RADIUS = 11;
+const SHADOW_MAX_HEIGHT = 95;
+const SHADOW_MIN_SCALE = 0.45;
+const SHADOW_MAX_OPACITY = 0.42;
+const SHADOW_MIN_OPACITY = 0.12;
+
+/**
+ * Ground-shadow look for a puck at the given height: full-size and darkest on
+ * the ice, smaller and fainter the higher the puck flies. Pure math so tests
+ * can assert the curve.
+ */
+export function puckShadowAppearance(height: number): {
+  readonly scale: number;
+  readonly opacity: number;
+} {
+  const lift = Math.min(Math.max(height, 0) / SHADOW_MAX_HEIGHT, 1);
+  return {
+    scale: 1 - (1 - SHADOW_MIN_SCALE) * lift,
+    opacity:
+      SHADOW_MAX_OPACITY - (SHADOW_MAX_OPACITY - SHADOW_MIN_OPACITY) * lift
+  };
+}
+
 export function Puck({ puck }: PuckProps): JSX.Element {
+  const shadow = puckShadowAppearance(puck.height);
+
   return (
-    <mesh
-      position={[
-        puck.position.x,
-        (puck.carrierSlotId ? 22 : 12) + puck.height,
-        puck.position.y
-      ]}
-      name="puck"
-    >
-      <sphereGeometry args={[9, 16, 10]} />
-      <meshStandardMaterial color={puck.carrierSlotId ? "#171717" : "#2b2f36"} />
-    </mesh>
+    <group>
+      <mesh
+        position={[
+          puck.position.x,
+          (puck.carrierSlotId ? 22 : 12) + puck.height,
+          puck.position.y
+        ]}
+        name="puck"
+      >
+        <sphereGeometry args={[9, 16, 10]} />
+        <meshStandardMaterial color={puck.carrierSlotId ? "#171717" : "#2b2f36"} />
+      </mesh>
+      {/* Blob shadow pinned to the ice under the puck: the gap between puck
+          and shadow is what makes wrist/slap lift readable. */}
+      <mesh
+        position={[puck.position.x, 1.2, puck.position.y]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        scale={shadow.scale}
+        name="puck-shadow"
+      >
+        <circleGeometry args={[SHADOW_RADIUS, 20]} />
+        <meshBasicMaterial
+          color="#000000"
+          transparent
+          opacity={shadow.opacity}
+          depthWrite={false}
+        />
+      </mesh>
+    </group>
   );
 }
 

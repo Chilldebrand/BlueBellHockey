@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { bladeWorldPosition, createWorld } from "@bbh/arcade-core";
-import { pocketCarriedPuck, predictedCarriedPuck } from "./Puck.js";
+import {
+  pocketCarriedPuck,
+  predictedCarriedPuck,
+  puckShadowAppearance
+} from "./Puck.js";
 
 describe("predictedCarriedPuck", () => {
   it("snaps a carried puck to the predicted local carrier's blade", () => {
@@ -47,5 +51,30 @@ describe("pocketCarriedPuck", () => {
     world.puck.carrierSlotId = "away-skater-1";
 
     expect(pocketCarriedPuck(world.puck, world.skaters[0])).toBe(world.puck);
+  });
+});
+
+describe("puckShadowAppearance", () => {
+  it("is full-size and darkest for a grounded puck", () => {
+    expect(puckShadowAppearance(0)).toEqual({ scale: 1, opacity: 0.42 });
+  });
+
+  it("shrinks and fades monotonically as the puck rises", () => {
+    const grounded = puckShadowAppearance(0);
+    const midShot = puckShadowAppearance(50); // typical wrist/slap peak
+    const crossbar = puckShadowAppearance(95); // GOAL_HEIGHT
+
+    expect(midShot.scale).toBeLessThan(grounded.scale);
+    expect(midShot.opacity).toBeLessThan(grounded.opacity);
+    expect(crossbar.scale).toBeLessThan(midShot.scale);
+    expect(crossbar.opacity).toBeLessThan(midShot.opacity);
+    // Never vanishes entirely — a faint marker stays under top-shelf shots.
+    expect(crossbar.scale).toBeGreaterThan(0.4);
+    expect(crossbar.opacity).toBeGreaterThan(0.1);
+  });
+
+  it("clamps negative and beyond-crossbar heights", () => {
+    expect(puckShadowAppearance(-5)).toEqual(puckShadowAppearance(0));
+    expect(puckShadowAppearance(300)).toEqual(puckShadowAppearance(95));
   });
 });
