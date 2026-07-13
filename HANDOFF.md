@@ -10,74 +10,95 @@ Read `HANDOFF.md` first. Work only in `packages/arcade-core`, `packages/arcade-s
 `packages/arcade-client`; `packages/shared`, `packages/server`, and `packages/client` are legacy
 reference code and must not be modified. Use `npm.cmd` in PowerShell.
 
-**NEXT SESSION'S MISSION: the FULL GAME AUDIT (user-approved). See "Next session: full audit"
-below — start there, not with new features.**
+**THE FULL GAME AUDIT WAS COMPLETED 2026-07-13** — all six priorities executed, fixes landed in
+five pushed commits (`d752749..7154dc9`). Read "Audit results" below before anything else; the
+biggest single finding (goalie outlet human control was never wired) has an approved work order
+waiting.
 
-### Current repository and runtime state (2026-07-13)
+### Current repository and runtime state (2026-07-13, post-audit)
 
 - Everything is committed AND pushed; verify with `git status --short --branch`.
-- Certified baseline at HEAD: `npm test` **341/341** (210 core / 46 server / 85 client),
+- Certified baseline at HEAD: `npm test` **354/354** (210 core / 58 server / 86 client),
   `npm run typecheck` clean, two-client smoke all 7 checks PASS.
-- The last pre-handoff fix: the goalie-outlet work added `passChargeMs` / `outletAim` /
-  `possessionStartedAtMs` / `passWasHeld` to `GoalieEntity` and missed the client fixture in
-  `render/animation/animation.test.ts` — typecheck was BROKEN at `f8d6d90` until that fixture fix.
-  (Audit note: fixtures constructing sim entities by hand break silently when entity fields grow;
-  a shared test factory would prevent this class of break.)
-- Known live bug (fold into audit): server restart destroys rooms but `connection.left` preserves
-  the last `currentWorld`/phase, so an already-open client keeps rendering a stale frozen match.
-  Also: zombie lobby slots for ~1min after a reload without clean leave.
 
-### Everything landed since the 2026-07-09 checkpoint (all pushed)
+### Audit results (2026-07-13) — what was found and fixed
 
-- **Powerup activation cluster** — human activation on keyboard Q / gamepad Y, bot activation
-  delivery, server sanitizes activation to literal `true`, persistent 9s spawn cadence with unique
-  catch-up event ids.
-- **Arcade tactical bot AI (WO-AI-00..05)** — `tactics.ts` (deterministic context), `tendencies.ts`
-  (character-derived roles), `positions.ts` (bounded intent targets), threat-ranked defense,
-  transition/loose-puck role split, autonomous lane-checked passes/shots, pass-intercept routing.
-  `TUNING.ai` is live in Feel Lab.
-- **Per-player stats + postgame** — authoritative per-player goals/primary-assists/hits (narrow —
-  not a season-stat system), three-stars selection, one centered postgame panel (replaced the
-  overlapping WinSplash+Postgame pair).
-- **HUD simplification** — PowerupHud + TargetIndicator removed from the match HUD; pickups
-  emphasized instead (bigger icons, pulsing halo ring in `render/Powerups.tsx`).
-- **Goalie outlet control** — covered saves become temporary goalie possession instead of a center
-  faceoff: the covering team's human aims with left stick and charges/releases an outlet pass
-  (`GoalieEntity` gained passChargeMs/outletAim/possessionStartedAtMs/passWasHeld); control returns
-  to skaters on release; deterministic fallback prevents dead pucks. Covered saves are HELD.
-- Designs/plans/work orders for all of the above live under `docs/superpowers/` + `docs/workorders/`.
+**① Server hostile-client surface — fixed in `d752749`:**
+- Non-string `playerName` in join options threw mid-slot-assignment → permanently stranded a
+  zombie "human" slot no session could release. Names now sanitized (type/control-chars/24-char cap).
+- `privateCode` (now 1-12 alphanumerics), `mode`, `quickMatch` join options validated — all three
+  previously reached replicated schema state, room metadata, and `createWorld` raw.
+- `client.rematch` / `client.backToLobby` were callable by anyone at ANY time → gated to
+  postgame-only + rostered sender (a hostile client could reset/freeze a live match).
+- `client.backToLobby` now builds a FRESH waiting world (before: phase-flip kept the expired
+  clock + final score, so the next start resumed a finished match).
+- `client.chooseTeam` rejected mid-match (team defection let a client control an opposing skater).
+- `applyControlSwitches` only runs while playing (lobby input spam could hop slots).
 
-### Next session: FULL AUDIT (the agreed mission)
+**Room lifecycle (the two known live bugs) — fixed in `04625a6`:**
+- `connection.left` now resets the whole client store: a dead room (server restart) previously
+  left a frozen match on screen forever. Now → lobby with the error shown.
+- Reconnect was a DEAD feature: the client saved tickets + called `matchmaker.reconnect()` but the
+  server never called `allowReconnection`, so reloads always failed and dropped slots lingered.
+  Now: unconsented leave → slot released to a bot immediately (no AFK statue), 30s reconnection
+  seat held, returning session re-seated in its old slot with its old name (`preferredSlotId`).
+  Client refreshes the stored ticket every 10s so the 30s window counts from the DROP, not join.
 
-The user asked "have we fully audited this game?" — answer was NO: verification so far is
-per-feature (tests/typecheck/smoke per change), never holistic. The user approved doing a full
-audit next chat. Priority order:
+**② Sim edge-interaction matrix — fixed in `5a96240`:**
+- BIG: powerup spawn selection was degenerate — `(seed+index)%3` bananas and `(seed+index)%6`
+  types were correlated with the round-robin point (`index%3`). Verified by enumeration:
+  **speed-boost and bulldozer could NEVER spawn (any seed)**, one point was permanently
+  all-bananas, each other point only offered two fixed types. Now both decisions come from
+  independent salts of a deterministic integer mixer (`mixSpawnHash` in `config/powerups.ts`) —
+  all six types reachable, bananas rotate points, replays stay byte-identical.
+- Frozen/knocked-down skaters could still ACTIVATE held powerups (counter-freeze from inside the
+  ice block) → gated in `useHeldPowerups`.
+- Unclaimed drops stacked unboundedly on a spawn point (endless Free Skate) → a point holding a
+  pickup/peel skips its next spawn.
+- Verified clean: contactState machine (frozen absorbs checks, can't act), banana-vs-freeze same
+  tick ordering, bulldozer × braced/frozen branches, goalie resize × save reach single source,
+  no Math.random/Date.now anywhere in arcade-core sim.
 
-1. **Server hostile-client surface (top priority — deploy + strangers are the goal).** Audit every
-   ArcadeRoom message handler (`chooseCharacterFor`, input frames incl. `usePowerup`/`special`,
-   control switching, rematch/start, join options): malformed/out-of-range payloads, spoofing other
-   slots' inputs, message spam/flood, values that reach the deterministic sim unsanitized. The
-   powerup-activation cluster already sanitized ONE path (literal `true` only) — apply that standard
-   everywhere. Also the room lifecycle bugs above (stale-world-on-restart, zombie slots).
-2. **Sim edge-interaction matrix.** The interaction surface exploded this week: frozen × bulldozer ×
-   banana × goalie-resize × goalie-outlet-possession × control switching × stats attribution, all in
-   the same tick. Hunt same-tick ordering bugs (world.ts step order), state-machine escapes
-   (contactState transitions), and determinism leaks (anything time/order/Math.random shaped).
-3. **Free Skate localSim vs server path drift.** Two code paths step the same sim (localSim.ts
-   closure vs ArcadeRoom); confirm powerup activation, goalie outlet control, and control switching
-   behave identically in both.
-4. **Performance.** Full WorldState broadcasts every tick (now with bananaPeels, per-player stats,
-   goalie fields) — measure snapshot size/allocation; eventQueue growth vs trimEventQueue; client
-   useFrame count (stride + icons + halos).
-5. **`npm audit` + dependency review** — never run in any session.
-6. **Dead-code sweep** — dormant `selectedTargetSlotId` plumbing (TargetIndicator UI is now gone),
-   `puck-magnet`/`shield` remnants, legacy `chooseCharacter` delegate, unused specials scaffolding.
-7. Optionally the user can run `/code-review ultra` themselves (user-triggered, billed multi-agent
-   cloud review) — a good complement AFTER the targeted audit fixes land.
+**③ localSim vs server drift — no drift found.** Switching latches, bot frames, possession rules
+match; differences (co-op reception-only rule, endless clock) are by design.
 
-Method: read-first, then fix in small commits (regression test → fix → suite green → commit),
-worst-first. Determinism tests must stay green throughout. This is an AUDIT session — resist
-feature work.
+**④ Performance — measured, no action needed now:** sim step 0.034 ms/tick (0.2% of budget);
+eventQueue max ~31 (trim works); drops bounded ≤3 after the stacking fix. The number to know:
+full-world snapshots are ~8-11 KiB JSON at 62.5/s ≈ up to ~680 KiB/s per client upper bound
+(msgpack less). Fine on LAN/tunnel; before a public deploy consider broadcasting every 2nd-3rd
+tick (client already interpolates) or delta snapshots.
+
+**⑤ npm audit (first ever) — `df67902`:** 20 vulns → non-breaking fixes applied (incl. CRITICAL
+shell-quote via concurrently). 18 remain, ALL requiring semver-major bumps, deliberately deferred:
+vitest 4 / vite 8 (remaining critical/high are dev-server-only exposure) and colyseus 0.17
+(nanoid predictability, low practical risk). Do these as a dedicated upgrade session sometime.
+
+**⑥ Dead-code sweep — `7154dc9`:** removed the end-to-end-dead assist-target system (nothing
+bound `switchTarget`; `selectedTargetSlotId` was write-only; TargetIndicator.tsx orphaned) and the
+legacy `client.chooseCharacter` message + roster delegate. `InputFrame.switchTarget` kept as
+optional deprecated for wire tolerance. Specials scaffolding intentionally kept (flag-gated).
+
+### ⚠ Corrections to the previous handoff (found during audit)
+
+- **"Goalie outlet control" was OVERSTATED.** Only the sim side (WO-GOALIE-00) landed. The control
+  grant layer (WO-GOALIE-01) and client presentation (WO-GOALIE-02) were never implemented: NO
+  controller routes a human's input to the goalie slot, so `latestInputBySlot.get(activeGoalie.id)`
+  in `stepWorld` is always undefined in real play (server AND Free Skate). Actual behavior today:
+  every covered save holds 2.5s, then the deterministic fallback outlet fires. The human
+  aim/charge/release path only executes in unit tests. WO-GOALIE-01 is approved and ready to build.
+- Workorder `**Status**` fields in `docs/workorders/` are broadly stale (e.g. WO-GOALIE-00 and
+  WO-PG-00 say "not implemented" but ARE live) — don't trust them over the code.
+
+### Recommended next steps (in rough order)
+
+1. **WO-GOALIE-01** — goalie outlet control grants (the audit's one real feature gap; approved).
+2. User-owed feel passes on the 2026-07-09 batch (see "Known next steps" below).
+3. Optional `/code-review ultra` (user-triggered, billed) now that targeted fixes have landed.
+4. Real deploy (Fly/Render + static host) — the server surface is now hardened for strangers;
+   revisit snapshot bandwidth (④) when it happens.
+5. Dedicated major-upgrade session: vitest 4, vite 8, colyseus 0.17 (⑤ leftovers).
+
+Method that worked: read-first, worst-first, regression test → fix → suite green → commit → push.
 
 ## What this project is
 A 3v3 online multiplayer **arcade hockey game** with grounded core physics (NHL-Threes-style skating,
