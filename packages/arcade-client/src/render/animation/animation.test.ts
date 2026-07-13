@@ -119,7 +119,11 @@ describe("gameplay animation adapters", () => {
       teamId: "home",
       owner: "server",
       position: { x: 0, y: 0 },
-      velocity: { x: 120, y: 0 }
+      velocity: { x: 120, y: 0 },
+      passChargeMs: 0,
+      outletAim: { x: 0, y: 0 },
+      possessionStartedAtMs: 0,
+      passWasHeld: false
     };
 
     expect(selectGoalieAnimation({ goalie, events: [], nowMs: 0 })).toBe("slide");
