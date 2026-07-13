@@ -1,7 +1,7 @@
 # 3v3 Arcade Hockey — Session Handoff
 
 Paste the **Paste Into Next Chat** section into a new chat to continue. This top section is
-authoritative as of 2026-07-10; historical notes below may describe older checkpoints.
+authoritative as of 2026-07-13; historical notes below may describe older checkpoints.
 
 ## Paste Into Next Chat
 
@@ -10,104 +10,74 @@ Read `HANDOFF.md` first. Work only in `packages/arcade-core`, `packages/arcade-s
 `packages/arcade-client`; `packages/shared`, `packages/server`, and `packages/client` are legacy
 reference code and must not be modified. Use `npm.cmd` in PowerShell.
 
-### Current repository and runtime state
+**NEXT SESSION'S MISSION: the FULL GAME AUDIT (user-approved). See "Next session: full audit"
+below — start there, not with new features.**
 
-- Current HEAD: `b6eb560 fix(powerups): keep catch-up event ids unique`.
-- Git was clean before this handoff edit; `main` was 21 commits ahead of `origin/main`.
-- One clean hidden development stack is running: client `http://localhost:5173`, server
-  `ws://localhost:2567`. Three duplicate stale dev trees were stopped before this stack launched.
-- Fresh verified baseline at HEAD: **310/310 arcade tests** (187 core, 46 server, 77 client),
-  `npm.cmd run typecheck` passed, `npm.cmd run build:arcade` passed with the existing Vite
-  chunk-size warning, and the two-client smoke passed all 7 checks.
-- A Firefox game appeared frozen immediately after the server restart. Diagnosis: the restart
-  destroyed its room, while `connection.left` preserves the last `currentWorld` and phase, so the
-  client continues rendering a stale match. A fresh browser session was healthy. This is the known
-  reconnection/disconnect bug, not evidence of a Firefox-only rendering failure.
+### Current repository and runtime state (2026-07-13)
 
-### Completed powerup cluster
+- Everything is committed AND pushed; verify with `git status --short --branch`.
+- Certified baseline at HEAD: `npm test` **341/341** (210 core / 46 server / 85 client),
+  `npm run typecheck` clean, two-client smoke all 7 checks PASS.
+- The last pre-handoff fix: the goalie-outlet work added `passChargeMs` / `outletAim` /
+  `possessionStartedAtMs` / `passWasHeld` to `GoalieEntity` and missed the client fixture in
+  `render/animation/animation.test.ts` — typecheck was BROKEN at `f8d6d90` until that fixture fix.
+  (Audit note: fixtures constructing sim entities by hand break silently when entity fields grow;
+  a shared test factory would prevent this class of break.)
+- Known live bug (fold into audit): server restart destroys rooms but `connection.left` preserves
+  the last `currentWorld`/phase, so an already-open client keeps rendering a stale frozen match.
+  Also: zombie lobby slots for ~1min after a reload without clean leave.
 
-The first audit cluster is implemented and reviewed through these commits:
+### Everything landed since the 2026-07-09 checkpoint (all pushed)
 
-- `e120dc1 docs(powerups): plan activation and scheduling`
-- `68cc62e fix(powerups): make spawn cadence persistent`
-- `8d1c4eb fix(powerups): deliver bot activation input`
-- `05174b1 fix(powerups): accept sanitized client activation`
-- `28d603d feat(powerups): add human activation controls and HUD`
-- `b6eb560 fix(powerups): keep catch-up event ids unique`
+- **Powerup activation cluster** — human activation on keyboard Q / gamepad Y, bot activation
+  delivery, server sanitizes activation to literal `true`, persistent 9s spawn cadence with unique
+  catch-up event ids.
+- **Arcade tactical bot AI (WO-AI-00..05)** — `tactics.ts` (deterministic context), `tendencies.ts`
+  (character-derived roles), `positions.ts` (bounded intent targets), threat-ranked defense,
+  transition/loose-puck role split, autonomous lane-checked passes/shots, pass-intercept routing.
+  `TUNING.ai` is live in Feel Lab.
+- **Per-player stats + postgame** — authoritative per-player goals/primary-assists/hits (narrow —
+  not a season-stat system), three-stars selection, one centered postgame panel (replaced the
+  overlapping WinSplash+Postgame pair).
+- **HUD simplification** — PowerupHud + TargetIndicator removed from the match HUD; pickups
+  emphasized instead (bigger icons, pulsing halo ring in `render/Powerups.tsx`).
+- **Goalie outlet control** — covered saves become temporary goalie possession instead of a center
+  faceoff: the covering team's human aims with left stick and charges/releases an outlet pass
+  (`GoalieEntity` gained passChargeMs/outletAim/possessionStartedAtMs/passWasHeld); control returns
+  to skaters on release; deterministic fallback prevents dead pucks. Covered saves are HELD.
+- Designs/plans/work orders for all of the above live under `docs/superpowers/` + `docs/workorders/`.
 
-Humans activate powerups with keyboard Q or gamepad Y; bots deliver their existing powerup
-decisions; the server preserves only literal `true`; the local HUD shows the held powerup; and the
-9-second spawn cadence processes each index once with unique catch-up event IDs. The approved design
-and plan are:
+### Next session: FULL AUDIT (the agreed mission)
 
-- `docs/superpowers/specs/2026-07-09-powerup-activation-scheduling-design.md`
-- `docs/superpowers/plans/2026-07-09-powerup-activation-scheduling.md`
+The user asked "have we fully audited this game?" — answer was NO: verification so far is
+per-feature (tests/typecheck/smoke per change), never holistic. The user approved doing a full
+audit next chat. Priority order:
 
-### New user request — designed and planned, not implemented
+1. **Server hostile-client surface (top priority — deploy + strangers are the goal).** Audit every
+   ArcadeRoom message handler (`chooseCharacterFor`, input frames incl. `usePowerup`/`special`,
+   control switching, rematch/start, join options): malformed/out-of-range payloads, spoofing other
+   slots' inputs, message spam/flood, values that reach the deterministic sim unsanitized. The
+   powerup-activation cluster already sanitized ONE path (literal `true` only) — apply that standard
+   everywhere. Also the room lifecycle bugs above (stale-world-on-restart, zombie slots).
+2. **Sim edge-interaction matrix.** The interaction surface exploded this week: frozen × bulldozer ×
+   banana × goalie-resize × goalie-outlet-possession × control switching × stats attribution, all in
+   the same tick. Hunt same-tick ordering bugs (world.ts step order), state-machine escapes
+   (contactState transitions), and determinism leaks (anything time/order/Math.random shaped).
+3. **Free Skate localSim vs server path drift.** Two code paths step the same sim (localSim.ts
+   closure vs ArcadeRoom); confirm powerup activation, goalie outlet control, and control switching
+   behave identically in both.
+4. **Performance.** Full WorldState broadcasts every tick (now with bananaPeels, per-player stats,
+   goalie fields) — measure snapshot size/allocation; eventQueue growth vs trimEventQueue; client
+   useFrame count (stride + icons + halos).
+5. **`npm audit` + dependency review** — never run in any session.
+6. **Dead-code sweep** — dormant `selectedTargetSlotId` plumbing (TargetIndicator UI is now gone),
+   `puck-magnet`/`shield` remnants, legacy `chooseCharacter` delegate, unused specials scaffolding.
+7. Optionally the user can run `/code-review ultra` themselves (user-triggered, billed multi-agent
+   cloud review) — a good complement AFTER the targeted audit fixes land.
 
-The user requested four changes:
-
-1. Make the end-of-match screen centered and unmistakable when a team reaches 5.
-2. Remove the powerup display and target indicator from the scoreboard/match HUD.
-3. Make on-ice powerup pickups larger and more obvious.
-4. A goalie save must not reset the puck to center ice. After a goalie cover/save, the user should
-   gain control of the goalie and direct a pass like any other player.
-
-The user approved temporary goalie control and both subproject designs. Documentation is complete;
-production code has not changed. The user explicitly requested an approval gate after plans/work
-orders and before implementation.
-
-- Postgame design: `docs/superpowers/specs/2026-07-10-postgame-pickup-presentation-design.md`
-- Postgame plan: `docs/superpowers/plans/2026-07-10-postgame-pickup-presentation.md`
-- Goalie design: `docs/superpowers/specs/2026-07-10-goalie-outlet-control-design.md`
-- Goalie plan: `docs/superpowers/plans/2026-07-10-goalie-outlet-control.md`
-- Active work orders: `WO-PG-00`, `WO-PG-01`, `WO-GOALIE-00`, `WO-GOALIE-01`,
-  and `WO-GOALIE-02` under `docs/workorders`.
-
-The approved three-stars request requires authoritative per-player goals, one primary assist, and
-hits because the current world stores only team totals. This narrow stat addition is included in
-WO-PG-00 and is not a general analytics or season-stat system.
-
-### Current UI implementation relevant to the request
-
-- `packages/arcade-client/src/App.tsx`: when the world ends, it renders the rink plus both
-  `WinSplash` and `Postgame` simultaneously.
-- `packages/arcade-client/src/styles/arcadeTheme.css`: `.win-splash` and `.postgame` are both fixed
-  at `right: 18px; top: 88px; width: 320px`, causing overlap and making the result easy to miss.
-  Recommended direction: replace the two competing panels with one centered postgame modal/backdrop
-  that owns winner text, stats, Rematch, and Back To Lobby.
-- `packages/arcade-client/src/ui/HUD.tsx`: the local-skater block currently mounts `TurboMeter`,
-  `PowerupHud`, and `TargetIndicator`. The request is to remove `PowerupHud` and `TargetIndicator`
-  from this match HUD while preserving powerup activation and gameplay behavior.
-- `packages/arcade-client/src/render/Powerups.tsx`: pickups are primitive icons under `FloatingIcon`
-  at Y=20. Increase their parent scale and likely add a stronger emissive halo/ring or more visible
-  bobbing; keep pickup physics/radius unchanged unless the user explicitly asks for easier pickup.
-
-### Goalie-control architecture and approved direction
-
-- `packages/arcade-core/src/sim/goalie.ts`: a slow centered save is classified as `cover` and calls
-  `resetForFaceoff(world)` at line ~246. Hot saves produce live rebounds instead.
-- Goalies are `GoalieEntity` objects with `owner: "server"`; `InputFrame.slotId`, skater gestures,
-  passing, roster ownership, prediction, and control switching currently target skater slots only.
-  This is not a one-line removal of the faceoff reset: controlled goalie possession requires an
-  explicit goalie puck-carrier state/input path, server temporary control grant, client highlight
-  and camera support, and return-to-skater behavior after release.
-- Approved: goalie control is temporary and automatically returns to the previously controlled
-  skater immediately after the goalie passes/releases the puck.
-- Approved first-pass scope: covered saves become goalie possession instead of center faceoff;
-  the covering team's human temporarily controls the goalie; movement remains AI/crease-bound;
-  left-stick aims the outlet and the existing pass button charges/releases a pass; after release,
-  control returns to the prior skater or the receiving skater under existing possession-switch rules;
-  a deterministic 2500ms fallback prevents a dead puck.
-
-### Required continuation workflow
-
-1. Obtain explicit approval to implement the written plans and work orders.
-2. Execute the postgame cluster first (`WO-PG-00` then `WO-PG-01`) using TDD.
-3. Execute the goalie cluster next (`WO-GOALIE-00` through `WO-GOALIE-02`) using TDD.
-4. Preserve deterministic simulation and add focused failing regressions before production changes.
-5. After each cluster, run focused tests, all arcade tests, typecheck, production build, and the
-   two-client smoke. Keep legacy packages untouched.
+Method: read-first, then fix in small commits (regression test → fix → suite green → commit),
+worst-first. Determinism tests must stay green throughout. This is an AUDIT session — resist
+feature work.
 
 ## What this project is
 A 3v3 online multiplayer **arcade hockey game** with grounded core physics (NHL-Threes-style skating,
@@ -128,7 +98,7 @@ superseded, though the underlying skating/checking sim stays grounded.
 ```
 cd "C:\Users\hilde\OneDrive\Desktop\3V3 Hockey Files\BBellHockey"
 npm run dev      # arcade server (ws://localhost:2567) + client (http://localhost:5173)
-npm test         # 301 tests (185 arcade-core / 45 arcade-server / 71 arcade-client)
+npm test         # 341 tests (210 arcade-core / 46 arcade-server / 85 arcade-client)
 npm run typecheck
 npm run smoke --workspace @bbh/arcade-server   # 2-client websocket end-to-end
 ```
@@ -145,14 +115,8 @@ Preferred way to run servers with the assistant: the preview tools + `.claude/la
 
 ## GIT STATE
 
-**Current status (2026-07-09):** the AI positioning implementation is committed locally through
-`f7c5a0f`; verify exact branch/push state with `git status --short --branch`. The current verified
-baseline is `npm test` (301), `npm run typecheck`, and the two-client server smoke test.
-**Documentation is committed locally** — confirm the exact branch and push state with
-`git status --short --branch` before beginning work. The recent AI planning commits are
-`9629dbe docs(ai): plan arcade positioning system`, `22a2555 docs(ai): add active positioning
-work orders`, and the handoff refresh commit. They have not been pushed yet.
-The last verified gameplay baseline remains `npm test` (277), `npm run typecheck`, and smoke green.
+**Current status (2026-07-13):** everything committed AND pushed — `main` in sync with origin.
+Certified baseline: `npm test` (341), `npm run typecheck`, two-client smoke, all green.
 Stale merged branches `DalesMajorPLan` / `arcade-hockey-game-i4zwau` are fully contained in `main`
 (safe to prune).
 
