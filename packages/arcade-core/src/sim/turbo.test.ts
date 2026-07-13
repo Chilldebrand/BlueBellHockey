@@ -58,26 +58,4 @@ describe("turbo and assist targeting", () => {
     );
   });
 
-  it("cycles selected offensive targets while carrying the puck", () => {
-    const world = playingWorld();
-    const carrier = world.skaters[0];
-    world.puck.carrierSlotId = carrier.id;
-
-    stepWorld(world, [input(carrier.id, { switchTarget: true })], 16);
-
-    // switchTarget still cycles the target indicator; passing itself now aims
-    // with the left stick (see actions.test.ts), not this selection.
-    expect(carrier.selectedTargetSlotId).toBe("home-skater-2");
-  });
-
-  it("selects opponents on defense without changing owned skater", () => {
-    const world = playingWorld();
-    const defender = world.skaters[0];
-    world.puck.carrierSlotId = "away-skater-1";
-
-    stepWorld(world, [input(defender.id, { switchTarget: true })], 16);
-
-    expect(defender.id).toBe("home-skater-1");
-    expect(defender.selectedTargetSlotId).toBe("away-skater-1");
-  });
 });

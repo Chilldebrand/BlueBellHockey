@@ -9,7 +9,6 @@ export interface ArcadeInputState {
   readonly pass: boolean;
   readonly check: boolean;
   readonly turbo: boolean;
-  readonly switchTarget: boolean;
   readonly poke: boolean;
   readonly dive: boolean;
   readonly usePowerup: boolean;
@@ -24,7 +23,6 @@ export function createNeutralInputState(): ArcadeInputState {
     pass: false,
     check: false,
     turbo: false,
-    switchTarget: false,
     poke: false,
     dive: false,
     usePowerup: false
@@ -56,7 +54,6 @@ export function createInputFrame({
     pass: input.pass,
     check: input.check,
     turbo: input.turbo,
-    switchTarget: input.switchTarget,
     poke: input.poke,
     dive: input.dive,
     usePowerup: input.usePowerup
@@ -75,7 +72,6 @@ export function mergeInputStates(
     pass: primary.pass || secondary.pass,
     check: primary.check || secondary.check,
     turbo: primary.turbo || secondary.turbo,
-    switchTarget: primary.switchTarget || secondary.switchTarget,
     poke: primary.poke || secondary.poke,
     dive: primary.dive || secondary.dive,
     usePowerup: primary.usePowerup || secondary.usePowerup

@@ -27,7 +27,6 @@ import {
   moveHumanToTeam,
   InvalidCharacterSelectionError,
   releaseHuman,
-  selectCharacterForSession,
   selectCharacterForSlot,
   switchHumanControl,
   type RoomRosterSlot
@@ -120,7 +119,6 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
   private roster: RoomRosterSlot[] = createRoster();
   private readonly latestInputBySession = new Map<string, InputFrame>();
   private readonly lastInputSequenceBySession = new Map<string, number>();
-  private readonly lastSwitchTargetBySession = new Map<string, boolean>();
   private readonly lastPassBySession = new Map<string, boolean>();
   private readonly pendingManualSwitchBySession = new Map<string, boolean>();
   private accumulatedTickMs = 0;
@@ -168,9 +166,6 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     this.onMessage("client.chooseTeam", (client, message: unknown) => {
       this.handleChooseTeam(client, message);
     });
-    this.onMessage("client.chooseCharacter", (client, message: unknown) => {
-      this.handleChooseCharacter(client, message);
-    });
     this.onMessage("client.chooseCharacterFor", (client, message: unknown) => {
       this.handleChooseCharacterFor(client, message);
     });
@@ -217,7 +212,6 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     releaseHuman(this.roster, client.sessionId);
     this.latestInputBySession.delete(client.sessionId);
     this.lastInputSequenceBySession.delete(client.sessionId);
-    this.lastSwitchTargetBySession.delete(client.sessionId);
     this.lastPassBySession.delete(client.sessionId);
     this.pendingManualSwitchBySession.delete(client.sessionId);
     fillRosterWithBots(this.roster);
@@ -340,37 +334,6 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     moveHumanToTeam(this.roster, client.sessionId, teamId);
     fillRosterWithBots(this.roster);
     this.syncRosterState();
-  }
-
-  private handleChooseCharacter(client: Client, message: unknown): void {
-    const characterId = getRequestedCharacterId(message);
-
-    if (!characterId) {
-      this.send(client, "server.error", { message: "Invalid character." });
-      return;
-    }
-
-    try {
-      const slot = selectCharacterForSession(
-        this.roster,
-        client.sessionId,
-        characterId
-      );
-
-      if (!slot) {
-        this.send(client, "server.error", { message: "Join a slot first." });
-        return;
-      }
-
-      this.syncRosterState();
-    } catch (error) {
-      if (error instanceof InvalidCharacterSelectionError) {
-        this.send(client, "server.error", { message: "Invalid character." });
-        return;
-      }
-
-      throw error;
-    }
   }
 
   /**
@@ -496,11 +459,6 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
       return;
     }
 
-    const previousSwitch =
-      this.lastSwitchTargetBySession.get(client.sessionId) ?? false;
-    const switchTarget = frame.switchTarget && !previousSwitch;
-    this.lastSwitchTargetBySession.set(client.sessionId, frame.switchTarget);
-
     // The pass button doubles as the manual "switch to nearest teammate" control
     // when the player isn't carrying. Latch a fresh press (rising edge) here and
     // consume it once inside the tick loop — the wire `pass` field is left
@@ -515,8 +473,7 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     this.latestInputBySession.set(client.sessionId, {
       ...frame,
       playerId: client.sessionId,
-      slotId: slot.slotId,
-      switchTarget
+      slotId: slot.slotId
     });
   }
 
@@ -735,7 +692,6 @@ function getClientInputFrame(message: unknown): InputFrame | null {
     pass: candidate.pass === true,
     check: candidate.check === true,
     turbo: candidate.turbo === true,
-    switchTarget: candidate.switchTarget === true,
     poke: candidate.poke === true,
     dive: candidate.dive === true,
     usePowerup: candidate.usePowerup === true

@@ -73,7 +73,6 @@ describe("bot input frames", () => {
     });
 
     expect(frame.pass).toBe(true);
-    expect(frame.switchTarget).toBe(true);
     expect(frame.stickY).toBe(0); // passing, not flicking a shot
   });
 

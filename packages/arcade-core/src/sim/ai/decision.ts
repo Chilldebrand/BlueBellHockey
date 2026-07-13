@@ -81,7 +81,6 @@ export interface BotDecision {
   readonly shoot: boolean;
   readonly check: boolean;
   readonly turbo: boolean;
-  readonly switchTarget: boolean;
   readonly usePowerup: boolean;
   readonly special: boolean;
 }
@@ -157,7 +156,6 @@ export function selectBotDecision(
     turbo:
       bot.turboMeter > 0.18 &&
       (isBreakaway(bot, world) || needsRecoveryTurbo(bot, world)),
-    switchTarget: pass,
     usePowerup,
     special
   };

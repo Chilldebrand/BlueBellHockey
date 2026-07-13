@@ -101,7 +101,6 @@ describe("bot decision helpers", () => {
 
     expect(findPassTarget(carrier, world, alwaysAct)?.id).toBe(support.id);
     expect(decision.pass).toBe(true);
-    expect(decision.switchTarget).toBe(true);
     expect(decision.aimTarget).toEqual(support.position);
   });
 

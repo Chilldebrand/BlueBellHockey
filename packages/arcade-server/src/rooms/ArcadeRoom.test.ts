@@ -259,18 +259,24 @@ describe("ArcadeRoom", () => {
     room.onCreate({ quickMatch: true, mode: "arcade3v3" });
     room.onJoin(clientA as never, { playerName: "Ada" });
     const handler = onMessage.mock.calls.find(
-      ([messageType]) => messageType === "client.chooseCharacter"
+      ([messageType]) => messageType === "client.chooseCharacterFor"
     )?.[1];
 
     expect(handler).toBeTypeOf("function");
-    handler?.(clientA as never, { characterId: "milo-ghost" });
+    handler?.(clientA as never, {
+      slotId: "home-skater-1",
+      characterId: "milo-ghost"
+    });
 
     expect(room.state.teams.home.slots[0]).toMatchObject({
       sessionId: "session-a",
       characterId: "milo-ghost"
     });
 
-    handler?.(clientA as never, { characterId: "real-player-name" });
+    handler?.(clientA as never, {
+      slotId: "home-skater-1",
+      characterId: "real-player-name"
+    });
 
     expect(sender).toHaveBeenCalledWith(clientA, "server.error", {
       message: "Invalid character."
@@ -372,7 +378,7 @@ describe("ArcadeRoom", () => {
     room.onJoin(clientA as never, { playerName: "Ada" });
 
     const chooseCharacter = onMessage.mock.calls.find(
-      ([messageType]) => messageType === "client.chooseCharacter"
+      ([messageType]) => messageType === "client.chooseCharacterFor"
     )?.[1];
     const requestStart = onMessage.mock.calls.find(
       ([messageType]) => messageType === "client.requestStart"
@@ -380,7 +386,10 @@ describe("ArcadeRoom", () => {
 
     // Pick in the lobby (mutates only the roster), then start the match —
     // the waiting world must pick the character up at that moment.
-    chooseCharacter?.(clientA as never, { characterId: "zara-crush" });
+    chooseCharacter?.(clientA as never, {
+      slotId: "home-skater-1",
+      characterId: "zara-crush"
+    });
     requestStart?.(clientA as never, undefined);
 
     const world = (room as unknown as { world: { skaters: { id: string; characterId: string }[] } }).world;

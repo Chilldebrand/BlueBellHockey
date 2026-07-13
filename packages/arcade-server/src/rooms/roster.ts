@@ -324,27 +324,6 @@ export function selectCharacterForSlot(
   return target;
 }
 
-export function selectCharacterForSession(
-  roster: RoomRosterSlot[],
-  sessionId: string,
-  characterId: string
-): RoomRosterSlot | null {
-  const sender = roster.find(
-    (candidate) =>
-      candidate.kind === "human" && candidate.sessionId === sessionId
-  );
-
-  if (!sender) {
-    // Preserve the invalid-character error even for slotless senders.
-    if (!isCharacterId(characterId)) {
-      throw new InvalidCharacterSelectionError(characterId);
-    }
-    return null;
-  }
-
-  return selectCharacterForSlot(roster, sessionId, sender.slotId, characterId);
-}
-
 function characterIdForSlot(slot: Pick<SkaterSlot, "teamId" | "index">): CharacterId {
   return defaultCharacterIdForSlot(slot);
 }

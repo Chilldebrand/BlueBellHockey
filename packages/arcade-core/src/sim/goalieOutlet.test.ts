@@ -281,6 +281,5 @@ describe("goalie outlets", () => {
     expect(world.puck.goalieCarrierId).toBe(goalie.id);
     expect(world.eventQueue).toEqual([]);
     expect(world.skaters.every((skater) => skater.contactState === "ready")).toBe(true);
-    expect(world.skaters.every((skater) => skater.selectedTargetSlotId === null)).toBe(true);
   });
 });

@@ -9,7 +9,6 @@ import {
   moveHumanToTeam,
   releaseHuman,
   RosterFullError,
-  selectCharacterForSession,
   selectCharacterForSlot,
   switchHumanControl
 } from "./roster.js";
@@ -194,21 +193,24 @@ describe("room roster lifecycle", () => {
 
   it("selects valid characters only for the owning human session", () => {
     const roster = createRoster();
-    assignHumanToOpenSlot(roster, {
+    const slot = assignHumanToOpenSlot(roster, {
       sessionId: "session-a",
       playerName: "Ada"
     });
 
-    const selected = selectCharacterForSession(
+    const selected = selectCharacterForSlot(
       roster,
       "session-a",
+      slot.slotId,
       "milo-ghost"
     );
 
     expect(selected?.characterId).toBe("milo-ghost");
-    expect(selectCharacterForSession(roster, "missing", "rook-rocket")).toBeNull();
+    expect(
+      selectCharacterForSlot(roster, "missing", slot.slotId, "rook-rocket")
+    ).toBeNull();
     expect(() =>
-      selectCharacterForSession(roster, "session-a", "real-player-name")
+      selectCharacterForSlot(roster, "session-a", slot.slotId, "real-player-name")
     ).toThrow(InvalidCharacterSelectionError);
   });
 });

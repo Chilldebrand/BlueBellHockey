@@ -66,7 +66,6 @@ export function createWorld(
       turboCooldownUntilMs: 0,
       oneTimerUntilMs: 0,
       passChargeMs: 0,
-      selectedTargetSlotId: null,
       heldPowerupType: null,
       specialCharge: 0,
       specialCooldownUntilMs: 0
@@ -131,8 +130,6 @@ export function stepWorld(
 
   const latestInputBySlot = latestInputsForSlots(inputs);
   const dtSeconds = dtMs / 1000;
-
-  updateAssistTargets(world, latestInputBySlot);
 
   for (const skater of world.skaters) {
     const input = latestInputBySlot.get(skater.id);
@@ -219,35 +216,6 @@ function trimEventQueue(world: WorldState): void {
 
   if (world.eventQueue.length > 0 && world.eventQueue[0].atMs < cutoff) {
     world.eventQueue = world.eventQueue.filter((event) => event.atMs >= cutoff);
-  }
-}
-
-function updateAssistTargets(
-  world: WorldState,
-  inputsBySlot: ReadonlyMap<string, InputFrame>
-): void {
-  for (const skater of world.skaters) {
-    const input = inputsBySlot.get(skater.id);
-    if (!input?.switchTarget) {
-      continue;
-    }
-
-    const candidates = world.skaters.filter((candidate) =>
-      world.puck.carrierSlotId === skater.id
-        ? candidate.teamId === skater.teamId && candidate.id !== skater.id
-        : candidate.teamId !== skater.teamId
-    );
-
-    if (candidates.length === 0) {
-      skater.selectedTargetSlotId = null;
-      continue;
-    }
-
-    const currentIndex = candidates.findIndex(
-      (candidate) => candidate.id === skater.selectedTargetSlotId
-    );
-    skater.selectedTargetSlotId =
-      candidates[(currentIndex + 1) % candidates.length]?.id ?? null;
   }
 }
 

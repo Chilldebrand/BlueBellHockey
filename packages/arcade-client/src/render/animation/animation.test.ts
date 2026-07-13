@@ -32,7 +32,6 @@ function skater(overrides: Partial<SkaterEntity> = {}): SkaterEntity {
     turboCooldownUntilMs: 0,
     oneTimerUntilMs: 0,
     passChargeMs: 0,
-    selectedTargetSlotId: null,
     heldPowerupType: null,
     specialCharge: 0,
     specialCooldownUntilMs: 0,

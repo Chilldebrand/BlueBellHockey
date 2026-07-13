@@ -25,7 +25,11 @@ export interface InputFrame {
   readonly pass: boolean;
   readonly check: boolean;
   readonly turbo: boolean;
-  readonly switchTarget: boolean;
+  /**
+   * @deprecated Dead control: nothing binds it and the target-indicator
+   * system it once cycled is gone. Tolerated on the wire, ignored by the sim.
+   */
+  readonly switchTarget?: boolean;
   /** Poke check: lunge the blade forward at the puck (defense). */
   readonly poke?: boolean;
   /** Block shot: dive/lay out in the facing direction (defense). */
@@ -125,7 +129,6 @@ export interface SkaterEntity {
   oneTimerUntilMs: number;
   /** Accumulated pass-button hold time (ms) — charges a stronger pass. */
   passChargeMs: number;
-  selectedTargetSlotId: string | null;
   heldPowerupType: PowerupType | null;
   specialCharge: number;
   specialCooldownUntilMs: number;
