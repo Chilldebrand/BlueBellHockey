@@ -40,11 +40,13 @@ describe("Powerups", () => {
       (element) => element.props.name === "powerup-halo"
     );
 
-    expect(floatingGroup.props.position).toEqual([12, 20, -8]);
+    // 4x pickups (2026-07-13): icon floats at 55, scaled 6.2; the halo is a
+    // ground ring that must cancel the float height to sit just above the ice.
+    expect(floatingGroup.props.position).toEqual([12, 55, -8]);
     expect(elementRef(floatingGroup)).toBeNull();
-    expect(visual?.props.scale).toBe(1.55);
+    expect(visual?.props.scale).toBe(6.2);
     expect(visual && elementRef(visual)).toBeDefined();
-    expect(halo?.props.position).toEqual([0, -17, 0]);
+    expect(halo?.props.position).toEqual([0, -53, 0]);
     expect(halo && elementRef(halo)).toBeDefined();
     expect(visualElements.indexOf(halo as ReactElement)).toBeGreaterThan(
       visualElements.indexOf(visual as ReactElement)

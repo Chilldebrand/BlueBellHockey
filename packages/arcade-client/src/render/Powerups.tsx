@@ -19,7 +19,7 @@ export function Powerups({
       {pickups.map((pickup) => (
         <FloatingIcon
           key={pickup.id}
-          position={[pickup.position.x, 20, pickup.position.y]}
+          position={[pickup.position.x, ICON_FLOAT_HEIGHT, pickup.position.y]}
         >
           <PowerupIcon type={pickup.type} />
         </FloatingIcon>
@@ -49,6 +49,15 @@ export function BananaPeels({
   );
 }
 
+// Pickup icons render 4x their old size (user request 2026-07-13: they read
+// too small on the rink). At this scale the visual footprint roughly matches
+// the sim's 80-unit POWERUP_PICKUP_RADIUS, so what looks touchable IS
+// touchable. Purely cosmetic — no gameplay radius changed.
+const ICON_SCALE = 6.2; // was 1.55
+const ICON_FLOAT_HEIGHT = 55; // was 20; keeps the bigger icons off the ice
+const ICON_HOVER_AMPLITUDE = 12; // was 6; scaled so the bob still reads
+const HALO_RADIUS = 52; // was 13; ground ring grown with the icon
+
 // Slow hover + spin so pickups catch the eye. Imperative (no re-renders), same
 // pattern as the skater leg stride.
 function FloatingIcon({
@@ -69,7 +78,7 @@ function FloatingIcon({
     }
     phase.current += delta;
     visual.rotation.y += delta * 1.4;
-    visual.position.y = Math.sin(phase.current * 2) * 6;
+    visual.position.y = Math.sin(phase.current * 2) * ICON_HOVER_AMPLITUDE;
     const halo = haloRef.current;
     if (halo) {
       const pulse = 1 + Math.sin(phase.current * 2.5) * 0.08;
@@ -79,16 +88,18 @@ function FloatingIcon({
 
   return (
     <group position={position}>
-      <group ref={visualRef} name="powerup-visual" scale={1.55}>
+      <group ref={visualRef} name="powerup-visual" scale={ICON_SCALE}>
         {children}
       </group>
+      {/* Ground ring: sits just above the ice regardless of the icon's float
+          height, so it stays a landing-pad marker rather than a hovering halo. */}
       <mesh
         ref={haloRef}
         name="powerup-halo"
-        position={[0, -17, 0]}
+        position={[0, -(position[1] - 2), 0]}
         rotation={[Math.PI / 2, 0, 0]}
       >
-        <torusGeometry args={[13, 0.8, 12, 32]} />
+        <torusGeometry args={[HALO_RADIUS, 2.4, 12, 40]} />
         <meshStandardMaterial
           color="#7dd3fc"
           emissive="#38bdf8"
