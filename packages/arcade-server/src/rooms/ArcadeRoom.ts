@@ -64,19 +64,48 @@ type StoredArcadeRoomOptions = {
 
 const DEFAULT_MODE: MatchMode = "arcade3v3";
 const MAX_SIMULATION_STEPS_PER_TICK = 5;
+// Room codes and player names are hostile input: they land in replicated
+// schema state and room metadata, so both are strictly bounded here.
+const PRIVATE_CODE_PATTERN = /^[A-Z0-9]{1,12}$/;
+const MAX_PLAYER_NAME_LENGTH = 24;
 
 function generateRoomCode(): string {
   return Math.random().toString(36).slice(2, 8).toUpperCase().padEnd(6, "0");
 }
 
 function normalizeRoomCode(code: string): string {
+  if (typeof code !== "string") {
+    throw new Error("privateCode must be a string");
+  }
+
   const normalized = code.trim().toUpperCase();
 
   if (!normalized) {
     throw new Error("privateCode must not be empty");
   }
 
+  if (!PRIVATE_CODE_PATTERN.test(normalized)) {
+    throw new Error("privateCode must be 1-12 letters or digits");
+  }
+
   return normalized;
+}
+
+function isMatchMode(value: unknown): value is MatchMode {
+  return value === "arcade3v3";
+}
+
+function sanitizePlayerName(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const cleaned = value
+    .replace(/[\u0000-\u001f\u007f]/g, "")
+    .trim()
+    .slice(0, MAX_PLAYER_NAME_LENGTH);
+
+  return cleaned || undefined;
 }
 
 export class ArcadeRoom extends Room<ArcadeRoomState> {
@@ -145,11 +174,11 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     this.onMessage("client.requestStart", (client) => {
       this.handleRequestStart(client);
     });
-    this.onMessage("client.rematch", () => {
-      this.handleRematch();
+    this.onMessage("client.rematch", (client) => {
+      this.handleRematch(client);
     });
-    this.onMessage("client.backToLobby", () => {
-      this.handleBackToLobby();
+    this.onMessage("client.backToLobby", (client) => {
+      this.handleBackToLobby(client);
     });
     this.onMessage("client.input", (client, message: unknown) => {
       this.handleInput(client, message);
@@ -166,7 +195,7 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
   onJoin(client: Client, options: JoinOptions = {}): void {
     assignHumanToOpenSlot(this.roster, {
       sessionId: client.sessionId,
-      playerName: options.playerName
+      playerName: sanitizePlayerName(options?.playerName)
     });
     fillRosterWithBots(this.roster);
     this.syncRosterState();
@@ -259,6 +288,15 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
 
     if (teamId !== "home" && teamId !== "away") {
       this.send(client, "server.error", { message: "Invalid team." });
+      return;
+    }
+
+    // Team choice is a lobby/postgame decision — switching sides mid-match
+    // would hand a hostile client control of an opposing skater.
+    if (this.world?.phase === "playing") {
+      this.send(client, "server.error", {
+        message: "Can't switch teams mid-match."
+      });
       return;
     }
 
@@ -360,7 +398,26 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     this.syncStateFromWorld();
   }
 
-  private handleRematch(): void {
+  /**
+   * Rematch and back-to-lobby are postgame-only actions. The client only
+   * offers them on the postgame screen; gating here keeps a hostile client
+   * from resetting or freezing a live match for everyone else.
+   */
+  private canRequestPostgameAction(client: Client): boolean {
+    if (!this.world || this.world.phase !== "ended") {
+      return false;
+    }
+
+    return this.roster.some(
+      (slot) => slot.kind === "human" && slot.sessionId === client.sessionId
+    );
+  }
+
+  private handleRematch(client: Client): void {
+    if (!this.canRequestPostgameAction(client)) {
+      return;
+    }
+
     this.world = createWorld(this.seedGenerator(), this.roomOptions.mode);
     applyRosterCharactersToWorld(this.world, this.roster);
     this.world.phase = "playing";
@@ -369,12 +426,16 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     this.broadcastSnapshot();
   }
 
-  private handleBackToLobby(): void {
-    if (!this.world) {
+  private handleBackToLobby(client: Client): void {
+    if (!this.canRequestPostgameAction(client)) {
       return;
     }
 
-    this.world.phase = "waiting";
+    // A fresh waiting world, not a phase flip on the ended one — otherwise
+    // the next start would resume an expired clock and a finished score.
+    this.world = createWorld(this.seedGenerator(), this.roomOptions.mode);
+    applyRosterCharactersToWorld(this.world, this.roster);
+    this.botInputSequence = 0;
     this.syncStateFromWorld();
     this.broadcastSnapshot();
   }
@@ -457,7 +518,7 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
    * the very next sub-step.
    */
   private applyControlSwitches(prevCarrierSlotId: string | null): void {
-    if (!this.world) {
+    if (!this.world || this.world.phase !== "playing") {
       return;
     }
 
@@ -555,15 +616,18 @@ export function createPrivateRoomCode(codeGenerator = generateRoomCode): string 
 export function normalizeArcadeRoomOptions(
   options: ArcadeRoomOptions = {}
 ): NormalizedArcadeRoomOptions {
-  const quickMatch = options.quickMatch ?? true;
+  // Join options come straight off the wire: coerce quickMatch to a literal
+  // boolean and refuse to store any mode the sim doesn't know — both land in
+  // replicated state, room metadata, and createWorld.
+  const quickMatch = options?.quickMatch !== false;
 
   return {
     privateCode:
-      options.privateCode === undefined || quickMatch
+      options?.privateCode === undefined || quickMatch
         ? ""
         : normalizeRoomCode(options.privateCode),
     quickMatch,
-    mode: options.mode ?? DEFAULT_MODE
+    mode: isMatchMode(options?.mode) ? options.mode : DEFAULT_MODE
   };
 }
 

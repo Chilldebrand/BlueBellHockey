@@ -126,11 +126,16 @@ export function assignHumanToOpenSlot(
     throw new RosterFullError();
   }
 
+  // Derive everything BEFORE mutating: a throw mid-assignment would strand a
+  // half-human slot no session owns (it can never be released via onLeave).
+  const playerName = assignment.playerName?.trim() || "Player";
+  const teamJoinOrder = nextTeamJoinOrder(roster);
+
   slot.kind = "human";
   slot.sessionId = assignment.sessionId;
-  slot.playerName = assignment.playerName?.trim() || "Player";
+  slot.playerName = playerName;
   slot.botId = null;
-  slot.teamJoinOrder = nextTeamJoinOrder(roster);
+  slot.teamJoinOrder = teamJoinOrder;
 
   return slot;
 }
