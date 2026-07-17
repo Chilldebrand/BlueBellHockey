@@ -582,6 +582,58 @@ input {
   z-index: 6;
 }
 
+.audio-settings {
+  background: rgba(5, 13, 24, 0.84);
+  border: 1px solid rgba(119, 207, 255, 0.44);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.28);
+  color: #eff8ff;
+  padding: 14px 16px;
+}
+
+.audio-settings h2 {
+  color: #ffdf6e;
+  font-size: 16px;
+  letter-spacing: 0.08em;
+  margin: 0 0 12px;
+  text-transform: uppercase;
+}
+
+.audio-settings-list {
+  display: grid;
+  gap: 10px;
+}
+
+.audio-settings-row {
+  display: grid;
+  gap: 6px;
+}
+
+.audio-settings-copy {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.audio-settings-label {
+  font-weight: 700;
+}
+
+.audio-settings-value {
+  color: #9ff3d9;
+  font-variant-numeric: tabular-nums;
+}
+
+.audio-settings-input {
+  accent-color: #77cfff;
+  cursor: pointer;
+  width: 100%;
+}
+
+.audio-settings-input:focus-visible {
+  outline: 2px solid #ffdf6e;
+  outline-offset: 3px;
+}
+
 .tuning-panel-header {
   align-items: center;
   display: flex;
