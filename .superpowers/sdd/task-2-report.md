@@ -83,3 +83,37 @@ Result: PASS
 
 - `scheduleNoiseBurst()` is present to satisfy the synth-helper requirement but is not exercised by Task 2 lifecycle tests yet.
 - `consumeWorld()` and `resetEventCursor()` are intentional placeholders for later event-audio slices, as required by the brief.
+
+---
+
+## Task 2 review fixes — July 17, 2026
+
+### Findings addressed
+
+- `AudioManager.setPreferences()` now normalizes each bus independently to finite `0..1` values, using the existing per-bus defaults for non-finite inputs, before storing, persisting, and applying live gains.
+- `createAudioContext()` now catches constructor failures and returns `null`, so `AudioManager.start()` stays silent and non-fatal when browser audio context construction fails.
+
+### RED evidence
+
+```text
+Command: .\node_modules\.bin\vitest.cmd run packages/arcade-client/src/audio/AudioManager.test.ts
+Result: FAIL
+Failures:
+- normalizes each bus in setPreferences before storing and applying runtime gains
+- stays safe when AudioContext construction throws during start
+```
+
+### GREEN evidence
+
+```text
+Command: .\node_modules\.bin\vitest.cmd run packages/arcade-client/src/audio/AudioManager.test.ts
+Result: PASS
+Tests: 6 passed
+```
+
+### Final verification
+
+```text
+Command: .\node_modules\.bin\tsc.cmd -p packages/arcade-client/tsconfig.json --noEmit
+Result: PASS
+```

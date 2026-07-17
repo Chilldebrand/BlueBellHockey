@@ -86,6 +86,7 @@ class FakeAudioBuffer {
 
 class FakeAudioContext {
   static instances: FakeAudioContext[] = [];
+  static constructError: Error | null = null;
 
   currentTime = 0;
   readonly destination = { kind: "destination" };
@@ -96,6 +97,10 @@ class FakeAudioContext {
   close = vi.fn(async () => undefined);
 
   constructor() {
+    if (FakeAudioContext.constructError) {
+      throw FakeAudioContext.constructError;
+    }
+
     FakeAudioContext.instances.push(this);
   }
 
@@ -220,6 +225,55 @@ describe("AudioManager", () => {
     }
   });
 
+  it("normalizes each bus in setPreferences before storing and applying runtime gains", () => {
+    const storage = memoryStorage();
+    const { restore } = installAudioWindow(storage);
+    FakeAudioContext.instances.length = 0;
+
+    try {
+      const manager = new AudioManager();
+      manager.start();
+
+      manager.setPreferences({
+        announcer: Number.NaN,
+        gameplay: 9,
+        music: Number.NEGATIVE_INFINITY
+      });
+
+      expect(manager.getPreferences()).toEqual({
+        announcer: DEFAULT_AUDIO_PREFERENCES.announcer,
+        gameplay: 1,
+        music: DEFAULT_AUDIO_PREFERENCES.music
+      });
+      expect(storage.setItem).toHaveBeenLastCalledWith(
+        AUDIO_PREFERENCES_STORAGE_KEY,
+        JSON.stringify({
+          announcer: DEFAULT_AUDIO_PREFERENCES.announcer,
+          gameplay: 1,
+          music: DEFAULT_AUDIO_PREFERENCES.music
+        })
+      );
+      expect(
+        (
+          (manager as unknown as { announcerGain: FakeGainNode | null })
+            .announcerGain
+        )?.gain.value
+      ).toBe(DEFAULT_AUDIO_PREFERENCES.announcer);
+      expect(
+        (
+          (manager as unknown as { gameplayGain: FakeGainNode | null })
+            .gameplayGain
+        )?.gain.value
+      ).toBe(1);
+      expect(
+        ((manager as unknown as { musicGain: FakeGainNode | null }).musicGain)
+          ?.gain.value
+      ).toBe(DEFAULT_AUDIO_PREFERENCES.music);
+    } finally {
+      restore();
+    }
+  });
+
   it("starts menu music only after start and fades it out when disabled", () => {
     vi.useFakeTimers();
     const { restore } = installAudioWindow();
@@ -310,6 +364,29 @@ describe("AudioManager", () => {
       } else {
         Reflect.deleteProperty(globalThis, "window");
       }
+    }
+  });
+
+  it("stays safe when AudioContext construction throws during start", () => {
+    const { restore } = installAudioWindow();
+    FakeAudioContext.instances.length = 0;
+    FakeAudioContext.constructError = new Error("constructor failed");
+
+    try {
+      const manager = new AudioManager();
+
+      expect(() => manager.start()).not.toThrow();
+      expect(FakeAudioContext.instances).toHaveLength(0);
+      expect(manager.getPreferences()).toEqual(DEFAULT_AUDIO_PREFERENCES);
+      expect(() => {
+        manager.start();
+        manager.setMenuMusicAllowed(true);
+        manager.setPreferences(DEFAULT_AUDIO_PREFERENCES);
+        manager.dispose();
+      }).not.toThrow();
+    } finally {
+      FakeAudioContext.constructError = null;
+      restore();
     }
   });
 });

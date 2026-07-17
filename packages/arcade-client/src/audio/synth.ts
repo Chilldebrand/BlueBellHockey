@@ -21,7 +21,16 @@ export function createAudioContext(): AudioContext | null {
     audioWindow.webkitAudioContext ??
     audioGlobal.AudioContext ??
     audioGlobal.webkitAudioContext;
-  return AudioContextCtor ? new AudioContextCtor() : null;
+
+  if (!AudioContextCtor) {
+    return null;
+  }
+
+  try {
+    return new AudioContextCtor();
+  } catch {
+    return null;
+  }
 }
 
 export function createNoiseBuffer(context: BaseAudioContext): AudioBuffer {

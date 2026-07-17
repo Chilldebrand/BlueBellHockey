@@ -1,6 +1,8 @@
 import type { WorldState } from "@bbh/arcade-core";
 import { MenuMusic } from "./music.js";
 import {
+  clampAudioLevel,
+  DEFAULT_AUDIO_PREFERENCES,
   loadAudioPreferences,
   saveAudioPreferences,
   type AudioPreferences
@@ -76,9 +78,11 @@ export class AudioManager implements AudioManagerApi {
   }
 
   setPreferences(preferences: AudioPreferences): void {
-    this.preferences = preferences;
-    saveAudioPreferences(preferences);
-    this.applyPreferences(preferences);
+    const normalized = normalizeAudioPreferences(preferences);
+
+    this.preferences = normalized;
+    saveAudioPreferences(normalized);
+    this.applyPreferences(normalized);
   }
 
   getPreferences(): AudioPreferences {
@@ -142,3 +146,26 @@ export class AudioManager implements AudioManagerApi {
 }
 
 export const audioManager: AudioManagerApi = new AudioManager();
+
+function normalizeAudioPreferences(
+  preferences: AudioPreferences
+): AudioPreferences {
+  return {
+    announcer: normalizeAudioBusLevel(
+      preferences.announcer,
+      DEFAULT_AUDIO_PREFERENCES.announcer
+    ),
+    gameplay: normalizeAudioBusLevel(
+      preferences.gameplay,
+      DEFAULT_AUDIO_PREFERENCES.gameplay
+    ),
+    music: normalizeAudioBusLevel(
+      preferences.music,
+      DEFAULT_AUDIO_PREFERENCES.music
+    )
+  };
+}
+
+function normalizeAudioBusLevel(value: number, fallback: number): number {
+  return Number.isFinite(value) ? clampAudioLevel(value) : fallback;
+}
