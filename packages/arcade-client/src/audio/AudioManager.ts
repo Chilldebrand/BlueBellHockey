@@ -16,6 +16,7 @@ import {
 import {
   createAudioContext,
   createNoiseBuffer,
+  createSkatingBuffer,
   safeResume,
   scheduleNoiseBurst,
   scheduleTone
@@ -86,6 +87,7 @@ export class AudioManager implements AudioManagerApi {
   private skatingSource: AudioBufferSourceNode | null = null;
   private consumedEventIds = new Set<string>();
   private readonly announcerQueue = new AnnouncerQueue();
+  private announcerTimer: ReturnType<typeof setTimeout> | null = null;
   private diagnostics: AudioDiagnostics = createInitialDiagnostics();
 
   constructor() {
@@ -173,6 +175,9 @@ export class AudioManager implements AudioManagerApi {
 
   resetEventCursor(): void {
     this.consumedEventIds.clear();
+    this.announcerQueue.clear();
+    this.clearAnnouncerTimer();
+    this.cancelSpeech();
   }
 
   dispose(): void {
@@ -200,6 +205,8 @@ export class AudioManager implements AudioManagerApi {
     this.skatingFilter = null;
     this.skatingSource = null;
     this.announcerQueue.clear();
+    this.clearAnnouncerTimer();
+    this.cancelSpeech();
     this.diagnostics = {
       ...this.diagnostics,
       contextAvailable: false,
@@ -242,7 +249,7 @@ export class AudioManager implements AudioManagerApi {
     skatingFilter.Q.setValueAtTime(0.35, this.context.currentTime);
 
     const skatingSource = this.context.createBufferSource();
-    skatingSource.buffer = createNoiseBuffer(this.context);
+    skatingSource.buffer = createSkatingBuffer(this.context);
     skatingSource.loop = true;
     skatingSource.playbackRate.setValueAtTime(0.85, this.context.currentTime);
     skatingSource.connect(skatingFilter);
@@ -283,6 +290,7 @@ export class AudioManager implements AudioManagerApi {
       const announcerCue = announcerCueForEvent(event, world);
       if (announcerCue) {
         this.announcerQueue.enqueue(announcerCue);
+        this.drainAnnouncerQueue();
         this.diagnostics = {
           ...this.diagnostics,
           announcerGoalCount:
@@ -344,6 +352,63 @@ export class AudioManager implements AudioManagerApi {
     this.consumeWorld(world, "home-skater-1");
     this.consumeWorld(world, "home-skater-1");
     return this.getDiagnostics();
+  }
+
+  private drainAnnouncerQueue(): void {
+    if (this.announcerTimer) {
+      return;
+    }
+
+    const cue = this.announcerQueue.next(getNowMs());
+    if (!cue) {
+      return;
+    }
+
+    this.speakAnnouncerCue(cue.text);
+    this.announcerTimer = setTimeout(() => {
+      this.announcerTimer = null;
+      this.drainAnnouncerQueue();
+    }, 1500);
+  }
+
+  private speakAnnouncerCue(text: string): void {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const speechWindow = window as Window & {
+      SpeechSynthesisUtterance?: typeof SpeechSynthesisUtterance;
+      speechSynthesis?: SpeechSynthesis;
+    };
+    const Utterance = speechWindow.SpeechSynthesisUtterance;
+    const speechSynthesis = speechWindow.speechSynthesis;
+    if (!Utterance || !speechSynthesis) {
+      return;
+    }
+
+    const utterance = new Utterance(text);
+    utterance.volume = this.preferences.announcer;
+    utterance.rate = 1.02;
+    utterance.pitch = 1;
+    speechSynthesis.speak(utterance);
+  }
+
+  private cancelSpeech(): void {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const speechSynthesis = (window as Window & {
+      speechSynthesis?: SpeechSynthesis;
+    }).speechSynthesis;
+    speechSynthesis?.cancel();
+  }
+
+  private clearAnnouncerTimer(): void {
+    if (this.announcerTimer) {
+      clearTimeout(this.announcerTimer);
+      this.announcerTimer = null;
+    }
   }
 
   private getBusLevels(): AudioBusLevels {
@@ -522,6 +587,10 @@ function readGainLevel(gain: GainNode | null, fallback: number): number {
 function getContextState(context: AudioContext | null): string {
   const state = context?.state;
   return typeof state === "string" ? state : context ? "available" : "unavailable";
+}
+
+function getNowMs(): number {
+  return typeof performance === "undefined" ? Date.now() : performance.now();
 }
 
 function isManifestRecord(value: unknown): value is Record<string, unknown> {

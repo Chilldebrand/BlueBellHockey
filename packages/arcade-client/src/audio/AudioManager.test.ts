@@ -82,6 +82,14 @@ class FakeBiquadFilterNode {
   }
 }
 
+class FakeSpeechSynthesisUtterance {
+  volume = 1;
+  rate = 1;
+  pitch = 1;
+
+  constructor(readonly text: string) {}
+}
+
 class FakeAudioBuffer {
   readonly channels: Float32Array[];
 
@@ -106,6 +114,7 @@ class FakeAudioContext {
   static constructError: Error | null = null;
 
   currentTime = 0;
+  readonly sampleRate = 48_000;
   state: AudioContextState = "running";
   readonly destination = { kind: "destination" };
   readonly gains: FakeGainNode[] = [];
@@ -193,6 +202,11 @@ function installAudioWindow(storage?: Storage) {
   const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
   const fakeWindow = {
     AudioContext: FakeAudioContext,
+    SpeechSynthesisUtterance: FakeSpeechSynthesisUtterance,
+    speechSynthesis: {
+      cancel: vi.fn(),
+      speak: vi.fn()
+    },
     localStorage: storage ?? memoryStorage(),
     addEventListener: vi.fn(),
     removeEventListener: vi.fn()
@@ -216,6 +230,51 @@ function installAudioWindow(storage?: Storage) {
 }
 
 describe("AudioManager", () => {
+  it("uses a sparse ice-scrape texture instead of continuous white noise", () => {
+    const { restore } = installAudioWindow();
+
+    try {
+      const manager = new AudioManager();
+      manager.start();
+      manager.consumeWorld(createWorld(3, "arcade3v3"), "home-skater-1");
+
+      const samples = FakeAudioContext.instances[0]?.buffers[0]?.channels[0] ?? [];
+      const silentSamples = samples.filter((sample) => Math.abs(sample) < 0.0001);
+      expect(silentSamples.length / samples.length).toBeGreaterThan(0.5);
+    } finally {
+      restore();
+    }
+  });
+
+  it("speaks a goal cue when voice assets are unavailable", () => {
+    const { restore, fakeWindow } = installAudioWindow();
+
+    try {
+      const manager = new AudioManager();
+      manager.start();
+      const world = createWorld(3, "arcade3v3");
+      world.eventQueue = [
+        {
+          id: "goal-announcer-test",
+          type: "goal",
+          atMs: 100,
+          sourceSlotId: "home-skater-1"
+        }
+      ];
+
+      manager.consumeWorld(world, "home-skater-1");
+
+      expect(fakeWindow.speechSynthesis.speak).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: expect.stringMatching(/^Rook Rocket /)
+        })
+      );
+      manager.dispose();
+    } finally {
+      restore();
+    }
+  });
+
   it("routes the skating texture through a quiet low-pass filter", () => {
     const { restore } = installAudioWindow();
 

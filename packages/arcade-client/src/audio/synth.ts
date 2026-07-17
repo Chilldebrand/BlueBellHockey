@@ -1,4 +1,5 @@
 const NOISE_BUFFERS = new WeakMap<BaseAudioContext, AudioBuffer>();
+const SKATING_BUFFERS = new WeakMap<BaseAudioContext, AudioBuffer>();
 
 type BrowserAudioContextConstructor = typeof AudioContext & {
   new (): AudioContext;
@@ -49,6 +50,38 @@ export function createNoiseBuffer(context: BaseAudioContext): AudioBuffer {
   }
 
   NOISE_BUFFERS.set(context, buffer);
+  return buffer;
+}
+
+export function createSkatingBuffer(context: BaseAudioContext): AudioBuffer {
+  const cached = SKATING_BUFFERS.get(context);
+
+  if (cached) {
+    return cached;
+  }
+
+  const length = Math.max(1, Math.floor(context.sampleRate * 0.44));
+  const buffer = context.createBuffer(1, length, context.sampleRate);
+  const channel = buffer.getChannelData(0);
+  const cycleLength = Math.max(1, Math.floor(context.sampleRate * 0.22));
+  const scrapeLength = Math.max(1, Math.floor(context.sampleRate * 0.06));
+
+  for (let index = 0; index < channel.length; index += 1) {
+    const cycleIndex = index % cycleLength;
+    if (cycleIndex >= scrapeLength) {
+      channel[index] = 0;
+      continue;
+    }
+
+    const envelope = Math.sin((cycleIndex / scrapeLength) * Math.PI);
+    const grit = Math.random() * 2 - 1;
+    const scrapeTone = Math.sin(
+      (2 * Math.PI * 230 * cycleIndex) / context.sampleRate
+    );
+    channel[index] = envelope * (grit * 0.22 + scrapeTone * 0.18);
+  }
+
+  SKATING_BUFFERS.set(context, buffer);
   return buffer;
 }
 
