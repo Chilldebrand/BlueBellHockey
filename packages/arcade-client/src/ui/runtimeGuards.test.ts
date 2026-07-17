@@ -7,13 +7,15 @@ import {
 describe("runtimeGuards", () => {
   it("allows menu music only in menu, non-playing lobby, and postgame", () => {
     expect(isMenuMusicAllowed("menu", "waiting")).toBe(true);
+    expect(isMenuMusicAllowed("menu", "playing")).toBe(true);
     expect(isMenuMusicAllowed("lobby", "waiting")).toBe(true);
     expect(isMenuMusicAllowed("lobby", "ended")).toBe(true);
+    expect(isMenuMusicAllowed("boot", "ended")).toBe(true);
 
     expect(isMenuMusicAllowed("boot", "waiting")).toBe(false);
     expect(isMenuMusicAllowed("lobby", "playing")).toBe(false);
     expect(isMenuMusicAllowed("freeskate", "playing")).toBe(false);
-    expect(isMenuMusicAllowed("menu", "playing")).toBe(true);
+    expect(isMenuMusicAllowed("freeskate", "ended")).toBe(false);
   });
 
   it("blocks auto reconnect until audio has been initialized by Press Start", () => {

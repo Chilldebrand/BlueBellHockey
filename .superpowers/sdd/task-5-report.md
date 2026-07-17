@@ -231,3 +231,31 @@ Result:
 - Final focused verification:
   - `.\node_modules\.bin\vitest.cmd run packages/arcade-client/src/App.test.tsx` â†’ `1 file passed, 1 test passed`
   - `.\node_modules\.bin\tsc.cmd -p packages/arcade-client/tsconfig.json --noEmit` â†’ passed
+
+## Task 5 music guard Free Skate edge â€” 2026-07-17
+
+### RED
+
+- Added the focused impossible-but-testable regression in `packages/arcade-client/src/ui/runtimeGuards.test.ts` for `isMenuMusicAllowed("freeskate", "ended")`.
+- Ran exactly:
+  - `.\node_modules\.bin\vitest.cmd run packages/arcade-client/src/ui/runtimeGuards.test.ts`
+- Actual RED result:
+  - Vitest failed with `expected true to be false` at `isMenuMusicAllowed("freeskate", "ended")`
+
+### GREEN
+
+- Applied the minimal production fix in `packages/arcade-client/src/ui/runtimeGuards.ts`:
+  - return `false` for every `freeskate` screen before the phase-based fallback
+
+### Final verification
+
+- Re-ran exactly:
+  - `.\node_modules\.bin\vitest.cmd run packages/arcade-client/src/ui/runtimeGuards.test.ts`
+  - `.\node_modules\.bin\tsc.cmd -p packages/arcade-client/tsconfig.json --noEmit`
+- Actual final results:
+  - Vitest: `1 file passed, 2 tests passed`
+  - TypeScript: passed with exit code `0`
+
+### Concerns
+
+- No additional concerns beyond the already-documented broader suite caveats; this change is intentionally scoped to the shared runtime guard and its focused regression.

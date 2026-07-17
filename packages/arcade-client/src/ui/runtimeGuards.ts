@@ -7,6 +7,10 @@ export function isMenuMusicAllowed(
   screen: AppScreen,
   phase: WorldPhase
 ): boolean {
+  if (screen === "freeskate") {
+    return false;
+  }
+
   if (screen === "menu") {
     return true;
   }
