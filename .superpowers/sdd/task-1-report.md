@@ -168,3 +168,27 @@ Notes:
 
 - The requested Vitest runs were executed outside the sandbox because the sandbox still fails startup with the pre-existing `vite.config.ts` access issue.
 - No unrelated workspace edits were reverted or modified.
+
+---
+
+## Task 1 review fix — non-finite persisted audio values
+
+Date: 2026-07-17
+
+- Root cause: `saveAudioPreferences()` normalized with `clampAudioLevel()`, but `NaN` survived as `NaN` and `JSON.stringify()` persisted it as `null`; infinities clamped to `1`/`0` instead of falling back to defaults like the load path.
+- Minimal fix: kept `clampAudioLevel()` unchanged for finite numeric clamping and made save-side normalization fall back per field to `DEFAULT_AUDIO_PREFERENCES` when a runtime value is non-finite.
+- Added regression: saves `NaN`, `+Infinity`, and `-Infinity` and asserts the stored JSON contains `0.8`, `0.8`, and `0.55`.
+
+Commands / output:
+
+1. `.\node_modules\.bin\vitest.cmd run packages/arcade-client/src/audio/preferences.test.ts`
+   - RED: `1 failed` (`falls back to defaults for non-finite runtime values before persisting`), received `{"announcer":null,"gameplay":1,"music":0}`
+   - GREEN: `1 passed`, `10 tests`
+2. `.\node_modules\.bin\vitest.cmd run packages/arcade-client/src/ui/AudioSettings.test.tsx`
+   - passed: `1 file`, `2 tests`
+3. `.\node_modules\.bin\tsc.cmd -p packages/arcade-client/tsconfig.json --noEmit`
+   - passed: exit code `0`
+
+Scope note:
+
+- Updated only `packages/arcade-client/src/audio/preferences.ts`, `packages/arcade-client/src/audio/preferences.test.ts`, and this report. Unrelated workspace edits were preserved.

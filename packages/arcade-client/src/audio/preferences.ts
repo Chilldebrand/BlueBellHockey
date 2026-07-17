@@ -80,10 +80,23 @@ function normalizeAudioPreferences(
   preferences: AudioPreferences
 ): AudioPreferences {
   return {
-    announcer: clampAudioLevel(preferences.announcer),
-    gameplay: clampAudioLevel(preferences.gameplay),
-    music: clampAudioLevel(preferences.music)
+    announcer: normalizePersistedAudioLevel(
+      preferences.announcer,
+      DEFAULT_AUDIO_PREFERENCES.announcer
+    ),
+    gameplay: normalizePersistedAudioLevel(
+      preferences.gameplay,
+      DEFAULT_AUDIO_PREFERENCES.gameplay
+    ),
+    music: normalizePersistedAudioLevel(
+      preferences.music,
+      DEFAULT_AUDIO_PREFERENCES.music
+    )
   };
+}
+
+function normalizePersistedAudioLevel(value: number, fallback: number): number {
+  return Number.isFinite(value) ? clampAudioLevel(value) : fallback;
 }
 
 function readAudioLevel(value: unknown, fallback: number): number {

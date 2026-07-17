@@ -137,6 +137,28 @@ describe("saveAudioPreferences", () => {
     );
   });
 
+  it("falls back to defaults for non-finite runtime values before persisting", () => {
+    const storage = memoryStorage();
+
+    saveAudioPreferences(
+      {
+        announcer: Number.NaN,
+        gameplay: Number.POSITIVE_INFINITY,
+        music: Number.NEGATIVE_INFINITY
+      },
+      storage
+    );
+
+    expect(storage.setItem).toHaveBeenCalledWith(
+      AUDIO_PREFERENCES_STORAGE_KEY,
+      JSON.stringify({
+        announcer: DEFAULT_AUDIO_PREFERENCES.announcer,
+        gameplay: DEFAULT_AUDIO_PREFERENCES.gameplay,
+        music: DEFAULT_AUDIO_PREFERENCES.music
+      })
+    );
+  });
+
   it("swallows storage write errors", () => {
     const storage = {
       setItem: vi.fn(() => {
