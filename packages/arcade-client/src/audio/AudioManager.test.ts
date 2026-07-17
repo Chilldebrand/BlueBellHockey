@@ -1,0 +1,315 @@
+import { describe, expect, it, vi } from "vitest";
+import {
+  AUDIO_PREFERENCES_STORAGE_KEY,
+  DEFAULT_AUDIO_PREFERENCES
+} from "./preferences.js";
+import { AudioManager } from "./AudioManager.js";
+
+class FakeAudioParam {
+  value = 1;
+  readonly events: Array<{
+    readonly type: string;
+    readonly value: number;
+    readonly time: number;
+  }> = [];
+
+  setValueAtTime(value: number, time: number): this {
+    this.value = value;
+    this.events.push({ type: "setValueAtTime", value, time });
+    return this;
+  }
+
+  setTargetAtTime(value: number, time: number): this {
+    this.value = value;
+    this.events.push({ type: "setTargetAtTime", value, time });
+    return this;
+  }
+
+  exponentialRampToValueAtTime(value: number, time: number): this {
+    this.value = value;
+    this.events.push({ type: "exponentialRampToValueAtTime", value, time });
+    return this;
+  }
+}
+
+class FakeGainNode {
+  readonly kind = "gain";
+  readonly gain = new FakeAudioParam();
+  readonly connections: unknown[] = [];
+
+  connect(target: unknown): unknown {
+    this.connections.push(target);
+    return target;
+  }
+}
+
+class FakeOscillatorNode {
+  readonly kind = "oscillator";
+  readonly frequency = new FakeAudioParam();
+  type: OscillatorType = "sine";
+  readonly connections: unknown[] = [];
+  readonly starts: number[] = [];
+  readonly stops: number[] = [];
+
+  connect(target: unknown): unknown {
+    this.connections.push(target);
+    return target;
+  }
+
+  start(time = 0): void {
+    this.starts.push(time);
+  }
+
+  stop(time = 0): void {
+    this.stops.push(time);
+  }
+}
+
+class FakeAudioBuffer {
+  readonly channels: Float32Array[];
+
+  constructor(
+    readonly numberOfChannels: number,
+    readonly length: number,
+    readonly sampleRate: number
+  ) {
+    this.channels = Array.from(
+      { length: numberOfChannels },
+      () => new Float32Array(length)
+    );
+  }
+
+  getChannelData(channel: number): Float32Array {
+    return this.channels[channel]!;
+  }
+}
+
+class FakeAudioContext {
+  static instances: FakeAudioContext[] = [];
+
+  currentTime = 0;
+  readonly destination = { kind: "destination" };
+  readonly gains: FakeGainNode[] = [];
+  readonly oscillators: FakeOscillatorNode[] = [];
+  readonly buffers: FakeAudioBuffer[] = [];
+  resume = vi.fn(async () => undefined);
+  close = vi.fn(async () => undefined);
+
+  constructor() {
+    FakeAudioContext.instances.push(this);
+  }
+
+  createGain(): FakeGainNode {
+    const gain = new FakeGainNode();
+    this.gains.push(gain);
+    return gain;
+  }
+
+  createOscillator(): FakeOscillatorNode {
+    const oscillator = new FakeOscillatorNode();
+    this.oscillators.push(oscillator);
+    return oscillator;
+  }
+
+  createBuffer(
+    numberOfChannels: number,
+    length: number,
+    sampleRate: number
+  ): FakeAudioBuffer {
+    const buffer = new FakeAudioBuffer(numberOfChannels, length, sampleRate);
+    this.buffers.push(buffer);
+    return buffer;
+  }
+}
+
+function memoryStorage(seed?: Record<string, string>): Storage {
+  const entries = new Map(Object.entries(seed ?? {}));
+
+  return {
+    get length() {
+      return entries.size;
+    },
+    clear: vi.fn(() => entries.clear()),
+    getItem: vi.fn((key: string) => entries.get(key) ?? null),
+    key: vi.fn((index: number) => Array.from(entries.keys())[index] ?? null),
+    removeItem: vi.fn((key: string) => {
+      entries.delete(key);
+    }),
+    setItem: vi.fn((key: string, value: string) => {
+      entries.set(key, value);
+    })
+  };
+}
+
+function installAudioWindow(storage?: Storage) {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const fakeWindow = {
+    AudioContext: FakeAudioContext,
+    localStorage: storage ?? memoryStorage(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn()
+  };
+
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: fakeWindow
+  });
+
+  return {
+    fakeWindow,
+    restore() {
+      if (originalWindow) {
+        Object.defineProperty(globalThis, "window", originalWindow);
+      } else {
+        Reflect.deleteProperty(globalThis, "window");
+      }
+    }
+  };
+}
+
+describe("AudioManager", () => {
+  it("starts once, creates one context and one gain node per bus, and applies loaded preferences", () => {
+    const storage = memoryStorage({
+      [AUDIO_PREFERENCES_STORAGE_KEY]: JSON.stringify({
+        announcer: 0.2,
+        gameplay: 0.4,
+        music: 0.6
+      })
+    });
+    const { restore, fakeWindow } = installAudioWindow(storage);
+    FakeAudioContext.instances.length = 0;
+
+    try {
+      const manager = new AudioManager();
+
+      manager.start();
+      manager.start();
+
+      expect(FakeAudioContext.instances).toHaveLength(1);
+
+      const context = FakeAudioContext.instances[0]!;
+      expect(context.gains).toHaveLength(5);
+      expect(manager.getPreferences()).toEqual({
+        announcer: 0.2,
+        gameplay: 0.4,
+        music: 0.6
+      });
+      expect(
+        ((manager as unknown as { masterGain: FakeGainNode | null }).masterGain)
+          ?.gain.value
+      ).toBe(1);
+      expect(
+        (
+          (manager as unknown as { announcerGain: FakeGainNode | null })
+            .announcerGain
+        )?.gain.value
+      ).toBe(0.2);
+      expect(
+        (
+          (manager as unknown as { gameplayGain: FakeGainNode | null })
+            .gameplayGain
+        )?.gain.value
+      ).toBe(0.4);
+      expect(
+        ((manager as unknown as { musicGain: FakeGainNode | null }).musicGain)
+          ?.gain.value
+      ).toBe(0.6);
+      expect(fakeWindow.addEventListener).toHaveBeenCalledTimes(1);
+    } finally {
+      restore();
+    }
+  });
+
+  it("starts menu music only after start and fades it out when disabled", () => {
+    vi.useFakeTimers();
+    const { restore } = installAudioWindow();
+    FakeAudioContext.instances.length = 0;
+
+    try {
+      const manager = new AudioManager();
+
+      manager.setMenuMusicAllowed(true);
+      expect(vi.getTimerCount()).toBe(0);
+
+      manager.start();
+      expect(vi.getTimerCount()).toBe(1);
+
+      const context = FakeAudioContext.instances[0]!;
+      context.currentTime = 1;
+      vi.advanceTimersByTime(25);
+      expect(context.oscillators.length).toBeGreaterThan(0);
+
+      const menuMusicOutput = (
+        manager as unknown as {
+          menuMusic: { output: FakeGainNode } | null;
+        }
+      ).menuMusic?.output;
+      manager.setMenuMusicAllowed(false);
+
+      expect(menuMusicOutput?.gain.events.at(-1)).toMatchObject({
+        type: "setTargetAtTime",
+        value: 0.0001,
+        time: 1
+      });
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+      restore();
+    }
+  });
+
+  it("disposes safely before or after initialization and clears timers and listeners", () => {
+    vi.useFakeTimers();
+    const { restore, fakeWindow } = installAudioWindow();
+    FakeAudioContext.instances.length = 0;
+
+    try {
+      const unstartedManager = new AudioManager();
+      expect(() => unstartedManager.dispose()).not.toThrow();
+
+      const manager = new AudioManager();
+      manager.start();
+      manager.setMenuMusicAllowed(true);
+
+      expect(vi.getTimerCount()).toBe(1);
+
+      expect(() => manager.dispose()).not.toThrow();
+      expect(vi.getTimerCount()).toBe(0);
+      expect(fakeWindow.removeEventListener).toHaveBeenCalledTimes(1);
+      expect(FakeAudioContext.instances[0]?.close).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+      restore();
+    }
+  });
+
+  it("stays safe when Web Audio is unavailable", () => {
+    const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: {
+        localStorage: memoryStorage()
+      }
+    });
+
+    try {
+      const manager = new AudioManager();
+
+      expect(() => {
+        manager.start();
+        manager.setMenuMusicAllowed(true);
+        manager.setPreferences(DEFAULT_AUDIO_PREFERENCES);
+        manager.consumeWorld(null as never, null);
+        manager.resetEventCursor();
+        manager.dispose();
+      }).not.toThrow();
+    } finally {
+      if (originalWindow) {
+        Object.defineProperty(globalThis, "window", originalWindow);
+      } else {
+        Reflect.deleteProperty(globalThis, "window");
+      }
+    }
+  });
+});
