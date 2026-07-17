@@ -69,6 +69,19 @@ class FakeOscillatorNode {
   }
 }
 
+class FakeBiquadFilterNode {
+  readonly kind = "biquad-filter";
+  type: BiquadFilterType = "lowpass";
+  readonly frequency = new FakeAudioParam();
+  readonly Q = new FakeAudioParam();
+  readonly connections: unknown[] = [];
+
+  connect(target: unknown): unknown {
+    this.connections.push(target);
+    return target;
+  }
+}
+
 class FakeAudioBuffer {
   readonly channels: Float32Array[];
 
@@ -97,6 +110,7 @@ class FakeAudioContext {
   readonly destination = { kind: "destination" };
   readonly gains: FakeGainNode[] = [];
   readonly oscillators: FakeOscillatorNode[] = [];
+  readonly filters: FakeBiquadFilterNode[] = [];
   readonly buffers: FakeAudioBuffer[] = [];
   resume = vi.fn(async () => undefined);
   close = vi.fn(async () => undefined);
@@ -119,6 +133,12 @@ class FakeAudioContext {
     const oscillator = new FakeOscillatorNode();
     this.oscillators.push(oscillator);
     return oscillator;
+  }
+
+  createBiquadFilter(): FakeBiquadFilterNode {
+    const filter = new FakeBiquadFilterNode();
+    this.filters.push(filter);
+    return filter;
   }
 
   createBufferSource(): {
@@ -196,6 +216,22 @@ function installAudioWindow(storage?: Storage) {
 }
 
 describe("AudioManager", () => {
+  it("routes the skating texture through a quiet low-pass filter", () => {
+    const { restore } = installAudioWindow();
+
+    try {
+      const manager = new AudioManager();
+      manager.start();
+      manager.consumeWorld(createWorld(3, "arcade3v3"), "home-skater-1");
+
+      const [filter] = FakeAudioContext.instances[0]?.filters ?? [];
+      expect(filter?.type).toBe("lowpass");
+      expect(filter?.frequency.value).toBeLessThanOrEqual(400);
+    } finally {
+      restore();
+    }
+  });
+
   it("starts once, creates one context and one gain node per bus, and applies loaded preferences", () => {
     const storage = memoryStorage({
       [AUDIO_PREFERENCES_STORAGE_KEY]: JSON.stringify({

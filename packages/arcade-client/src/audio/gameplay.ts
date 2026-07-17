@@ -21,6 +21,7 @@ const SKATING_SPEED_FLOOR = 30;
 const SKATING_SPEED_CEILING = 430;
 const SKATING_MIN_PLAYBACK_RATE = 0.85;
 const SKATING_MAX_PLAYBACK_RATE = 1.35;
+const SKATING_MAX_GAIN = 0.12;
 
 export function gameplayCueForEvent(event: WorldEvent): {
   readonly id: GameplayCueId;
@@ -71,7 +72,7 @@ export function skatingMixForSpeed(speed: number): {
   );
 
   return {
-    gain: clamp01(normalized),
+    gain: clamp01(normalized) * SKATING_MAX_GAIN,
     playbackRate:
       SKATING_MIN_PLAYBACK_RATE +
       (SKATING_MAX_PLAYBACK_RATE - SKATING_MIN_PLAYBACK_RATE) * normalized

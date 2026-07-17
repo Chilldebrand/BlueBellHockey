@@ -42,7 +42,6 @@ Goal quip clips:
 Powerup quip clips:
 
 - `announcer.powerup.speed-boost` — “just found another gear!”
-- `announcer.powerup.hard-shot` — “loaded the big stick!”
 - `announcer.powerup.freeze` — “froze the competition!”
 - `announcer.powerup.bulldozer` — “turned into a wrecking ball!”
 - `announcer.powerup.mini-goalie` — “made the goalie tiny!”

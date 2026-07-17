@@ -65,6 +65,16 @@ function cue(
 }
 
 describe("announcerCueForEvent", () => {
+  it("does not announce the Hard Shot powerup", () => {
+    expect(
+      announcerCueForEvent(
+        powerupEvent("home-skater-1", "hard-shot"),
+        worldFixture(),
+        () => 0
+      )
+    ).toBeNull();
+  });
+
   it("keeps character clip IDs exactly aligned with CHARACTER_IDS and the manifest", () => {
     const manifestCharacterIds = Object.keys(manifest.clips).filter((id) =>
       id.startsWith("announcer.name.")
@@ -146,7 +156,7 @@ describe("announcerCueForEvent", () => {
     expect(resolved?.text).toBe("Rook Rocket that was rude!");
   });
 
-  it("uses the configured powerup definition ids", () => {
+  it("keeps the Hard Shot gameplay definition without an announcer cue", () => {
     const type = "hard-shot";
     expect(POWERUP_DEFINITIONS[type].label).toBe("Hard Shot");
 
@@ -156,11 +166,7 @@ describe("announcerCueForEvent", () => {
       () => 0
     );
 
-    expect(resolved?.clipIds).toEqual([
-      "announcer.name.nova-screen",
-      "announcer.powerup.hard-shot"
-    ]);
-    expect(resolved?.text).toBe("Nova Screen loaded the big stick!");
+    expect(resolved).toBeNull();
   });
 });
 

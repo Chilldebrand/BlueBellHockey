@@ -45,6 +45,19 @@ class FakeGainNode {
   }
 }
 
+class FakeBiquadFilterNode {
+  readonly kind = "biquad-filter";
+  type: BiquadFilterType = "lowpass";
+  readonly frequency = new FakeAudioParam();
+  readonly Q = new FakeAudioParam();
+  readonly connections: unknown[] = [];
+
+  connect(target: unknown): unknown {
+    this.connections.push(target);
+    return target;
+  }
+}
+
 class FakeOscillatorNode {
   readonly kind = "oscillator";
   readonly frequency = new FakeAudioParam();
@@ -116,6 +129,7 @@ class FakeAudioContext {
   readonly sampleRate = 48_000;
   readonly destination = { kind: "destination" };
   readonly gains: FakeGainNode[] = [];
+  readonly filters: FakeBiquadFilterNode[] = [];
   readonly oscillators: FakeOscillatorNode[] = [];
   readonly buffers: FakeAudioBuffer[] = [];
   readonly bufferSources: FakeBufferSourceNode[] = [];
@@ -136,6 +150,12 @@ class FakeAudioContext {
     const oscillator = new FakeOscillatorNode();
     this.oscillators.push(oscillator);
     return oscillator;
+  }
+
+  createBiquadFilter(): FakeBiquadFilterNode {
+    const filter = new FakeBiquadFilterNode();
+    this.filters.push(filter);
+    return filter;
   }
 
   createBuffer(
@@ -254,6 +274,10 @@ describe("gameplayCueForEvent", () => {
 });
 
 describe("skatingMixForSpeed", () => {
+  it("keeps the continuous skating texture subtle at top speed", () => {
+    expect(skatingMixForSpeed(430).gain).toBeLessThanOrEqual(0.12);
+  });
+
   it("stays silent at zero speed and below the movement threshold", () => {
     expect(skatingMixForSpeed(0)).toEqual({
       gain: 0,
@@ -274,7 +298,7 @@ describe("skatingMixForSpeed", () => {
     expect(slow.gain).toBeGreaterThan(0);
     expect(medium.gain).toBeGreaterThan(slow.gain);
     expect(fast.gain).toBeGreaterThan(medium.gain);
-    expect(turbo.gain).toBe(1);
+    expect(turbo.gain).toBe(0.12);
 
     expect(medium.playbackRate).toBeGreaterThan(slow.playbackRate);
     expect(fast.playbackRate).toBeGreaterThan(medium.playbackRate);

@@ -35,9 +35,8 @@ const GOAL_LINES = [
   "that was rude!"
 ] as const;
 
-const POWERUP_LINES: Record<PowerupType, string> = {
+const POWERUP_LINES: Partial<Record<PowerupType, string>> = {
   "speed-boost": "just found another gear!",
-  "hard-shot": "loaded the big stick!",
   freeze: "froze the competition!",
   bulldozer: "turned into a wrecking ball!",
   "mini-goalie": "made the goalie tiny!",
@@ -51,7 +50,7 @@ export const characterNameClipIds = CHARACTER_IDS.map(
 const expectedAnnouncerClipIds = [
   ...characterNameClipIds,
   ...Array.from({ length: GOAL_LINES.length }, (_, index) => `announcer.goal.${index}`),
-  ...Object.keys(POWERUP_DEFINITIONS).map(
+  ...Object.keys(POWERUP_LINES).map(
     (powerupType) => `announcer.powerup.${powerupType}`
   ),
   "music.menu.0"
@@ -124,6 +123,10 @@ export function announcerCueForEvent(
   const character = resolveCharacter(world, event.sourceSlotId);
   const characterName = character?.displayName ?? UNKNOWN_PLAYER;
   const powerupType = event.targetSlotId;
+  const powerupLine = POWERUP_LINES[powerupType];
+  if (!powerupLine) {
+    return null;
+  }
   const clipIds =
     character?.id === undefined
       ? [`announcer.powerup.${powerupType}`]
@@ -135,7 +138,7 @@ export function announcerCueForEvent(
     priority: POWERUP_PRIORITY,
     clipIds,
     characterName,
-    text: `${characterName} ${POWERUP_LINES[powerupType]}`
+    text: `${characterName} ${powerupLine}`
   };
 }
 

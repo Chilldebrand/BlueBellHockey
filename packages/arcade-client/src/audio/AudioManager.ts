@@ -82,6 +82,7 @@ export class AudioManager implements AudioManagerApi {
   private gameplayGain: GainNode | null = null;
   private musicGain: GainNode | null = null;
   private skatingGain: GainNode | null = null;
+  private skatingFilter: BiquadFilterNode | null = null;
   private skatingSource: AudioBufferSourceNode | null = null;
   private consumedEventIds = new Set<string>();
   private readonly announcerQueue = new AnnouncerQueue();
@@ -196,6 +197,7 @@ export class AudioManager implements AudioManagerApi {
     this.gameplayGain = null;
     this.musicGain = null;
     this.skatingGain = null;
+    this.skatingFilter = null;
     this.skatingSource = null;
     this.announcerQueue.clear();
     this.diagnostics = {
@@ -234,14 +236,21 @@ export class AudioManager implements AudioManagerApi {
     skatingGain.gain.setValueAtTime(0, this.context.currentTime);
     skatingGain.connect(this.gameplayGain);
 
+    const skatingFilter = this.context.createBiquadFilter();
+    skatingFilter.type = "lowpass";
+    skatingFilter.frequency.setValueAtTime(360, this.context.currentTime);
+    skatingFilter.Q.setValueAtTime(0.35, this.context.currentTime);
+
     const skatingSource = this.context.createBufferSource();
     skatingSource.buffer = createNoiseBuffer(this.context);
     skatingSource.loop = true;
     skatingSource.playbackRate.setValueAtTime(0.85, this.context.currentTime);
-    skatingSource.connect(skatingGain);
+    skatingSource.connect(skatingFilter);
+    skatingFilter.connect(skatingGain);
     skatingSource.start(this.context.currentTime);
 
     this.skatingGain = skatingGain;
+    this.skatingFilter = skatingFilter;
     this.skatingSource = skatingSource;
   }
 

@@ -84,10 +84,6 @@
       "/audio/announcer/powerups/speed-boost.ogg",
       "/audio/announcer/powerups/speed-boost.mp3"
     ],
-    "announcer.powerup.hard-shot": [
-      "/audio/announcer/powerups/hard-shot.ogg",
-      "/audio/announcer/powerups/hard-shot.mp3"
-    ],
     "announcer.powerup.freeze": [
       "/audio/announcer/powerups/freeze.ogg",
       "/audio/announcer/powerups/freeze.mp3"
