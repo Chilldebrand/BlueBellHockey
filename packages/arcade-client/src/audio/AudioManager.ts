@@ -1,5 +1,6 @@
 import type { WorldState } from "@bbh/arcade-core";
 import { MenuMusic } from "./music.js";
+import { gameplayCueForEvent, skatingMixForSpeed } from "./gameplay.js";
 import {
   clampAudioLevel,
   DEFAULT_AUDIO_PREFERENCES,
@@ -7,7 +8,13 @@ import {
   saveAudioPreferences,
   type AudioPreferences
 } from "./preferences.js";
-import { createAudioContext, safeResume } from "./synth.js";
+import {
+  createAudioContext,
+  createNoiseBuffer,
+  safeResume,
+  scheduleNoiseBurst,
+  scheduleTone
+} from "./synth.js";
 
 export interface AudioManagerApi {
   start(): void;
@@ -31,6 +38,9 @@ export class AudioManager implements AudioManagerApi {
   private announcerGain: GainNode | null = null;
   private gameplayGain: GainNode | null = null;
   private musicGain: GainNode | null = null;
+  private skatingGain: GainNode | null = null;
+  private skatingSource: AudioBufferSourceNode | null = null;
+  private consumedEventIds = new Set<string>();
 
   constructor() {
     this.preferences = loadAudioPreferences();
@@ -94,12 +104,18 @@ export class AudioManager implements AudioManagerApi {
     this.menuMusic?.setEnabled(allowed);
   }
 
-  consumeWorld(_world: WorldState, _localEntityId: string | null): void {
-    // Event-driven gameplay audio arrives in a later task.
+  consumeWorld(world: WorldState, localEntityId: string | null): void {
+    if (!this.context || !this.gameplayGain) {
+      return;
+    }
+
+    this.ensureSkatingSource();
+    this.consumeGameplayEvents(world);
+    this.updateSkatingMix(world, localEntityId);
   }
 
   resetEventCursor(): void {
-    // Event-driven gameplay audio arrives in a later task.
+    this.consumedEventIds.clear();
   }
 
   dispose(): void {
@@ -123,6 +139,9 @@ export class AudioManager implements AudioManagerApi {
     this.announcerGain = null;
     this.gameplayGain = null;
     this.musicGain = null;
+    this.skatingGain = null;
+    this.skatingSource = null;
+    this.consumedEventIds.clear();
     this.started = false;
   }
 
@@ -141,6 +160,131 @@ export class AudioManager implements AudioManagerApi {
 
     if (this.musicGain) {
       this.musicGain.gain.value = preferences.music;
+    }
+  }
+
+  private ensureSkatingSource(): void {
+    if (!this.context || !this.gameplayGain || this.skatingSource) {
+      return;
+    }
+
+    const skatingGain = this.context.createGain();
+    skatingGain.gain.setValueAtTime(0, this.context.currentTime);
+    skatingGain.connect(this.gameplayGain);
+
+    const skatingSource = this.context.createBufferSource();
+    skatingSource.buffer = createNoiseBuffer(this.context);
+    skatingSource.loop = true;
+    skatingSource.playbackRate.setValueAtTime(0.85, this.context.currentTime);
+    skatingSource.connect(skatingGain);
+    skatingSource.start(this.context.currentTime);
+
+    this.skatingGain = skatingGain;
+    this.skatingSource = skatingSource;
+  }
+
+  private consumeGameplayEvents(world: WorldState): void {
+    if (!this.context || !this.gameplayGain) {
+      return;
+    }
+
+    const liveEventIds = new Set(world.eventQueue.map((event) => event.id));
+
+    for (const event of world.eventQueue) {
+      if (this.consumedEventIds.has(event.id)) {
+        continue;
+      }
+
+      this.consumedEventIds.add(event.id);
+      const cue = gameplayCueForEvent(event);
+      if (!cue) {
+        continue;
+      }
+
+      this.playGameplayCue(cue.id, cue.intensity);
+    }
+
+    this.consumedEventIds = new Set(
+      Array.from(this.consumedEventIds).filter((eventId) => liveEventIds.has(eventId))
+    );
+  }
+
+  private updateSkatingMix(world: WorldState, localEntityId: string | null): void {
+    if (!this.context || !this.skatingGain || !this.skatingSource) {
+      return;
+    }
+
+    const localSkater =
+      localEntityId === null
+        ? null
+        : world.skaters.find((skater) => skater.id === localEntityId) ?? null;
+    const speed =
+      localSkater === null
+        ? 0
+        : Math.hypot(localSkater.velocity.x, localSkater.velocity.y);
+    const mix = skatingMixForSpeed(speed);
+
+    this.skatingGain.gain.setTargetAtTime(mix.gain, this.context.currentTime, 0.03);
+    this.skatingSource.playbackRate.setTargetAtTime(
+      mix.playbackRate,
+      this.context.currentTime,
+      0.04
+    );
+  }
+
+  private playGameplayCue(id: string, intensity: number): void {
+    if (!this.context || !this.gameplayGain) {
+      return;
+    }
+
+    const startTime = this.context.currentTime;
+    switch (id) {
+      case "hit":
+        scheduleNoiseBurst(this.context, {
+          destination: this.gameplayGain,
+          startTime,
+          duration: 0.08,
+          gain: 0.14 + intensity * 0.24
+        });
+        break;
+      case "knockdown":
+        scheduleNoiseBurst(this.context, {
+          destination: this.gameplayGain,
+          startTime,
+          duration: 0.12,
+          gain: 0.22
+        });
+        break;
+      case "save-pad":
+      case "save-body":
+      case "save-cover":
+      case "shot":
+      case "block":
+      case "poke":
+      case "jostle":
+      case "bounce-back":
+        scheduleNoiseBurst(this.context, {
+          destination: this.gameplayGain,
+          startTime,
+          duration: 0.06,
+          gain: 0.16
+        });
+        break;
+      case "save-glove":
+      case "save-blocker":
+      case "one-timer":
+      case "post":
+        scheduleTone(this.context, {
+          destination: this.gameplayGain,
+          frequency: id === "post" ? 1120 : 760,
+          startTime,
+          duration: 0.1,
+          gain: 0.12,
+          type: "triangle"
+        });
+        break;
+      default:
+        break;
     }
   }
 }
