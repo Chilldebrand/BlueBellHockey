@@ -21,6 +21,7 @@
     "dev:arcade-client": "npm run build:arcade-core && npm run dev --workspace @bbh/arcade-client",
     "dev:arcade": "npm run dev",
     "dev:legacy": "npm run build:shared && concurrently -n server,client -c blue,green \"npm run dev --workspace @bbh/server\" \"npm run dev --workspace @bbh/client\"",
+    "verify:arcade-audio": "node scripts/verify-arcade-audio.cjs",
     "test": "npm run test --workspace @bbh/arcade-core && npm run test --workspace @bbh/arcade-server && npm run test --workspace @bbh/arcade-client",
     "test:arcade": "npm run test",
     "test:legacy": "npm run test --workspace @bbh/shared && npm run test --workspace @bbh/server && npm run test --workspace @bbh/client",

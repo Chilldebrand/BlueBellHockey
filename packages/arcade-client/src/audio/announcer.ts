@@ -1,4 +1,5 @@
 import {
+  CHARACTER_IDS,
   ARCADE_CHARACTERS,
   POWERUP_DEFINITIONS,
   type PowerupType,
@@ -42,6 +43,42 @@ const POWERUP_LINES: Record<PowerupType, string> = {
   "mini-goalie": "made the goalie tiny!",
   "giant-goalie": "built a goalie wall!"
 };
+
+export const characterNameClipIds = CHARACTER_IDS.map(
+  (characterId) => `announcer.name.${characterId}`
+);
+
+const expectedAnnouncerClipIds = [
+  ...characterNameClipIds,
+  ...Array.from({ length: GOAL_LINES.length }, (_, index) => `announcer.goal.${index}`),
+  ...Object.keys(POWERUP_DEFINITIONS).map(
+    (powerupType) => `announcer.powerup.${powerupType}`
+  ),
+  "music.menu.0"
+] as const;
+
+export interface AnnouncerManifestValidation {
+  readonly characterIdsValid: boolean;
+  readonly missingIds: readonly string[];
+  readonly unexpectedIds: readonly string[];
+}
+
+export function validateAnnouncerManifest(value: unknown): AnnouncerManifestValidation {
+  const clips = isRecord(value) && isRecord(value.clips) ? value.clips : {};
+  const actualIds = Object.keys(clips);
+  const expectedIds = new Set<string>(expectedAnnouncerClipIds);
+  const missingIds = expectedAnnouncerClipIds.filter((id) => !actualIds.includes(id));
+  const unexpectedIds = actualIds.filter((id) => !expectedIds.has(id));
+  const actualCharacterIds = actualIds.filter((id) => id.startsWith("announcer.name."));
+
+  return {
+    characterIdsValid:
+      actualCharacterIds.length === characterNameClipIds.length &&
+      actualCharacterIds.every((id, index) => id === characterNameClipIds[index]),
+    missingIds,
+    unexpectedIds
+  };
+}
 
 const characterNameById = new Map(
   ARCADE_CHARACTERS.map((character) => [character.id, character.displayName])
@@ -210,6 +247,10 @@ function chooseIndex(length: number, random: () => number): number {
 
 function isPowerupType(value: string): value is PowerupType {
   return value in POWERUP_DEFINITIONS;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function compareRankedCues(left: RankedCue, right: RankedCue): number {

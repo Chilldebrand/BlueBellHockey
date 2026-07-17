@@ -1,5 +1,10 @@
-import type { WorldState } from "@bbh/arcade-core";
+import { createWorld, type WorldState } from "@bbh/arcade-core";
 import { MenuMusic } from "./music.js";
+import {
+  AnnouncerQueue,
+  announcerCueForEvent,
+  validateAnnouncerManifest
+} from "./announcer.js";
 import { gameplayCueForEvent, skatingMixForSpeed } from "./gameplay.js";
 import {
   clampAudioLevel,
@@ -26,6 +31,44 @@ export interface AudioManagerApi {
   dispose(): void;
 }
 
+export interface AudioInspectionHandle {
+  start(): void;
+  getPreferences(): AudioPreferences;
+  getMenuMusicState(): {
+    readonly allowed: boolean;
+    readonly active: boolean;
+  };
+  getBusLevels(): AudioBusLevels;
+  getDiagnostics(): AudioDiagnostics;
+  runEventCursorSmoke(): AudioDiagnostics;
+}
+
+export interface AudioBusLevels {
+  readonly master: number;
+  readonly announcer: number;
+  readonly gameplay: number;
+  readonly music: number;
+}
+
+export interface AudioDiagnostics {
+  readonly contextAvailable: boolean;
+  readonly contextState: string;
+  readonly manifestStatus: "pending" | "loaded" | "unavailable" | "failed";
+  readonly manifestCharacterIdsValid: boolean | null;
+  readonly missingAssets: readonly string[];
+  readonly assetErrors: readonly string[];
+  readonly processedEventCount: number;
+  readonly duplicateEventCount: number;
+  readonly announcerGoalCount: number;
+  readonly announcerPowerupCount: number;
+}
+
+declare global {
+  interface Window {
+    __bbhArcadeAudio?: AudioInspectionHandle;
+  }
+}
+
 export class AudioManager implements AudioManagerApi {
   private preferences: AudioPreferences;
   private context: AudioContext | null = null;
@@ -41,9 +84,12 @@ export class AudioManager implements AudioManagerApi {
   private skatingGain: GainNode | null = null;
   private skatingSource: AudioBufferSourceNode | null = null;
   private consumedEventIds = new Set<string>();
+  private readonly announcerQueue = new AnnouncerQueue();
+  private diagnostics: AudioDiagnostics = createInitialDiagnostics();
 
   constructor() {
     this.preferences = loadAudioPreferences();
+    this.installDevelopmentInspectionHandle();
   }
 
   start(): void {
@@ -53,6 +99,12 @@ export class AudioManager implements AudioManagerApi {
 
     this.started = true;
     this.context = createAudioContext();
+    this.diagnostics = {
+      ...this.diagnostics,
+      contextAvailable: Boolean(this.context),
+      contextState: getContextState(this.context)
+    };
+    void this.loadAssetDiagnostics();
 
     if (!this.context) {
       return;
@@ -85,6 +137,10 @@ export class AudioManager implements AudioManagerApi {
     }
 
     this.menuMusic.setEnabled(this.menuMusicAllowed);
+    this.diagnostics = {
+      ...this.diagnostics,
+      contextState: getContextState(this.context)
+    };
   }
 
   setPreferences(preferences: AudioPreferences): void {
@@ -96,7 +152,7 @@ export class AudioManager implements AudioManagerApi {
   }
 
   getPreferences(): AudioPreferences {
-    return this.preferences;
+    return { ...this.preferences };
   }
 
   setMenuMusicAllowed(allowed: boolean): void {
@@ -110,7 +166,7 @@ export class AudioManager implements AudioManagerApi {
     }
 
     this.ensureSkatingSource();
-    this.consumeGameplayEvents(world);
+    this.consumeEvents(world);
     this.updateSkatingMix(world, localEntityId);
   }
 
@@ -141,6 +197,12 @@ export class AudioManager implements AudioManagerApi {
     this.musicGain = null;
     this.skatingGain = null;
     this.skatingSource = null;
+    this.announcerQueue.clear();
+    this.diagnostics = {
+      ...this.diagnostics,
+      contextAvailable: false,
+      contextState: "closed"
+    };
     this.consumedEventIds.clear();
     this.started = false;
   }
@@ -183,7 +245,7 @@ export class AudioManager implements AudioManagerApi {
     this.skatingSource = skatingSource;
   }
 
-  private consumeGameplayEvents(world: WorldState): void {
+  private consumeEvents(world: WorldState): void {
     if (!this.context || !this.gameplayGain) {
       return;
     }
@@ -192,21 +254,158 @@ export class AudioManager implements AudioManagerApi {
 
     for (const event of world.eventQueue) {
       if (this.consumedEventIds.has(event.id)) {
+        this.diagnostics = {
+          ...this.diagnostics,
+          duplicateEventCount: this.diagnostics.duplicateEventCount + 1
+        };
         continue;
       }
 
       this.consumedEventIds.add(event.id);
+      this.diagnostics = {
+        ...this.diagnostics,
+        processedEventCount: this.diagnostics.processedEventCount + 1
+      };
       const cue = gameplayCueForEvent(event);
-      if (!cue) {
-        continue;
+      if (cue) {
+        this.playGameplayCue(cue.id, cue.intensity);
       }
 
-      this.playGameplayCue(cue.id, cue.intensity);
+      const announcerCue = announcerCueForEvent(event, world);
+      if (announcerCue) {
+        this.announcerQueue.enqueue(announcerCue);
+        this.diagnostics = {
+          ...this.diagnostics,
+          announcerGoalCount:
+            this.diagnostics.announcerGoalCount +
+            (announcerCue.kind === "goal" ? 1 : 0),
+          announcerPowerupCount:
+            this.diagnostics.announcerPowerupCount +
+            (announcerCue.kind === "powerup" ? 1 : 0)
+        };
+      }
     }
 
     this.consumedEventIds = new Set(
       Array.from(this.consumedEventIds).filter((eventId) => liveEventIds.has(eventId))
     );
+  }
+
+  private installDevelopmentInspectionHandle(): void {
+    if (typeof window === "undefined" || import.meta.env.PROD) {
+      return;
+    }
+
+    const manager = this;
+    window.__bbhArcadeAudio = Object.freeze({
+      start: () => manager.start(),
+      getPreferences: () => manager.getPreferences(),
+      getMenuMusicState: () => ({
+        allowed: manager.menuMusicAllowed,
+        active: manager.menuMusicAllowed && manager.menuMusic !== null
+      }),
+      getBusLevels: () => manager.getBusLevels(),
+      getDiagnostics: () => manager.getDiagnostics(),
+      runEventCursorSmoke: () => manager.runEventCursorSmoke()
+    });
+  }
+
+  private runEventCursorSmoke(): AudioDiagnostics {
+    if (!this.context || !this.gameplayGain) {
+      return this.getDiagnostics();
+    }
+
+    const world = createWorld(3, "arcade3v3");
+    world.eventQueue = [
+      {
+        id: "__arcade-audio-smoke-goal__",
+        type: "goal",
+        atMs: 100,
+        sourceSlotId: "home-skater-1"
+      },
+      {
+        id: "__arcade-audio-smoke-powerup__",
+        type: "powerupPickup",
+        atMs: 100,
+        sourceSlotId: "home-skater-1",
+        targetSlotId: "speed-boost"
+      }
+    ];
+
+    this.consumeWorld(world, "home-skater-1");
+    this.consumeWorld(world, "home-skater-1");
+    return this.getDiagnostics();
+  }
+
+  private getBusLevels(): AudioBusLevels {
+    return {
+      master: readGainLevel(this.masterGain, 1),
+      announcer: readGainLevel(this.announcerGain, this.preferences.announcer),
+      gameplay: readGainLevel(this.gameplayGain, this.preferences.gameplay),
+      music: readGainLevel(this.musicGain, this.preferences.music)
+    };
+  }
+
+  private getDiagnostics(): AudioDiagnostics {
+    return {
+      ...this.diagnostics,
+      missingAssets: [...this.diagnostics.missingAssets],
+      assetErrors: [...this.diagnostics.assetErrors]
+    };
+  }
+
+  private async loadAssetDiagnostics(): Promise<void> {
+    if (typeof fetch !== "function") {
+      this.diagnostics = { ...this.diagnostics, manifestStatus: "unavailable" };
+      return;
+    }
+
+    try {
+      const response = await fetch("/audio/manifest.json", { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`manifest HTTP ${response.status}`);
+      }
+
+      const manifest: unknown = await response.json();
+      const validation = validateAnnouncerManifest(manifest);
+      const clips = isManifestRecord(manifest) && isManifestRecord(manifest.clips)
+        ? manifest.clips
+        : {};
+      const assetPaths = Object.values(clips).flatMap((paths) =>
+        Array.isArray(paths) ? paths.filter((path): path is string => typeof path === "string") : []
+      );
+      const missingAssets: string[] = [];
+      const assetErrors: string[] = [];
+
+      await Promise.all(assetPaths.map(async (path) => {
+        try {
+          const assetResponse = await fetch(path, { cache: "no-store" });
+          const contentType = assetResponse.headers.get("content-type") ?? "";
+          if (!assetResponse.ok || !contentType.startsWith("audio/")) {
+            missingAssets.push(path);
+          }
+        } catch (error) {
+          missingAssets.push(path);
+          assetErrors.push(error instanceof Error ? error.message : String(error));
+        }
+      }));
+
+      this.diagnostics = {
+        ...this.diagnostics,
+        manifestStatus: "loaded",
+        manifestCharacterIdsValid: validation.characterIdsValid &&
+          validation.missingIds.filter((id) => id.startsWith("announcer.name.")).length === 0 &&
+          validation.unexpectedIds.filter((id) => id.startsWith("announcer.name.")).length === 0,
+        missingAssets: [...missingAssets].sort(),
+        assetErrors: [...assetErrors]
+      };
+    } catch (error) {
+      this.diagnostics = {
+        ...this.diagnostics,
+        manifestStatus: "failed",
+        assetErrors: [error instanceof Error ? error.message : String(error)]
+      };
+    }
   }
 
   private updateSkatingMix(world: WorldState, localEntityId: string | null): void {
@@ -290,6 +489,35 @@ export class AudioManager implements AudioManagerApi {
 }
 
 export const audioManager: AudioManagerApi = new AudioManager();
+
+function createInitialDiagnostics(): AudioDiagnostics {
+  return {
+    contextAvailable: false,
+    contextState: "unavailable",
+    manifestStatus: "pending",
+    manifestCharacterIdsValid: null,
+    missingAssets: [],
+    assetErrors: [],
+    processedEventCount: 0,
+    duplicateEventCount: 0,
+    announcerGoalCount: 0,
+    announcerPowerupCount: 0
+  };
+}
+
+function readGainLevel(gain: GainNode | null, fallback: number): number {
+  const value = gain?.gain.value;
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function getContextState(context: AudioContext | null): string {
+  const state = context?.state;
+  return typeof state === "string" ? state : context ? "available" : "unavailable";
+}
+
+function isManifestRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
 
 function normalizeAudioPreferences(
   preferences: AudioPreferences

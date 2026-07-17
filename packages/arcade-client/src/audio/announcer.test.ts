@@ -1,5 +1,6 @@
 import {
   POWERUP_DEFINITIONS,
+  CHARACTER_IDS,
   createWorld,
   type WorldEvent,
   type WorldState
@@ -8,8 +9,11 @@ import { describe, expect, it } from "vitest";
 import {
   AnnouncerQueue,
   announcerCueForEvent,
+  characterNameClipIds,
+  validateAnnouncerManifest,
   type AnnouncerCue
 } from "./announcer.js";
+import manifest from "../../public/audio/manifest.json";
 
 function worldFixture(): WorldState {
   return createWorld(7, "arcade3v3", {
@@ -61,6 +65,22 @@ function cue(
 }
 
 describe("announcerCueForEvent", () => {
+  it("keeps character clip IDs exactly aligned with CHARACTER_IDS and the manifest", () => {
+    const manifestCharacterIds = Object.keys(manifest.clips).filter((id) =>
+      id.startsWith("announcer.name.")
+    );
+
+    expect(characterNameClipIds).toEqual(
+      CHARACTER_IDS.map((id) => `announcer.name.${id}`)
+    );
+    expect(manifestCharacterIds).toEqual(characterNameClipIds);
+    expect(validateAnnouncerManifest(manifest)).toEqual({
+      characterIdsValid: true,
+      missingIds: [],
+      unexpectedIds: []
+    });
+  });
+
   it("resolves a goal to the scorer character and stable clip ids", () => {
     const world = worldFixture();
 

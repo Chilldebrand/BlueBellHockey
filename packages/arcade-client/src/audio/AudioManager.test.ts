@@ -1,9 +1,13 @@
+import { createWorld } from "@bbh/arcade-core";
 import { describe, expect, it, vi } from "vitest";
 import {
   AUDIO_PREFERENCES_STORAGE_KEY,
   DEFAULT_AUDIO_PREFERENCES
 } from "./preferences.js";
-import { AudioManager } from "./AudioManager.js";
+import {
+  AudioManager,
+  type AudioInspectionHandle
+} from "./AudioManager.js";
 
 class FakeAudioParam {
   value = 1;
@@ -89,6 +93,7 @@ class FakeAudioContext {
   static constructError: Error | null = null;
 
   currentTime = 0;
+  state: AudioContextState = "running";
   readonly destination = { kind: "destination" };
   readonly gains: FakeGainNode[] = [];
   readonly oscillators: FakeOscillatorNode[] = [];
@@ -114,6 +119,24 @@ class FakeAudioContext {
     const oscillator = new FakeOscillatorNode();
     this.oscillators.push(oscillator);
     return oscillator;
+  }
+
+  createBufferSource(): {
+    buffer: FakeAudioBuffer | null;
+    loop: boolean;
+    playbackRate: FakeAudioParam;
+    connect: (target: unknown) => unknown;
+    start: (time?: number) => void;
+    stop: (time?: number) => void;
+  } {
+    return {
+      buffer: null,
+      loop: false,
+      playbackRate: new FakeAudioParam(),
+      connect: vi.fn((target: unknown) => target),
+      start: vi.fn(),
+      stop: vi.fn()
+    };
   }
 
   createBuffer(
@@ -220,6 +243,100 @@ describe("AudioManager", () => {
           ?.gain.value
       ).toBe(0.6);
       expect(fakeWindow.addEventListener).toHaveBeenCalledTimes(1);
+    } finally {
+      restore();
+    }
+  });
+
+  it("exposes only safe development inspection snapshots", () => {
+    const { restore, fakeWindow } = installAudioWindow();
+    FakeAudioContext.instances.length = 0;
+
+    try {
+      const manager = new AudioManager();
+      const handle = (fakeWindow as typeof fakeWindow & {
+        __bbhArcadeAudio?: AudioInspectionHandle;
+      }).__bbhArcadeAudio;
+
+      expect(handle).toBeDefined();
+      expect(Object.keys(handle ?? {}).sort()).toEqual([
+        "getBusLevels",
+        "getDiagnostics",
+        "getMenuMusicState",
+        "getPreferences",
+        "runEventCursorSmoke",
+        "start"
+      ]);
+      expect((handle as unknown as Record<string, unknown>).context).toBeUndefined();
+      expect((handle as unknown as Record<string, unknown>).consumeWorld).toBeUndefined();
+
+      handle?.start();
+
+      expect(handle?.getPreferences()).toEqual(DEFAULT_AUDIO_PREFERENCES);
+      expect(handle?.getMenuMusicState()).toEqual({
+        allowed: false,
+        active: false
+      });
+      expect(handle?.getBusLevels()).toEqual({
+        master: 1,
+        announcer: DEFAULT_AUDIO_PREFERENCES.announcer,
+        gameplay: DEFAULT_AUDIO_PREFERENCES.gameplay,
+        music: DEFAULT_AUDIO_PREFERENCES.music
+      });
+      expect(handle?.getDiagnostics()).toMatchObject({
+        contextAvailable: true,
+        contextState: "running",
+        processedEventCount: 0,
+        duplicateEventCount: 0
+      });
+      expect(handle?.runEventCursorSmoke()).toMatchObject({
+        processedEventCount: 2,
+        duplicateEventCount: 2,
+        announcerGoalCount: 1,
+        announcerPowerupCount: 1
+      });
+      expect(manager).toBeInstanceOf(AudioManager);
+    } finally {
+      restore();
+    }
+  });
+
+  it("counts goal and powerup events once across duplicate world snapshots", () => {
+    const { restore, fakeWindow } = installAudioWindow();
+    FakeAudioContext.instances.length = 0;
+
+    try {
+      const manager = new AudioManager();
+      manager.start();
+      const world = createWorld(3, "arcade3v3");
+      world.eventQueue = [
+        {
+          id: "verify-goal-1",
+          type: "goal",
+          atMs: 100,
+          sourceSlotId: "home-skater-1"
+        },
+        {
+          id: "verify-powerup-1",
+          type: "powerupPickup",
+          atMs: 100,
+          sourceSlotId: "home-skater-1",
+          targetSlotId: "speed-boost"
+        }
+      ];
+
+      manager.consumeWorld(world, "home-skater-1");
+      manager.consumeWorld(world, "home-skater-1");
+
+      const handle = (fakeWindow as typeof fakeWindow & {
+        __bbhArcadeAudio?: AudioInspectionHandle;
+      }).__bbhArcadeAudio;
+      expect(handle?.getDiagnostics()).toMatchObject({
+        processedEventCount: 2,
+        duplicateEventCount: 2,
+        announcerGoalCount: 1,
+        announcerPowerupCount: 1
+      });
     } finally {
       restore();
     }
