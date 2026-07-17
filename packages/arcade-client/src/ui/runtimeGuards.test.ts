@@ -10,10 +10,11 @@ describe("runtimeGuards", () => {
     expect(isMenuMusicAllowed("menu", "playing")).toBe(true);
     expect(isMenuMusicAllowed("lobby", "waiting")).toBe(true);
     expect(isMenuMusicAllowed("lobby", "ended")).toBe(true);
-    expect(isMenuMusicAllowed("boot", "ended")).toBe(true);
 
     expect(isMenuMusicAllowed("boot", "waiting")).toBe(false);
+    expect(isMenuMusicAllowed("boot", "ended")).toBe(false);
     expect(isMenuMusicAllowed("lobby", "playing")).toBe(false);
+    expect(isMenuMusicAllowed("freeskate", "waiting")).toBe(false);
     expect(isMenuMusicAllowed("freeskate", "playing")).toBe(false);
     expect(isMenuMusicAllowed("freeskate", "ended")).toBe(false);
   });

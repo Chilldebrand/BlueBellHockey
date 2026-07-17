@@ -1,5 +1,13 @@
+import { createWorld } from "@bbh/arcade-core";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { ArcadeClientState } from "./store.js";
+
+vi.stubGlobal("window", {
+  location: { pathname: "/" },
+  setInterval: vi.fn(() => 1),
+  clearInterval: vi.fn()
+});
 
 const reconnectPreviousRoom = vi.fn();
 
@@ -17,6 +25,8 @@ const baseState: ArcadeClientState = {
   error: null
 };
 
+let currentState: ArcadeClientState = baseState;
+let currentScreen: "boot" | "menu" | "lobby" | "freeskate" = "boot";
 let currentAudioReady = false;
 let stateHookCall = 0;
 let effectHookCall = 0;
@@ -32,12 +42,12 @@ vi.mock("react", async (importOriginal) => {
 
   return {
     ...react,
-    useReducer: () => [baseState, () => undefined],
+    useReducer: () => [currentState, () => undefined],
     useState: <T,>(initial: T) => {
       const hookIndex = stateHookCall++;
 
       if (hookIndex === 0) {
-        return ["boot" as T, () => undefined];
+        return [currentScreen as T, () => undefined];
       }
 
       if (hookIndex === 1) {
@@ -97,17 +107,58 @@ vi.mock("./render/ModelPreview.js", () => ({
   ModelPreview: () => <section aria-label="Model preview" />
 }));
 
+vi.mock("./dev/PerfHud.js", () => ({
+  PerfHud: () => null,
+  perfCounters: {}
+}));
+
 vi.mock("./input/keyboard.js", () => ({
   createKeyboardInputTracker: () => ({
     dispose: vi.fn(),
     clear: vi.fn(),
-    getState: vi.fn(() => new Map())
+    read: vi.fn(() => new Map())
   })
 }));
 
 import { App } from "./App.js";
 
-describe("App reconnect lifecycle", () => {
+function resetHookState(): void {
+  stateHookCall = 0;
+  effectHookCall = 0;
+  callbackHookCall = 0;
+  refHookCall = 0;
+  priorEffectDeps.length = 0;
+  priorCallbackDeps.length = 0;
+  priorCallbacks.length = 0;
+  priorRefs.length = 0;
+}
+
+describe("App", () => {
+  it("mounts only the unified Postgame surface after a match ends", () => {
+    const world = createWorld(13, "arcade3v3");
+    world.phase = "ended";
+    world.winnerTeamId = "home";
+    world.score = { home: 5, away: 2 };
+
+    currentState = {
+      ...baseState,
+      connectionStatus: "connected",
+      roomCode: "PUCK42",
+      score: world.score,
+      phase: "ended",
+      isRosterValid: true,
+      currentWorld: world
+    };
+    currentScreen = "lobby";
+    currentAudioReady = false;
+    resetHookState();
+
+    const html = renderToStaticMarkup(<App />);
+
+    expect(html.match(/aria-label="Postgame"/g)).toHaveLength(1);
+    expect(html).not.toContain('aria-label="Win splash"');
+  });
+
   it("re-evaluates auto reconnect when Press Start flips audioReady", async () => {
     const connectionApi = {
       connectQuickMatch: vi.fn(),
@@ -131,15 +182,10 @@ describe("App reconnect lifecycle", () => {
       resetEventCursor: vi.fn()
     };
 
+    currentState = baseState;
+    currentScreen = "boot";
     currentAudioReady = false;
-    stateHookCall = 0;
-    effectHookCall = 0;
-    callbackHookCall = 0;
-    refHookCall = 0;
-    priorEffectDeps.length = 0;
-    priorCallbackDeps.length = 0;
-    priorCallbacks.length = 0;
-    priorRefs.length = 0;
+    resetHookState();
     reconnectPreviousRoom.mockClear();
     App({ connectionApi, audio });
     expect(reconnectPreviousRoom).not.toHaveBeenCalled();

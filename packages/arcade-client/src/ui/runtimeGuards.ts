@@ -7,7 +7,7 @@ export function isMenuMusicAllowed(
   screen: AppScreen,
   phase: WorldPhase
 ): boolean {
-  if (screen === "freeskate") {
+  if (screen === "boot" || screen === "freeskate") {
     return false;
   }
 
@@ -19,7 +19,7 @@ export function isMenuMusicAllowed(
     return phase !== "playing";
   }
 
-  return phase === "ended";
+  return false;
 }
 
 export function shouldReconnectAfterAudioInit({

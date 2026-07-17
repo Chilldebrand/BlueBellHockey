@@ -259,3 +259,40 @@ Result:
 ### Concerns
 
 - No additional concerns beyond the already-documented broader suite caveats; this change is intentionally scoped to the shared runtime guard and its focused regression.
+
+## Task 5 final review findings â€” 2026-07-17
+
+### RED
+
+- Restored the ended-match `App.test.tsx` coverage from `c9cdf12` and kept the reconnect lifecycle regression in the same focused file.
+- Tightened `packages/arcade-client/src/ui/runtimeGuards.test.ts` so boot never enables menu music, even when the phase is `ended`, while lobby-ended remains allowed and Free Skate remains blocked.
+- Ran exactly:
+  - `.\node_modules\.bin\vitest.cmd run packages/arcade-client/src/App.test.tsx packages/arcade-client/src/ui/runtimeGuards.test.ts`
+- Actual RED result after fixing the React test harness to exercise the real ended-match path:
+  - `packages/arcade-client/src/App.test.tsx`: passed (`2 tests`)
+  - `packages/arcade-client/src/ui/runtimeGuards.test.ts`: failed on `expected true to be false` for `isMenuMusicAllowed("boot", "ended")`
+
+### GREEN
+
+- Applied the minimal production fix in `packages/arcade-client/src/ui/runtimeGuards.ts`:
+  - `boot` and `freeskate` now always return `false`
+  - `menu` still returns `true`
+  - `lobby` still returns `phase !== "playing"`, including ended postgame
+- Kept the restored App postgame assertion and the reconnect regression intact.
+
+### Final verification
+
+- Re-ran exactly:
+  - `.\node_modules\.bin\vitest.cmd run packages/arcade-client/src/App.test.tsx packages/arcade-client/src/ui/runtimeGuards.test.ts`
+  - `.\node_modules\.bin\tsc.cmd -p packages/arcade-client/tsconfig.json --noEmit`
+- Actual final results:
+  - Vitest: `2 files passed, 4 tests passed`
+  - TypeScript: passed with exit code `0`
+
+### Scope
+
+- Intentionally staged only:
+  - `packages/arcade-client/src/App.test.tsx`
+  - `packages/arcade-client/src/ui/runtimeGuards.ts`
+  - `packages/arcade-client/src/ui/runtimeGuards.test.ts`
+  - `.superpowers/sdd/task-5-report.md`
