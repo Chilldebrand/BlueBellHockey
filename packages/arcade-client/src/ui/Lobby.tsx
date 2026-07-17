@@ -17,6 +17,7 @@ export interface LobbyProps {
     characterId: CharacterId
   ) => void;
   readonly onRequestStart: () => void;
+  readonly onOpenSettings?: () => void;
 }
 
 export function Lobby({
@@ -26,7 +27,8 @@ export function Lobby({
   onJoinPrivateRoom,
   onChooseTeam,
   onChooseCharacterFor,
-  onRequestStart
+  onRequestStart,
+  onOpenSettings
 }: LobbyProps): JSX.Element {
   const [joinCode, setJoinCode] = useState("");
   const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
@@ -103,11 +105,18 @@ export function Lobby({
           <div>
             <p>Phase {state.phase}</p>
           </div>
-          {state.isRosterValid ? (
-            <button type="button" onClick={onRequestStart}>
-              Start Match
-            </button>
-          ) : null}
+          <div className="lobby-panel-actions">
+            {onOpenSettings ? (
+              <button type="button" onClick={onOpenSettings}>
+                Settings
+              </button>
+            ) : null}
+            {state.isRosterValid ? (
+              <button type="button" onClick={onRequestStart}>
+                Start Match
+              </button>
+            ) : null}
+          </div>
         </header>
         <div className="lobby-teams">
           {(["home", "away"] as const).map((teamId) => (

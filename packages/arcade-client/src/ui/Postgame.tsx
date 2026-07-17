@@ -24,11 +24,13 @@ export function postgameRows(stats: MatchStats): readonly PostgameRow[] {
 export function Postgame({
   world,
   onRematch,
-  onBackToLobby
+  onBackToLobby,
+  onOpenSettings
 }: {
   readonly world: WorldState;
   readonly onRematch: () => void;
   readonly onBackToLobby: () => void;
+  readonly onOpenSettings?: () => void;
 }): JSX.Element {
   const stars = selectThreeStars(world);
 
@@ -97,6 +99,11 @@ export function Postgame({
           <button type="button" onClick={onBackToLobby}>
             Back To Lobby
           </button>
+          {onOpenSettings ? (
+            <button type="button" onClick={onOpenSettings}>
+              Settings
+            </button>
+          ) : null}
         </div>
       </div>
     </section>

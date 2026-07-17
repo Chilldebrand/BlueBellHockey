@@ -51,6 +51,14 @@ import {
 import { PerfHud, perfCounters } from "./dev/PerfHud.js";
 import { Scene } from "./render/Scene.js";
 import { ModelPreview } from "./render/ModelPreview.js";
+import {
+  audioManager,
+  type AudioManagerApi
+} from "./audio/AudioManager.js";
+import {
+  loadAudioPreferences,
+  type AudioPreferences
+} from "./audio/preferences.js";
 import { HUD } from "./ui/HUD.js";
 import { BootSplash } from "./ui/BootSplash.js";
 import { ControllerPrompt } from "./ui/ControllerPrompt.js";
@@ -59,6 +67,7 @@ import { FreeSkate } from "./ui/FreeSkate.js";
 import { Lobby } from "./ui/Lobby.js";
 import { MainMenu } from "./ui/MainMenu.js";
 import { Postgame } from "./ui/Postgame.js";
+import { SettingsOverlay } from "./ui/SettingsOverlay.js";
 
 export interface AppConnectionApi {
   readonly connectQuickMatch: typeof connectQuickMatch;
@@ -77,9 +86,11 @@ const defaultConnectionApi: AppConnectionApi = {
 };
 
 export function App({
-  connectionApi = defaultConnectionApi
+  connectionApi = defaultConnectionApi,
+  audio = audioManager
 }: {
   readonly connectionApi?: AppConnectionApi;
+  readonly audio?: AudioManagerApi;
 }): JSX.Element {
   const [state, dispatch] = useReducer(
     reduceArcadeClientState,
@@ -96,10 +107,21 @@ export function App({
   const [screen, setScreen] = useState<"boot" | "menu" | "lobby" | "freeskate">(
     "boot"
   );
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [audioPreferences, setAudioPreferences] = useState<AudioPreferences>(() =>
+    loadAudioPreferences()
+  );
+  const audioRef = useRef(audio);
+  const consumedWorldCursorRef = useRef<{
+    readonly tick: number;
+    readonly localEntityId: string | null;
+  } | null>(null);
 
   const reconnectSourceRef = useRef<ArcadeConnectionResult | null>(null);
 
   const attachRoom = useCallback((result: ArcadeConnectionResult) => {
+    audioRef.current.resetEventCursor();
+    consumedWorldCursorRef.current = null;
     attachArcadeRoom(activeRoomRef, result, {
       onState: ({ room }) => {
         perfCounters.roomStatePatches += 1;
@@ -114,6 +136,31 @@ export function App({
     });
     reconnectSourceRef.current = result;
     saveReconnectTicket(result.room, result.options);
+  }, []);
+
+  useEffect(() => {
+    audioRef.current.setPreferences(audioPreferences);
+  }, [audioPreferences]);
+
+  useEffect(() => {
+    audioRef.current.setMenuMusicAllowed(
+      screen === "menu" || screen === "lobby" || state.phase === "ended"
+    );
+  }, [screen, state.phase]);
+
+  useEffect(() => {
+    if (state.connectionStatus === "connected") {
+      return;
+    }
+
+    audioRef.current.resetEventCursor();
+    consumedWorldCursorRef.current = null;
+  }, [state.connectionStatus]);
+
+  useEffect(() => {
+    return () => {
+      audioRef.current.dispose();
+    };
   }, []);
 
   // Keep the stored reconnect ticket fresh while connected: its 30s window
@@ -188,16 +235,25 @@ export function App({
 
   const handleQuickMatch = useCallback(() => {
     setScreen("lobby");
+    setSettingsOpen(false);
+    audioRef.current.resetEventCursor();
+    consumedWorldCursorRef.current = null;
     void runConnection(() => connectionApi.connectQuickMatch());
   }, [connectionApi, runConnection]);
 
   const handleCreatePrivateRoom = useCallback(() => {
     setScreen("lobby");
+    setSettingsOpen(false);
+    audioRef.current.resetEventCursor();
+    consumedWorldCursorRef.current = null;
     void runConnection(() => connectionApi.createPrivateRoom());
   }, [connectionApi, runConnection]);
 
   const handleJoinPrivateRoom = useCallback(
     (code: string) => {
+      setSettingsOpen(false);
+      audioRef.current.resetEventCursor();
+      consumedWorldCursorRef.current = null;
       void runConnection(() =>
         connectionApi.joinPrivateRoom(normalizePrivateRoomCode(code))
       );
@@ -229,12 +285,49 @@ export function App({
     setScreen("lobby");
   }, []);
 
+  const handleAudioPreferencesChange = useCallback((next: AudioPreferences) => {
+    setAudioPreferences(next);
+    audioRef.current.setPreferences(next);
+  }, []);
+
+  const handleOpenSettings = useCallback(() => {
+    setSettingsOpen(true);
+  }, []);
+
+  const handleCloseSettings = useCallback(() => {
+    setSettingsOpen(false);
+  }, []);
+
   const localSlot = state.roster.find((slot) => slot.isOwnedByLocalPlayer);
   const localSlotId = localSlot?.slotId ?? null;
   // Temporary goalie control: while the server grants us the covering goalie,
   // input, highlight, and camera target it; the skater slot stays ours.
   const localGoalieId = localSlot?.controlledGoalieId ?? null;
   const localControlledEntityId = localGoalieId ?? localSlotId;
+
+  useEffect(() => {
+    if (screen === "freeskate") {
+      return;
+    }
+
+    if (!state.currentWorld) {
+      consumedWorldCursorRef.current = null;
+      return;
+    }
+
+    if (
+      consumedWorldCursorRef.current?.tick === state.currentWorld.time.tick &&
+      consumedWorldCursorRef.current.localEntityId === localControlledEntityId
+    ) {
+      return;
+    }
+
+    consumedWorldCursorRef.current = {
+      tick: state.currentWorld.time.tick,
+      localEntityId: localControlledEntityId
+    };
+    audioRef.current.consumeWorld(state.currentWorld, localControlledEntityId);
+  }, [localControlledEntityId, screen, state.currentWorld]);
 
   const highlightColorByEntityId = useMemo(
     () => buildHighlightColorByEntityId(state.roster),
@@ -328,21 +421,63 @@ export function App({
   }
 
   if (screen === "boot") {
-    return <BootSplash onContinue={() => setScreen("menu")} />;
-  }
-
-  if (screen === "menu") {
     return (
-      <MainMenu
-        onQuickMatch={handleQuickMatch}
-        onPrivateRoom={handleCreatePrivateRoom}
-        onFreeSkate={() => setScreen("freeskate")}
+      <BootSplash
+        onContinue={() => {
+          audioRef.current.start();
+          setScreen("menu");
+        }}
       />
     );
   }
 
+  if (screen === "menu") {
+    return (
+      <>
+        <MainMenu
+          onQuickMatch={handleQuickMatch}
+          onPrivateRoom={handleCreatePrivateRoom}
+          onFreeSkate={() => {
+            setSettingsOpen(false);
+            audioRef.current.resetEventCursor();
+            consumedWorldCursorRef.current = null;
+            setScreen("freeskate");
+          }}
+          onOpenSettings={handleOpenSettings}
+        />
+        <SettingsOverlay
+          open={settingsOpen}
+          preferences={audioPreferences}
+          onChange={handleAudioPreferencesChange}
+          onClose={handleCloseSettings}
+        />
+      </>
+    );
+  }
+
   if (screen === "freeskate") {
-    return <FreeSkate onExit={() => setScreen("menu")} />;
+    return (
+      <FreeSkate
+        onExit={() => {
+          setSettingsOpen(false);
+          audioRef.current.resetEventCursor();
+          consumedWorldCursorRef.current = null;
+          setScreen("menu");
+        }}
+        onOpenSettings={handleOpenSettings}
+        settingsOpen={settingsOpen}
+        audioPreferences={audioPreferences}
+        onAudioPreferencesChange={handleAudioPreferencesChange}
+        onCloseSettings={handleCloseSettings}
+        onWorldUpdate={(world, localEntityId) => {
+          consumedWorldCursorRef.current = {
+            tick: world.time.tick,
+            localEntityId
+          };
+          audioRef.current.consumeWorld(world, localEntityId);
+        }}
+      />
+    );
   }
 
   if (state.phase === "ended" && state.currentWorld) {
@@ -362,6 +497,13 @@ export function App({
           world={state.currentWorld}
           onRematch={handleRematch}
           onBackToLobby={handleBackToLobby}
+          onOpenSettings={handleOpenSettings}
+        />
+        <SettingsOverlay
+          open={settingsOpen}
+          preferences={audioPreferences}
+          onChange={handleAudioPreferencesChange}
+          onClose={handleCloseSettings}
         />
       </>
     );
@@ -370,7 +512,7 @@ export function App({
   return (
     <>
       <PerfHud />
-      <HUD state={state} />
+      <HUD state={state} onOpenSettings={handleOpenSettings} />
       <FaceoffIntro phase={state.phase} />
       <Scene
         currentWorld={state.currentWorld}
@@ -391,10 +533,17 @@ export function App({
             onChooseTeam={handleChooseTeam}
             onChooseCharacterFor={handleChooseCharacterFor}
             onRequestStart={handleRequestStart}
+            onOpenSettings={handleOpenSettings}
           />
           <ControllerPrompt />
         </>
       )}
+      <SettingsOverlay
+        open={settingsOpen}
+        preferences={audioPreferences}
+        onChange={handleAudioPreferencesChange}
+        onClose={handleCloseSettings}
+      />
     </>
   );
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { InputFrame, WorldState } from "@bbh/arcade-core";
+import type { AudioPreferences } from "../audio/preferences.js";
 import { PerfHud } from "../dev/PerfHud.js";
 import { TuningPanel } from "../dev/TuningPanel.js";
 import {
@@ -19,6 +20,7 @@ import { createKeyboardInputTracker } from "../input/keyboard.js";
 import { createMouseStickTracker } from "../input/mouse.js";
 import { Scene } from "../render/Scene.js";
 import { AnnouncementBanner } from "./AnnouncementBanner.js";
+import { SettingsOverlay } from "./SettingsOverlay.js";
 
 const FREE_SKATE_SEED = 20260703;
 
@@ -29,6 +31,15 @@ interface ReplayState {
 
 export interface FreeSkateProps {
   readonly onExit: () => void;
+  readonly onOpenSettings?: () => void;
+  readonly settingsOpen?: boolean;
+  readonly audioPreferences?: AudioPreferences;
+  readonly onAudioPreferencesChange?: (next: AudioPreferences) => void;
+  readonly onCloseSettings?: () => void;
+  readonly onWorldUpdate?: (
+    world: WorldState,
+    localEntityId: string | null
+  ) => void;
 }
 
 /**
@@ -36,7 +47,15 @@ export interface FreeSkateProps {
  * session while the tuning panel mutates physics constants live. Also hosts
  * the input recorder used to produce deterministic replay fixtures.
  */
-export function FreeSkate({ onExit }: FreeSkateProps): JSX.Element {
+export function FreeSkate({
+  onExit,
+  onOpenSettings,
+  settingsOpen = false,
+  audioPreferences,
+  onAudioPreferencesChange,
+  onCloseSettings,
+  onWorldUpdate
+}: FreeSkateProps): JSX.Element {
   const simRef = useRef(
     createLocalSim({
       seed: FREE_SKATE_SEED,
@@ -106,6 +125,10 @@ export function FreeSkate({ onExit }: FreeSkateProps): JSX.Element {
           previousWorldRef.current = result.previousWorld;
         }
 
+        onWorldUpdate?.(
+          result.currentWorld,
+          simRef.current.getControlledEntityId()
+        );
         setRenderTick(result.currentWorld.time.tick);
       }
 
@@ -120,7 +143,7 @@ export function FreeSkate({ onExit }: FreeSkateProps): JSX.Element {
       mouse.dispose();
       delete (window as unknown as Record<string, unknown>).__bbhFreeSkateSim;
     };
-  }, []);
+  }, [onWorldUpdate]);
 
   const handleToggleRecord = useCallback(() => {
     const recorder = recorderRef.current;
@@ -255,10 +278,23 @@ export function FreeSkate({ onExit }: FreeSkateProps): JSX.Element {
         <button type="button" onClick={handleReset}>
           Reset World
         </button>
+        {onOpenSettings ? (
+          <button type="button" onClick={onOpenSettings}>
+            Settings
+          </button>
+        ) : null}
         <button type="button" onClick={onExit}>
           Exit
         </button>
       </div>
+      {audioPreferences && onAudioPreferencesChange && onCloseSettings ? (
+        <SettingsOverlay
+          open={settingsOpen}
+          preferences={audioPreferences}
+          onChange={onAudioPreferencesChange}
+          onClose={onCloseSettings}
+        />
+      ) : null}
       <div className="free-skate-help">
         WASD move · Shift turbo · right stick / mouse / IJKL = puck control
         (flick fwd = wrist, pull back + flick = slap) · Space tap/hold = simple

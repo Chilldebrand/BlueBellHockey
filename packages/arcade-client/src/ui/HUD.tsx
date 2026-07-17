@@ -6,9 +6,10 @@ import { TurboMeter } from "./TurboMeter.js";
 
 export interface HUDProps {
   readonly state: ArcadeClientState;
+  readonly onOpenSettings?: () => void;
 }
 
-export function HUD({ state }: HUDProps): JSX.Element {
+export function HUD({ state, onOpenSettings }: HUDProps): JSX.Element {
   const localSlotId =
     state.roster.find((slot) => slot.isOwnedByLocalPlayer)?.slotId ?? null;
   const localSkater =
@@ -26,6 +27,15 @@ export function HUD({ state }: HUDProps): JSX.Element {
         events={state.currentWorld?.eventQueue ?? []}
         nowMs={state.currentWorld?.time.nowMs ?? 0}
       />
+      {onOpenSettings ? (
+        <button
+          type="button"
+          className="hud-settings-button"
+          onClick={onOpenSettings}
+        >
+          Settings
+        </button>
+      ) : null}
     </div>
   );
 }
