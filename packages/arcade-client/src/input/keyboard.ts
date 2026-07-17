@@ -5,6 +5,7 @@ import {
 
 export interface KeyboardInputTracker {
   readonly read: () => ArcadeInputState;
+  readonly clear: () => void;
   readonly dispose: () => void;
 }
 
@@ -64,10 +65,17 @@ export function createKeyboardInputTracker(
 
       return { ...base, stickY };
     },
+    clear: () => {
+      pressed.clear();
+      shootHeldSinceMs = null;
+      flickFramesLeft = 0;
+    },
     dispose: () => {
       target.removeEventListener("keydown", onKeyDown);
       target.removeEventListener("keyup", onKeyUp);
       pressed.clear();
+      shootHeldSinceMs = null;
+      flickFramesLeft = 0;
     }
   };
 }

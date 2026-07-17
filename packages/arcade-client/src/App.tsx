@@ -67,6 +67,10 @@ import { FreeSkate } from "./ui/FreeSkate.js";
 import { Lobby } from "./ui/Lobby.js";
 import { MainMenu } from "./ui/MainMenu.js";
 import { Postgame } from "./ui/Postgame.js";
+import {
+  isMenuMusicAllowed,
+  shouldReconnectAfterAudioInit
+} from "./ui/runtimeGuards.js";
 import { SettingsOverlay } from "./ui/SettingsOverlay.js";
 
 export interface AppConnectionApi {
@@ -108,6 +112,7 @@ export function App({
     "boot"
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [audioReady, setAudioReady] = useState(false);
   const [audioPreferences, setAudioPreferences] = useState<AudioPreferences>(() =>
     loadAudioPreferences()
   );
@@ -143,9 +148,7 @@ export function App({
   }, [audioPreferences]);
 
   useEffect(() => {
-    audioRef.current.setMenuMusicAllowed(
-      screen === "menu" || screen === "lobby" || state.phase === "ended"
-    );
+    audioRef.current.setMenuMusicAllowed(isMenuMusicAllowed(screen, state.phase));
   }, [screen, state.phase]);
 
   useEffect(() => {
@@ -192,6 +195,14 @@ export function App({
     };
   }, []);
 
+  useEffect(() => {
+    if (!settingsOpen) {
+      return;
+    }
+
+    keyboardRef.current?.clear();
+  }, [settingsOpen]);
+
   const runConnection = useCallback(
     async (connect: () => Promise<Parameters<typeof attachRoom>[0]>) => {
       const attempt = startConnectionAttempt(connectionAttemptRef);
@@ -216,8 +227,11 @@ export function App({
 
   useEffect(() => {
     if (
-      !connectionApi.reconnectPreviousRoom ||
-      !connectionApi.hasReconnectTicket?.()
+      !shouldReconnectAfterAudioInit({
+        audioReady,
+        hasReconnectTicket: connectionApi.hasReconnectTicket?.() ?? false,
+        reconnectPreviousRoom: connectionApi.reconnectPreviousRoom
+      })
     ) {
       return;
     }
@@ -239,7 +253,7 @@ export function App({
     audioRef.current.resetEventCursor();
     consumedWorldCursorRef.current = null;
     void runConnection(() => connectionApi.connectQuickMatch());
-  }, [connectionApi, runConnection]);
+  }, [audioReady, connectionApi, runConnection]);
 
   const handleCreatePrivateRoom = useCallback(() => {
     setScreen("lobby");
@@ -343,13 +357,14 @@ export function App({
     const playerSessionId = state.playerSessionId;
     const isGoalieControlled = localControlledEntityId !== localSlotId;
     const sendInput = () => {
-      const keyboardInput =
-        keyboardRef.current?.read() ?? createNeutralInputState();
-      const gamepadInput = gamepadStateFromGamepad(
-        navigator.getGamepads?.()[0] ?? null
-      );
+      const input = settingsOpen
+        ? createNeutralInputState()
+        : mergeInputStates(
+            keyboardRef.current?.read() ?? createNeutralInputState(),
+            gamepadStateFromGamepad(navigator.getGamepads?.()[0] ?? null)
+          );
       const frame = createInputFrame({
-        input: mergeInputStates(keyboardInput, gamepadInput),
+        input,
         playerId: playerSessionId,
         slotId: localControlledEntityId,
         sequence: (inputSequenceRef.current += 1)
@@ -372,7 +387,7 @@ export function App({
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [localControlledEntityId, localSlotId, state.playerSessionId]);
+  }, [localControlledEntityId, localSlotId, settingsOpen, state.playerSessionId]);
 
   // Madden-style control switching (and a goalie grant starting or ending)
   // reassigns which entity we drive mid-play. The buffered unacked frames are
@@ -425,6 +440,7 @@ export function App({
       <BootSplash
         onContinue={() => {
           audioRef.current.start();
+          setAudioReady(true);
           setScreen("menu");
         }}
       />

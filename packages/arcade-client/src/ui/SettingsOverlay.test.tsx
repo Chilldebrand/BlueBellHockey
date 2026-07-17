@@ -1,7 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_AUDIO_PREFERENCES } from "../audio/preferences.js";
 
-const keyboardListeners = new Set<(event: { key: string }) => void>();
+const keyboardListeners = new Map<
+  string,
+  Set<
+    (event: {
+      key: string;
+      type?: string;
+      target?: { tagName?: string };
+      preventDefault?: () => void;
+      stopPropagation?: () => void;
+    }) => void
+  >
+>();
 
 vi.mock("react", async (importOriginal) => {
   const react = await importOriginal<typeof import("react")>();
@@ -23,13 +34,33 @@ function withFakeDocument(run: () => void): void {
   const fakeDocument = {
     activeElement,
     addEventListener: vi.fn(
-      (_type: string, listener: (event: { key: string }) => void) => {
-        keyboardListeners.add(listener);
+      (
+        type: string,
+        listener: (event: {
+          key: string;
+          type?: string;
+          target?: { tagName?: string };
+          preventDefault?: () => void;
+          stopPropagation?: () => void;
+        }) => void
+      ) => {
+        const bucket = keyboardListeners.get(type) ?? new Set();
+        bucket.add(listener);
+        keyboardListeners.set(type, bucket);
       }
     ),
     removeEventListener: vi.fn(
-      (_type: string, listener: (event: { key: string }) => void) => {
-        keyboardListeners.delete(listener);
+      (
+        type: string,
+        listener: (event: {
+          key: string;
+          type?: string;
+          target?: { tagName?: string };
+          preventDefault?: () => void;
+          stopPropagation?: () => void;
+        }) => void
+      ) => {
+        keyboardListeners.get(type)?.delete(listener);
       }
     )
   };
@@ -134,9 +165,87 @@ describe("SettingsOverlay", () => {
       }
 
       (closeButton.props.onClick as () => void)();
-      keyboardListeners.forEach((listener) => listener({ key: "Escape" }));
+      keyboardListeners
+        .get("keydown")
+        ?.forEach((listener) =>
+          listener({
+            key: "Escape",
+            preventDefault: vi.fn(),
+            stopPropagation: vi.fn()
+          })
+        );
 
       expect(onClose).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("treats fixture escape without type or DOM methods as a keydown close", () => {
+    withFakeDocument(() => {
+      const onClose = vi.fn();
+      SettingsOverlay({
+        open: true,
+        preferences: DEFAULT_AUDIO_PREFERENCES,
+        onChange: vi.fn(),
+        onClose
+      });
+
+      keyboardListeners.get("keydown")?.forEach((listener) =>
+        listener({
+          key: "Escape"
+        })
+      );
+
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("swallows gameplay keys so overlay sliders do not steer live play", () => {
+    withFakeDocument(() => {
+      SettingsOverlay({
+        open: true,
+        preferences: DEFAULT_AUDIO_PREFERENCES,
+        onChange: vi.fn(),
+        onClose: vi.fn()
+      });
+      const preventDefault = vi.fn();
+      const stopPropagation = vi.fn();
+
+      keyboardListeners.get("keydown")?.forEach((listener) =>
+        listener({
+          key: "w",
+          target: { tagName: "INPUT" },
+          preventDefault,
+          stopPropagation
+        })
+      );
+
+      expect(stopPropagation).toHaveBeenCalledTimes(1);
+      expect(preventDefault).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("preserves slider arrow defaults while still blocking propagation", () => {
+    withFakeDocument(() => {
+      SettingsOverlay({
+        open: true,
+        preferences: DEFAULT_AUDIO_PREFERENCES,
+        onChange: vi.fn(),
+        onClose: vi.fn()
+      });
+      const preventDefault = vi.fn();
+      const stopPropagation = vi.fn();
+
+      keyboardListeners.get("keydown")?.forEach((listener) =>
+        listener({
+          key: "ArrowRight",
+          target: { tagName: "INPUT" },
+          preventDefault,
+          stopPropagation
+        })
+      );
+
+      expect(stopPropagation).toHaveBeenCalledTimes(1);
+      expect(preventDefault).not.toHaveBeenCalled();
     });
   });
 });

@@ -121,3 +121,46 @@ Result:
   - menu-music gating transitions across every screen/phase combination
   - the exact online/local world-audio consumption sequence across reconnects
 - Those behaviors are typechecked and code-reviewed here, but would benefit from dedicated integration tests later if this area keeps expanding.
+
+## Task 5 review-fix addendum â€” 2026-07-17
+
+### RED
+
+- Added focused regressions for the three review findings in:
+  - `packages/arcade-client/src/ui/runtimeGuards.test.ts`
+  - `packages/arcade-client/src/input/keyboard.test.ts`
+  - `packages/arcade-client/src/ui/SettingsOverlay.test.tsx`
+- Re-ran only that focused subset outside the sandbox after the known arcade-client startup access issue blocked the sandboxed run.
+- Exact RED findings from that focused run:
+  - `src/ui/runtimeGuards.test.ts`: failed because `./runtimeGuards.js` did not exist yet
+  - `src/input/keyboard.test.ts`: failed because `tracker.clear` did not exist
+  - `src/ui/SettingsOverlay.test.tsx`: failed because overlay key handling did not stop gameplay-key propagation/default behavior
+
+### GREEN
+
+- Applied the minimal production fixes in:
+  - `packages/arcade-client/src/App.tsx`
+  - `packages/arcade-client/src/ui/FreeSkate.tsx`
+  - `packages/arcade-client/src/ui/SettingsOverlay.tsx`
+  - `packages/arcade-client/src/input/keyboard.ts`
+  - `packages/arcade-client/src/ui/runtimeGuards.ts`
+- Fix details:
+  - menu music now keys off main menu / non-playing lobby / ended-postgame only
+  - mount-time reconnect waits until the Boot Splash `Press Start` gesture has called `audioManager.start()`
+  - opening settings clears held keyboard state and sends neutral live input in both App play and local Free Skate without pausing the sim loop
+  - overlay keyboard listeners now swallow gameplay keys while preserving arrow-key slider defaults
+
+### Final
+
+- Ran only the requested focused verification after the SettingsOverlay handler follow-up fix:
+  - `.\node_modules\.bin\vitest.cmd run packages/arcade-client/src/ui/runtimeGuards.test.ts packages/arcade-client/src/input/keyboard.test.ts packages/arcade-client/src/ui/SettingsOverlay.test.tsx packages/arcade-client/src/App.test.tsx`
+  - `.\node_modules\.bin\tsc.cmd -p packages/arcade-client/tsconfig.json --noEmit`
+- Exact final results:
+  - Vitest: `4 files passed, 11 tests passed`
+  - TypeScript: passed with exit code `0`
+- SettingsOverlay review-fix detail:
+  - preserved real close behavior on `keydown` only
+  - made the shared handler fixture-safe by treating omitted `event.type` as `keydown` and optional-calling `stopPropagation` / `preventDefault`
+- Remaining concern:
+  - the known broad sandboxed arcade-client runner/startup issue still exists outside this focused scope, so broader suite status should not be inferred from this targeted GREEN run.
+- Commit handoff status: `DONE`

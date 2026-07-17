@@ -2,6 +2,41 @@ import { useEffect, useRef } from "react";
 import type { AudioPreferences } from "../audio/preferences.js";
 import { AudioSettings } from "./AudioSettings.js";
 
+const GAMEPLAY_KEYS = new Set([
+  " ",
+  "a",
+  "arrowdown",
+  "arrowleft",
+  "arrowright",
+  "arrowup",
+  "d",
+  "escape",
+  "f",
+  "g",
+  "i",
+  "j",
+  "k",
+  "l",
+  "q",
+  "r",
+  "s",
+  "shift",
+  "v",
+  "w"
+]);
+
+function normalizeKey(key: string): string {
+  return key.length === 1 ? key.toLowerCase() : key.toLowerCase();
+}
+
+function isRangeInputTarget(target: EventTarget | null): boolean {
+  if (!target || typeof target !== "object" || !("tagName" in target)) {
+    return false;
+  }
+
+  return String(target.tagName).toUpperCase() === "INPUT";
+}
+
 export interface SettingsOverlayProps {
   readonly open: boolean;
   readonly preferences: AudioPreferences;
@@ -28,16 +63,30 @@ export function SettingsOverlay({
         ? null
         : (document.activeElement as HTMLElement | null);
 
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+    const handleKey = (event: KeyboardEvent) => {
+      const key = normalizeKey(event.key);
+
+      if (!GAMEPLAY_KEYS.has(key)) {
+        return;
+      }
+
+      event.stopPropagation?.();
+
+      if (!(key.startsWith("arrow") && isRangeInputTarget(event.target))) {
+        event.preventDefault?.();
+      }
+
+      if (key === "escape" && (event.type || "keydown") === "keydown") {
         onClose();
       }
     };
 
-    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("keydown", handleKey);
+    document.addEventListener("keyup", handleKey);
 
     return () => {
-      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("keydown", handleKey);
+      document.removeEventListener("keyup", handleKey);
     };
   }, [open, onClose]);
 

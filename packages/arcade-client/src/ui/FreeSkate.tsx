@@ -16,8 +16,14 @@ import {
   createNeutralInputState,
   mergeInputStates
 } from "../input/inputState.js";
-import { createKeyboardInputTracker } from "../input/keyboard.js";
-import { createMouseStickTracker } from "../input/mouse.js";
+import {
+  createKeyboardInputTracker,
+  type KeyboardInputTracker
+} from "../input/keyboard.js";
+import {
+  createMouseStickTracker,
+  type MouseStickTracker
+} from "../input/mouse.js";
 import { Scene } from "../render/Scene.js";
 import { AnnouncementBanner } from "./AnnouncementBanner.js";
 import { SettingsOverlay } from "./SettingsOverlay.js";
@@ -68,17 +74,27 @@ export function FreeSkate({
   const sequenceRef = useRef(0);
   const previousWorldRef = useRef<WorldState | null>(null);
   const lastRecordingRef = useRef<InputRecording | null>(null);
+  const keyboardRef = useRef<KeyboardInputTracker | null>(null);
+  const mouseRef = useRef<MouseStickTracker | null>(null);
+  const settingsOpenRef = useRef(settingsOpen);
   const [, setRenderTick] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [isReplaying, setIsReplaying] = useState(false);
   const [hasRecording, setHasRecording] = useState(false);
 
   useEffect(() => {
+    settingsOpenRef.current = settingsOpen;
+    if (settingsOpen) {
+      keyboardRef.current?.clear();
+    }
+  }, [settingsOpen]);
+
+  useEffect(() => {
     // Dev console handle for poking the running feel-lab world.
     (window as unknown as Record<string, unknown>).__bbhFreeSkateSim =
       simRef.current;
-    const keyboard = createKeyboardInputTracker();
-    const mouse = createMouseStickTracker();
+    keyboardRef.current = createKeyboardInputTracker();
+    mouseRef.current = createMouseStickTracker();
     let raf = 0;
     let lastTime = performance.now();
 
@@ -87,13 +103,15 @@ export function FreeSkate({
       lastTime = now;
 
       const liveFrame = createInputFrame({
-        input: mergeInputStates(
-          mergeInputStates(
-            keyboard.read() ?? createNeutralInputState(),
-            mouse.read()
-          ),
-          gamepadStateFromGamepad(navigator.getGamepads?.()[0] ?? null)
-        ),
+        input: settingsOpenRef.current
+          ? createNeutralInputState()
+          : mergeInputStates(
+              mergeInputStates(
+                keyboardRef.current?.read() ?? createNeutralInputState(),
+                mouseRef.current?.read() ?? createNeutralInputState()
+              ),
+              gamepadStateFromGamepad(navigator.getGamepads?.()[0] ?? null)
+            ),
         playerId: "free-skate",
         // Drive whichever entity the human currently controls: their skater
         // (moves on a pass), or their goalie while it covers the puck.
@@ -139,8 +157,10 @@ export function FreeSkate({
 
     return () => {
       cancelAnimationFrame(raf);
-      keyboard.dispose();
-      mouse.dispose();
+      keyboardRef.current?.dispose();
+      keyboardRef.current = null;
+      mouseRef.current?.dispose();
+      mouseRef.current = null;
       delete (window as unknown as Record<string, unknown>).__bbhFreeSkateSim;
     };
   }, [onWorldUpdate]);
