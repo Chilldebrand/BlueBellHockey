@@ -101,3 +101,70 @@ Final combined focused result:
 
 - The new preferences helper and slider component are implemented and tested, but this slice does not yet wire them into app state or playback systems; that appears to belong to later tasks in the audio plan.
 - The sandboxed Vitest startup access issue around `vite.config.ts` still exists as a pre-existing baseline issue and was not changed here.
+
+---
+
+## Task 1 review fix â€” storage resolution SecurityError regression
+
+Date: 2026-07-17
+
+### Changed files
+
+- `packages/arcade-client/src/audio/preferences.ts`
+- `packages/arcade-client/src/audio/preferences.test.ts`
+
+### Root cause
+
+- `loadAudioPreferences` and `saveAudioPreferences` used default parameters that evaluated `getBrowserStorage()` before entering their `try/catch`.
+- `getBrowserStorage()` directly accessed `window.localStorage`, so a browser `SecurityError` could throw before either public function handled it.
+
+### Minimal fix
+
+- Resolved browser storage inside `loadAudioPreferences` and `saveAudioPreferences`.
+- Made `getBrowserStorage()` catch `localStorage` access failures and return `null`.
+- Added a focused regression test that installs a fake `window` whose `localStorage` getter throws `SecurityError`, proving:
+  - `loadAudioPreferences()` falls back to `DEFAULT_AUDIO_PREFERENCES`
+  - `saveAudioPreferences()` remains non-throwing
+
+### TDD evidence
+
+#### RED
+
+Command:
+
+`npm run test --workspace @bbh/arcade-client -- src/audio/preferences.test.ts`
+
+Observed result (run outside sandbox because the sandbox blocks Vite config access):
+
+- `1 failed`
+- Failing test: `returns defaults when resolving browser storage throws`
+- Error: `SecurityError: blocked`
+- Stack showed the throw occurred while resolving `window.localStorage` inside `getBrowserStorage()` before `loadAudioPreferences()` could recover
+
+#### GREEN
+
+Command:
+
+`npm run test --workspace @bbh/arcade-client -- src/audio/preferences.test.ts`
+
+Observed result:
+
+- `1 passed`
+- `9 passed`
+- `0 failed`
+
+### Final verification
+
+Commands and results:
+
+1. `npm run test --workspace @bbh/arcade-client -- src/audio/preferences.test.ts`
+   - passed: `1 file`, `9 tests`
+2. `npm run test --workspace @bbh/arcade-client -- src/ui/AudioSettings.test.tsx`
+   - passed: `1 file`, `2 tests`
+3. `.\node_modules\.bin\tsc.cmd -p packages/arcade-client/tsconfig.json --noEmit`
+   - passed: exit code `0`
+
+Notes:
+
+- The requested Vitest runs were executed outside the sandbox because the sandbox still fails startup with the pre-existing `vite.config.ts` access issue.
+- No unrelated workspace edits were reverted or modified.

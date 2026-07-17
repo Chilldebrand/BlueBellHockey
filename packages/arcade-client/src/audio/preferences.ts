@@ -19,14 +19,15 @@ export function clampAudioLevel(value: number): number {
 }
 
 export function loadAudioPreferences(
-  storage: Storage | null = getBrowserStorage()
+  storage?: Storage | null
 ): AudioPreferences {
-  if (!storage) {
+  const resolvedStorage = storage ?? getBrowserStorage();
+  if (!resolvedStorage) {
     return DEFAULT_AUDIO_PREFERENCES;
   }
 
   try {
-    const raw = storage.getItem(AUDIO_PREFERENCES_STORAGE_KEY);
+    const raw = resolvedStorage.getItem(AUDIO_PREFERENCES_STORAGE_KEY);
 
     if (!raw) {
       return DEFAULT_AUDIO_PREFERENCES;
@@ -56,16 +57,17 @@ export function loadAudioPreferences(
 
 export function saveAudioPreferences(
   preferences: AudioPreferences,
-  storage: Storage | null = getBrowserStorage()
+  storage?: Storage | null
 ): void {
-  if (!storage) {
+  const resolvedStorage = storage ?? getBrowserStorage();
+  if (!resolvedStorage) {
     return;
   }
 
   const normalized = normalizeAudioPreferences(preferences);
 
   try {
-    storage.setItem(
+    resolvedStorage.setItem(
       AUDIO_PREFERENCES_STORAGE_KEY,
       JSON.stringify(normalized)
     );
@@ -100,5 +102,9 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 function getBrowserStorage(): Storage | null {
-  return typeof window === "undefined" ? null : window.localStorage;
+  try {
+    return typeof window === "undefined" ? null : window.localStorage;
+  } catch {
+    return null;
+  }
 }

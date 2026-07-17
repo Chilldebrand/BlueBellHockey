@@ -82,6 +82,38 @@ describe("loadAudioPreferences", () => {
 
     expect(loadAudioPreferences(storage)).toEqual(DEFAULT_AUDIO_PREFERENCES);
   });
+
+  it("returns defaults when resolving browser storage throws", () => {
+    const originalWindowDescriptor = Object.getOwnPropertyDescriptor(
+      globalThis,
+      "window"
+    );
+    const fakeWindow = {};
+
+    Object.defineProperty(fakeWindow, "localStorage", {
+      configurable: true,
+      get() {
+        throw new DOMException("blocked", "SecurityError");
+      }
+    });
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: fakeWindow
+    });
+
+    try {
+      expect(loadAudioPreferences()).toEqual(DEFAULT_AUDIO_PREFERENCES);
+      expect(() =>
+        saveAudioPreferences(DEFAULT_AUDIO_PREFERENCES)
+      ).not.toThrow();
+    } finally {
+      if (originalWindowDescriptor) {
+        Object.defineProperty(globalThis, "window", originalWindowDescriptor);
+      } else {
+        Reflect.deleteProperty(globalThis, "window");
+      }
+    }
+  });
 });
 
 describe("saveAudioPreferences", () => {
