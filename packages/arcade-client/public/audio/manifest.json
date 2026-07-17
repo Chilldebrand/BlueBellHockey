@@ -1,0 +1,112 @@
+{
+  "clips": {
+    "announcer.name.rook-rocket": [
+      "/audio/announcer/names/rook-rocket.ogg",
+      "/audio/announcer/names/rook-rocket.mp3"
+    ],
+    "announcer.name.nova-screen": [
+      "/audio/announcer/names/nova-screen.ogg",
+      "/audio/announcer/names/nova-screen.mp3"
+    ],
+    "announcer.name.dash-iron": [
+      "/audio/announcer/names/dash-iron.ogg",
+      "/audio/announcer/names/dash-iron.mp3"
+    ],
+    "announcer.name.luna-thread": [
+      "/audio/announcer/names/luna-thread.ogg",
+      "/audio/announcer/names/luna-thread.mp3"
+    ],
+    "announcer.name.kip-hook": [
+      "/audio/announcer/names/kip-hook.ogg",
+      "/audio/announcer/names/kip-hook.mp3"
+    ],
+    "announcer.name.vex-rebound": [
+      "/audio/announcer/names/vex-rebound.ogg",
+      "/audio/announcer/names/vex-rebound.mp3"
+    ],
+    "announcer.name.axel-laser": [
+      "/audio/announcer/names/axel-laser.ogg",
+      "/audio/announcer/names/axel-laser.mp3"
+    ],
+    "announcer.name.zara-crush": [
+      "/audio/announcer/names/zara-crush.ogg",
+      "/audio/announcer/names/zara-crush.mp3"
+    ],
+    "announcer.name.milo-ghost": [
+      "/audio/announcer/names/milo-ghost.ogg",
+      "/audio/announcer/names/milo-ghost.mp3"
+    ],
+    "announcer.name.tess-flash": [
+      "/audio/announcer/names/tess-flash.ogg",
+      "/audio/announcer/names/tess-flash.mp3"
+    ],
+    "announcer.name.orin-pads": [
+      "/audio/announcer/names/orin-pads.ogg",
+      "/audio/announcer/names/orin-pads.mp3"
+    ],
+    "announcer.name.mira-wall": [
+      "/audio/announcer/names/mira-wall.ogg",
+      "/audio/announcer/names/mira-wall.mp3"
+    ],
+    "announcer.goal.0": [
+      "/audio/announcer/goals/goal-0.ogg",
+      "/audio/announcer/goals/goal-0.mp3"
+    ],
+    "announcer.goal.1": [
+      "/audio/announcer/goals/goal-1.ogg",
+      "/audio/announcer/goals/goal-1.mp3"
+    ],
+    "announcer.goal.2": [
+      "/audio/announcer/goals/goal-2.ogg",
+      "/audio/announcer/goals/goal-2.mp3"
+    ],
+    "announcer.goal.3": [
+      "/audio/announcer/goals/goal-3.ogg",
+      "/audio/announcer/goals/goal-3.mp3"
+    ],
+    "announcer.goal.4": [
+      "/audio/announcer/goals/goal-4.ogg",
+      "/audio/announcer/goals/goal-4.mp3"
+    ],
+    "announcer.goal.5": [
+      "/audio/announcer/goals/goal-5.ogg",
+      "/audio/announcer/goals/goal-5.mp3"
+    ],
+    "announcer.goal.6": [
+      "/audio/announcer/goals/goal-6.ogg",
+      "/audio/announcer/goals/goal-6.mp3"
+    ],
+    "announcer.goal.7": [
+      "/audio/announcer/goals/goal-7.ogg",
+      "/audio/announcer/goals/goal-7.mp3"
+    ],
+    "announcer.powerup.speed-boost": [
+      "/audio/announcer/powerups/speed-boost.ogg",
+      "/audio/announcer/powerups/speed-boost.mp3"
+    ],
+    "announcer.powerup.hard-shot": [
+      "/audio/announcer/powerups/hard-shot.ogg",
+      "/audio/announcer/powerups/hard-shot.mp3"
+    ],
+    "announcer.powerup.freeze": [
+      "/audio/announcer/powerups/freeze.ogg",
+      "/audio/announcer/powerups/freeze.mp3"
+    ],
+    "announcer.powerup.bulldozer": [
+      "/audio/announcer/powerups/bulldozer.ogg",
+      "/audio/announcer/powerups/bulldozer.mp3"
+    ],
+    "announcer.powerup.mini-goalie": [
+      "/audio/announcer/powerups/mini-goalie.ogg",
+      "/audio/announcer/powerups/mini-goalie.mp3"
+    ],
+    "announcer.powerup.giant-goalie": [
+      "/audio/announcer/powerups/giant-goalie.ogg",
+      "/audio/announcer/powerups/giant-goalie.mp3"
+    ],
+    "music.menu.0": [
+      "/audio/music/menu-0.ogg",
+      "/audio/music/menu-0.mp3"
+    ]
+  }
+}
