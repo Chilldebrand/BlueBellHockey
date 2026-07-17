@@ -164,3 +164,70 @@ Result:
 - Remaining concern:
   - the known broad sandboxed arcade-client runner/startup issue still exists outside this focused scope, so broader suite status should not be inferred from this targeted GREEN run.
 - Commit handoff status: `DONE`
+
+## Task 5 reconnect dependency correction — 2026-07-17
+
+### RED
+
+- Ran exactly:
+  - `.\node_modules\.bin\vitest.cmd run packages/arcade-client/src/App.test.tsx packages/arcade-client/src/ui/runtimeGuards.test.ts`
+- Actual RED result:
+  - `packages/arcade-client/src/ui/runtimeGuards.test.ts`: passed
+  - `packages/arcade-client/src/App.test.tsx`: failed with `expected "spy" to be called 1 times, but got 0 times`
+- Root cause confirmed:
+  - the auto-reconnect `useEffect` still depended on `[connectionApi, runConnection]`, so flipping `audioReady` did not re-run the reconnect guard/effect
+  - `handleCreatePrivateRoom` had an unrelated extra `audioReady` dependency even though the callback does not read it
+
+### GREEN
+
+- Applied the minimal production correction in `packages/arcade-client/src/App.tsx`:
+  - added `audioReady` to the reconnect `useEffect` dependency array
+  - removed `audioReady` from `handleCreatePrivateRoom` dependencies
+- Kept the pending `App.test.tsx` callback-memoization regression and only fixed fixture typing drift needed for compile/runtime correctness:
+  - `roomCode` now matches the current `ArcadeClientState` type
+  - mocked `audio` now includes `getPreferences` and `consumeWorld` to satisfy `AudioManagerApi`
+
+### Final verification
+
+- Re-ran exactly:
+  - `.\node_modules\.bin\vitest.cmd run packages/arcade-client/src/App.test.tsx packages/arcade-client/src/ui/runtimeGuards.test.ts`
+  - `.\node_modules\.bin\tsc.cmd -p packages/arcade-client/tsconfig.json --noEmit`
+- Actual final results:
+  - Vitest: `2 files passed, 3 tests passed`
+  - TypeScript: passed with exit code `0`
+
+### Concerns
+
+- `handleQuickMatch` still carries an unused `audioReady` dependency in the current diff; I left it untouched because this correction was scoped to the precise Task 5 reconnect fix you requested.
+
+## Task 5 reconnect dependency cleanup follow-up — 2026-07-17
+
+### Scope
+
+- Removed the unnecessary `audioReady` dependency from both:
+  - `handleQuickMatch`
+  - `handleCreatePrivateRoom`
+- Kept `audioReady` only on the reconnect `useEffect`
+
+### Verification
+
+- Ran exactly:
+  - `.\node_modules\.bin\vitest.cmd run packages/arcade-client/src/App.test.tsx packages/arcade-client/src/ui/runtimeGuards.test.ts`
+  - `.\node_modules\.bin\tsc.cmd -p packages/arcade-client/tsconfig.json --noEmit`
+- Actual final results:
+  - Vitest: `2 files passed, 3 tests passed`
+  - TypeScript: passed with exit code `0`
+
+### Notes
+
+- One intermediate rerun failed because the reconnect effect accidentally lost `audioReady` while removing the callback dependencies; that was corrected immediately, and the final focused rerun above is the authoritative result.
+
+## Task 5 final reconnect state â€” 2026-07-17
+
+- Confirmed the intended dependency shape in `packages/arcade-client/src/App.tsx`:
+  - reconnect-after-audio-init effect: `[audioReady, connectionApi, runConnection]`
+  - `handleQuickMatch` / `handleCreatePrivateRoom`: `[connectionApi, runConnection]`
+- Preserved the pending `App.test.tsx` reconnect regression and the existing settings/input/runtimeGuard changes.
+- Final focused verification:
+  - `.\node_modules\.bin\vitest.cmd run packages/arcade-client/src/App.test.tsx` â†’ `1 file passed, 1 test passed`
+  - `.\node_modules\.bin\tsc.cmd -p packages/arcade-client/tsconfig.json --noEmit` â†’ passed

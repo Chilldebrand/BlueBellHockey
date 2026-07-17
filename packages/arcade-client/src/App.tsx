@@ -245,7 +245,7 @@ export function App({
 
       return result;
     });
-  }, [connectionApi, runConnection]);
+  }, [audioReady, connectionApi, runConnection]);
 
   const handleQuickMatch = useCallback(() => {
     setScreen("lobby");
@@ -253,7 +253,7 @@ export function App({
     audioRef.current.resetEventCursor();
     consumedWorldCursorRef.current = null;
     void runConnection(() => connectionApi.connectQuickMatch());
-  }, [audioReady, connectionApi, runConnection]);
+  }, [connectionApi, runConnection]);
 
   const handleCreatePrivateRoom = useCallback(() => {
     setScreen("lobby");
