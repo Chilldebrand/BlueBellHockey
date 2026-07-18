@@ -1,4 +1,6 @@
+import { existsSync } from "fs";
 import { createServer } from "http";
+import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { getArcadeCoreInfo } from "@bbh/arcade-core";
 import { Server } from "colyseus";
@@ -33,6 +35,22 @@ export function createArcadeServer(): { readonly app: express.Express; readonly 
   const app = express();
   app.use(express.json());
   app.get("/health", (_req, res) => res.json({ ok: true }));
+
+  // Serve the built client from the same origin when it exists (same depth
+  // from src/ via tsx and from dist/ when compiled). One host serves page AND
+  // websocket, so a single tunnel — or a single deploy — is enough, and the
+  // client build's wss URL matches the page origin. Matchmake/health routes
+  // are excluded from the SPA fallback (and matchmaking is POST anyway).
+  const clientDist = resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    "../../arcade-client/dist"
+  );
+  if (existsSync(clientDist)) {
+    app.use(express.static(clientDist));
+    app.get(/^\/(?!matchmake|health).*/, (_req, res) =>
+      res.sendFile(resolve(clientDist, "index.html"))
+    );
+  }
 
   const httpServer = createServer(app);
   const gameServer = registerArcadeRooms(

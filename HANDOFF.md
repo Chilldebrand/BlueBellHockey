@@ -1,7 +1,7 @@
 # 3v3 Arcade Hockey — Session Handoff
 
 Paste the **Paste Into Next Chat** section into a new chat to continue. This top section is
-authoritative as of 2026-07-13; historical notes below may describe older checkpoints.
+authoritative as of 2026-07-17; historical notes below may describe older checkpoints.
 
 ## Paste Into Next Chat
 
@@ -9,6 +9,28 @@ Continue work in `C:\Users\hilde\OneDrive\Desktop\3V3 Hockey Files\BBellHockey` 
 Read `HANDOFF.md` first. Work only in `packages/arcade-core`, `packages/arcade-server`, and
 `packages/arcade-client`; `packages/shared`, `packages/server`, and `packages/client` are legacy
 reference code and must not be modified. Use `npm.cmd` in PowerShell.
+
+**CURRENT FEATURE TRACK (2026-07-17): AUDIO + ANNOUNCER.** The user approved a polished recorded/
+generated arcade announcer using fixed character names (not arbitrary player display names), menu-only
+music, gameplay sounds, and three independent local sliders. The approved design is committed in
+`docs/superpowers/specs/2026-07-17-arcade-audio-announcer-design.md` (`bca03de`). The implementation
+plan is saved in `docs/superpowers/plans/2026-07-17-arcade-audio-announcer.md` and is currently
+uncommitted. No audio implementation code has been written yet.
+
+**NEXT CHAT STARTING POINT:** Read the audio design spec and implementation plan first. The plan is
+organized into TDD tasks: persisted preferences/sliders; Web Audio runtime + menu music; announcer
+resolution/queue + asset manifest; gameplay effects + skating loop; App/settings integration; browser
+smoke verification. Before coding, choose either subagent-driven or inline plan execution as described
+at the end of the plan. Use the active `@bbh/arcade-client` only; the legacy `packages/client/src/audio`
+files are reference material that may be adapted, not the integration target.
+
+**AUDIO REQUIREMENTS ALREADY DECIDED:** Music plays only after Press Start and only on main menu,
+lobby, and postgame screens; it fades out for matches and Free Skate. Settings is a local overlay
+available from main menu, lobby, postgame, match gameplay, and Free Skate; it never pauses the online
+match. Sliders are Announcer, Gameplay, and Music, persisted in localStorage. Goals announce the
+scorer's character name plus a funny quip. Powerups announce the character and configured powerup
+label. Gameplay audio covers hits, skating, saves, shots, posts, blocks, pokes, and other puck contact.
+Repeated snapshots must not replay an event; goals outrank powerups.
 
 **THE FULL GAME AUDIT WAS COMPLETED 2026-07-13** — all six priorities executed, fixes landed in
 five pushed commits (`d752749..7154dc9`). Read "Audit results" below before anything else.
@@ -22,11 +44,12 @@ deterministic fallback still backstops no-input cases. See "Goalie outlet contro
 **The user still owes an in-browser eyeball** (covered save → blue disc on goalie → aimed outlet
 → control returns), solo and ideally two-client.
 
-### Current repository and runtime state (2026-07-13, post-feel-batch)
+### Current repository and runtime state (2026-07-17, post-feel-batch)
 
 - Verify with `git status --short --branch` (push after every accepted change).
-- Certified baseline at HEAD: `npm test` **388/388** (210 core / 74 server / 104 client),
-  `npm run typecheck` clean, two-client smoke all 7 checks PASS.
+- This audio handoff session changed documentation only; no runtime tests were rerun here. Run the
+  relevant checks before claiming new implementation work is green. The last certified runtime
+  baseline is recorded in the historical notes below.
 
 ### Online perf fix (2026-07-13, `14fa2d9`) — quick play was melting CPUs
 
@@ -143,13 +166,18 @@ All three layers are live (the audit had found only WO-GOALIE-00 existed):
 
 ### Recommended next steps (in rough order)
 
-1. **User eyeball of goalie outlet control** in the browser (Free Skate: force a cover by
+1. **Start the approved audio/announcer implementation track** from
+   `docs/superpowers/plans/2026-07-17-arcade-audio-announcer.md`. Preserve the fixed character-name
+   announcer decision and menu-only music constraint. The plan's initial voice asset IDs and copy
+   slots are in Task 3; generated/recorded `.ogg`/`.mp3` files should follow that manifest.
+
+2. **User eyeball of goalie outlet control** in the browser (Free Skate: force a cover by
    letting the AI shoot a soft centered shot at your goalie, or online two-client).
-2. User-owed feel passes on the 2026-07-09 batch (see "Known next steps" below).
-3. Optional `/code-review ultra` (user-triggered, billed) now that targeted fixes have landed.
-4. Real deploy (Fly/Render + static host) — the server surface is now hardened for strangers;
+3. User-owed feel passes on the 2026-07-09 batch (see "Known next steps" below).
+4. Optional `/code-review ultra` (user-triggered, billed) now that targeted fixes have landed.
+5. Real deploy (Fly/Render + static host) — the server surface is now hardened for strangers;
    revisit snapshot bandwidth (④) when it happens.
-5. Dedicated major-upgrade session: vitest 4, vite 8, colyseus 0.17 (⑤ leftovers).
+6. Dedicated major-upgrade session: vitest 4, vite 8, colyseus 0.17 (⑤ leftovers).
 
 Method that worked: read-first, worst-first, regression test → fix → suite green → commit → push.
 
@@ -172,7 +200,8 @@ superseded, though the underlying skating/checking sim stays grounded.
 ```
 cd "C:\Users\hilde\OneDrive\Desktop\3V3 Hockey Files\BBellHockey"
 npm run dev      # arcade server (ws://localhost:2567) + client (http://localhost:5173)
-npm test         # 341 tests (210 arcade-core / 46 arcade-server / 85 arcade-client)
+npm test         # all configured workspace tests
+npm run test:arcade  # active arcade-core / arcade-server / arcade-client tests
 npm run typecheck
 npm run smoke --workspace @bbh/arcade-server   # 2-client websocket end-to-end
 ```
@@ -188,6 +217,11 @@ Preferred way to run servers with the assistant: the preview tools + `.claude/la
 > `npm run build:arcade-core` + an arcade-server restart to reach ONLINE play (Free Skate aliases core src).
 
 ## GIT STATE
+
+**Current status for next chat (2026-07-17):** `main` is one commit ahead of `origin/main` because
+the approved audio design spec was committed as `bca03de`; the new audio implementation plan is
+untracked until it is intentionally committed. No gameplay source files were modified by this
+handoff session.
 
 **Current status (2026-07-13):** everything committed AND pushed — `main` in sync with origin.
 Certified baseline: `npm test` (341), `npm run typecheck`, two-client smoke, all green.

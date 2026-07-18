@@ -274,7 +274,24 @@ async function joinRoom(
 }
 
 function getArcadeServerUrl(): string {
-  return import.meta.env.VITE_ARCADE_WS_URL ?? DEFAULT_WS_URL;
+  // Explicit override first (tunnel/deploy builds that split page and server).
+  if (import.meta.env.VITE_ARCADE_WS_URL) {
+    return import.meta.env.VITE_ARCADE_WS_URL;
+  }
+
+  // Served from anywhere that isn't localhost (tunnel, LAN IP, real deploy):
+  // the arcade-server hosts this page itself, so the websocket lives on the
+  // SAME origin — derive it instead of assuming localhost:2567.
+  if (
+    typeof window !== "undefined" &&
+    window.location.hostname !== "localhost" &&
+    window.location.hostname !== "127.0.0.1"
+  ) {
+    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+    return `${protocol}://${window.location.host}`;
+  }
+
+  return DEFAULT_WS_URL;
 }
 
 function generateRoomCode(): string {

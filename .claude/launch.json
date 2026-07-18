@@ -12,6 +12,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev:arcade-server"],
       "port": 2567
+    },
+    {
+      "name": "arcade-client-dist",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "preview", "--workspace", "@bbh/arcade-client"],
+      "port": 4173
     }
   ]
 }
