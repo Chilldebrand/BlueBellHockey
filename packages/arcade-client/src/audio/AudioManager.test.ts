@@ -92,12 +92,14 @@ class FakeSpeechSynthesisUtterance {
 
 class FakeAudioBuffer {
   readonly channels: Float32Array[];
+  readonly duration: number;
 
   constructor(
     readonly numberOfChannels: number,
     readonly length: number,
     readonly sampleRate: number
   ) {
+    this.duration = length / sampleRate;
     this.channels = Array.from(
       { length: numberOfChannels },
       () => new Float32Array(length)
@@ -121,8 +123,17 @@ class FakeAudioContext {
   readonly oscillators: FakeOscillatorNode[] = [];
   readonly filters: FakeBiquadFilterNode[] = [];
   readonly buffers: FakeAudioBuffer[] = [];
+  readonly bufferSources: Array<{
+    buffer: FakeAudioBuffer | null;
+    loop: boolean;
+    playbackRate: FakeAudioParam;
+    connect: ReturnType<typeof vi.fn>;
+    start: ReturnType<typeof vi.fn>;
+    stop: ReturnType<typeof vi.fn>;
+  }> = [];
   resume = vi.fn(async () => undefined);
   close = vi.fn(async () => undefined);
+  decodeAudioData = vi.fn(async () => new FakeAudioBuffer(1, 480, 48_000));
 
   constructor() {
     if (FakeAudioContext.constructError) {
@@ -158,7 +169,7 @@ class FakeAudioContext {
     start: (time?: number) => void;
     stop: (time?: number) => void;
   } {
-    return {
+    const source = {
       buffer: null,
       loop: false,
       playbackRate: new FakeAudioParam(),
@@ -166,6 +177,8 @@ class FakeAudioContext {
       start: vi.fn(),
       stop: vi.fn()
     };
+    this.bufferSources.push(source);
+    return source;
   }
 
   createBuffer(
@@ -246,7 +259,7 @@ describe("AudioManager", () => {
     }
   });
 
-  it("speaks a goal cue when voice assets are unavailable", () => {
+  it("speaks a goal cue when voice assets are unavailable", async () => {
     const { restore, fakeWindow } = installAudioWindow();
 
     try {
@@ -264,13 +277,68 @@ describe("AudioManager", () => {
 
       manager.consumeWorld(world, "home-skater-1");
 
-      expect(fakeWindow.speechSynthesis.speak).toHaveBeenCalledWith(
-        expect.objectContaining({
-          text: expect.stringMatching(/^Rook Rocket /)
-        })
-      );
+      await vi.waitFor(() => {
+        expect(fakeWindow.speechSynthesis.speak).toHaveBeenCalledWith(
+          expect.objectContaining({
+            text: expect.stringMatching(/^Rook Rocket /)
+          })
+        );
+      });
       manager.dispose();
     } finally {
+      restore();
+    }
+  });
+
+  it("plays loaded announcer clips instead of using speech synthesis", async () => {
+    const { restore, fakeWindow } = installAudioWindow();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === "/audio/manifest.json") {
+        return {
+          ok: true,
+          headers: { get: (_name: string): string => "application/json" },
+          json: async () => ({
+            clips: {
+              "announcer.goal.0": ["/audio/announcer/goals/goal-0.ogg"]
+            }
+          })
+        };
+      }
+
+      return {
+        ok: true,
+        headers: { get: (_name: string): string => "audio/ogg" },
+        arrayBuffer: async () => new ArrayBuffer(8)
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(Math, "random").mockReturnValue(0);
+
+    try {
+      const manager = new AudioManager();
+      manager.start();
+      const context = FakeAudioContext.instances.at(-1)!;
+      const world = createWorld(3, "arcade3v3");
+      world.eventQueue = [
+        {
+          id: "goal-asset-playback-test",
+          type: "goal",
+          atMs: 100
+        }
+      ];
+
+      manager.consumeWorld(world, "home-skater-1");
+
+      await vi.waitFor(() => {
+        expect(context.bufferSources).toHaveLength(2);
+      });
+      expect(context.bufferSources[1]?.start).toHaveBeenCalled();
+      expect(fakeWindow.speechSynthesis.speak).not.toHaveBeenCalled();
+      manager.dispose();
+    } finally {
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
       restore();
     }
   });

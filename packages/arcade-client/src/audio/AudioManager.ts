@@ -85,6 +85,9 @@ export class AudioManager implements AudioManagerApi {
   private skatingGain: GainNode | null = null;
   private skatingFilter: BiquadFilterNode | null = null;
   private skatingSource: AudioBufferSourceNode | null = null;
+  private readonly announcerBuffers = new Map<string, AudioBuffer>();
+  private readonly announcerSources = new Set<AudioBufferSourceNode>();
+  private announcerAssetLoadPromise: Promise<void> | null = null;
   private consumedEventIds = new Set<string>();
   private readonly announcerQueue = new AnnouncerQueue();
   private announcerTimer: ReturnType<typeof setTimeout> | null = null;
@@ -107,7 +110,7 @@ export class AudioManager implements AudioManagerApi {
       contextAvailable: Boolean(this.context),
       contextState: getContextState(this.context)
     };
-    void this.loadAssetDiagnostics();
+    this.announcerAssetLoadPromise = this.loadAssetDiagnostics();
 
     if (!this.context) {
       return;
@@ -176,6 +179,7 @@ export class AudioManager implements AudioManagerApi {
   resetEventCursor(): void {
     this.consumedEventIds.clear();
     this.announcerQueue.clear();
+    this.stopAnnouncerSources();
     this.clearAnnouncerTimer();
     this.cancelSpeech();
   }
@@ -205,6 +209,7 @@ export class AudioManager implements AudioManagerApi {
     this.skatingFilter = null;
     this.skatingSource = null;
     this.announcerQueue.clear();
+    this.stopAnnouncerSources();
     this.clearAnnouncerTimer();
     this.cancelSpeech();
     this.diagnostics = {
@@ -364,11 +369,67 @@ export class AudioManager implements AudioManagerApi {
       return;
     }
 
-    this.speakAnnouncerCue(cue.text);
+    void this.playAnnouncerCue(cue);
     this.announcerTimer = setTimeout(() => {
       this.announcerTimer = null;
       this.drainAnnouncerQueue();
     }, 1500);
+  }
+
+  private async playAnnouncerCue(cue: ReturnType<typeof announcerCueForEvent>): Promise<void> {
+    if (!cue) {
+      return;
+    }
+
+    if (this.announcerAssetLoadPromise) {
+      await this.announcerAssetLoadPromise;
+    }
+
+    if (this.playLoadedAnnouncerCue(cue.clipIds)) {
+      return;
+    }
+
+    this.speakAnnouncerCue(cue.text);
+  }
+
+  private playLoadedAnnouncerCue(clipIds: readonly string[]): boolean {
+    if (!this.context || !this.announcerGain || clipIds.length === 0) {
+      return false;
+    }
+
+    const buffers = clipIds.map((clipId) => this.announcerBuffers.get(clipId));
+    if (buffers.some((buffer) => !buffer)) {
+      return false;
+    }
+
+    let startTime = this.context.currentTime + 0.02;
+    for (const buffer of buffers) {
+      if (!buffer) {
+        return false;
+      }
+
+      const source = this.context.createBufferSource();
+      source.buffer = buffer;
+      source.connect(this.announcerGain);
+      this.announcerSources.add(source);
+      source.onended = () => this.announcerSources.delete(source);
+      source.start(startTime);
+      startTime += Math.max(0, buffer.duration);
+    }
+
+    return true;
+  }
+
+  private stopAnnouncerSources(): void {
+    for (const source of this.announcerSources) {
+      try {
+        source.stop();
+      } catch {
+        // Sources that already ended can reject stop(); they are safe to drop.
+      }
+    }
+
+    this.announcerSources.clear();
   }
 
   private speakAnnouncerCue(text: string): void {
@@ -445,22 +506,19 @@ export class AudioManager implements AudioManagerApi {
       const clips = isManifestRecord(manifest) && isManifestRecord(manifest.clips)
         ? manifest.clips
         : {};
-      const assetPaths = Object.values(clips).flatMap((paths) =>
-        Array.isArray(paths) ? paths.filter((path): path is string => typeof path === "string") : []
-      );
       const missingAssets: string[] = [];
       const assetErrors: string[] = [];
 
-      await Promise.all(assetPaths.map(async (path) => {
-        try {
-          const assetResponse = await fetch(path, { cache: "no-store" });
-          const contentType = assetResponse.headers.get("content-type") ?? "";
-          if (!assetResponse.ok || !contentType.startsWith("audio/")) {
-            missingAssets.push(path);
-          }
-        } catch (error) {
-          missingAssets.push(path);
-          assetErrors.push(error instanceof Error ? error.message : String(error));
+      await Promise.all(Object.entries(clips).map(async ([clipId, paths]) => {
+        const candidates = Array.isArray(paths)
+          ? paths.filter((path): path is string => typeof path === "string")
+          : [];
+        const result = await this.loadAudioCandidates(clipId, candidates);
+        if (!result.available) {
+          missingAssets.push(...candidates);
+        }
+        if (result.error) {
+          assetErrors.push(result.error);
         }
       }));
 
@@ -480,6 +538,35 @@ export class AudioManager implements AudioManagerApi {
         assetErrors: [error instanceof Error ? error.message : String(error)]
       };
     }
+  }
+
+  private async loadAudioCandidates(
+    clipId: string,
+    candidates: readonly string[]
+  ): Promise<{ readonly available: boolean; readonly error: string | null }> {
+    let lastError: string | null = null;
+
+    for (const path of candidates) {
+      try {
+        const response = await fetch(path, { cache: "no-store" });
+        const contentType = response.headers.get("content-type") ?? "";
+        if (!response.ok || !contentType.startsWith("audio/")) {
+          continue;
+        }
+
+        if (clipId.startsWith("announcer.") && this.context) {
+          const encoded = await response.arrayBuffer();
+          const decoded = await this.context.decodeAudioData(encoded);
+          this.announcerBuffers.set(clipId, decoded);
+        }
+
+        return { available: true, error: null };
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : String(error);
+      }
+    }
+
+    return { available: false, error: lastError };
   }
 
   private updateSkatingMix(world: WorldState, localEntityId: string | null): void {
