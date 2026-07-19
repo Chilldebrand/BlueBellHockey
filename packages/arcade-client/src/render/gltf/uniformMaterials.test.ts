@@ -42,6 +42,25 @@ describe("applyUniformMaterialColor", () => {
     expect(gloves.color.getStyle()).toBe("rgb(32,32,32)");
   });
 
+  it("colors the dedicated helmet shell while preserving other protective gear", () => {
+    const root = new Group();
+    const helmet = new MeshStandardMaterial({ color: "#f8f8f8" });
+    helmet.name = "gear_helmet";
+    const gloves = new MeshStandardMaterial({ color: "#202020" });
+    gloves.name = "gear_gloves";
+
+    root.add(createMesh("helmet", helmet));
+    root.add(createMesh("hands", gloves));
+
+    expect(applyUniformMaterialColor(root, TEAM_PALETTES.away.uniform)).toBe(true);
+    expect(helmet.color.getStyle()).toBe(
+      new MeshStandardMaterial({
+        color: TEAM_PALETTES.away.uniform.jersey
+      }).color.getStyle()
+    );
+    expect(gloves.color.getStyle()).toBe("rgb(32,32,32)");
+  });
+
   it("returns false when no semantic uniform cloth is present", () => {
     const root = new Group();
     const gloves = new MeshStandardMaterial({ color: "#202020" });

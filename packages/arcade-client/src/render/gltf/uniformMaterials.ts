@@ -2,9 +2,14 @@ import type { UniformPalette } from "@bbh/arcade-core";
 import { Mesh, MeshStandardMaterial, type Object3D } from "three";
 
 const UNIFORM_TOKEN = /(^|[_\s-])(uniform|jersey|sweater|shirt|pants|trousers|socks?)(?=$|[_\s-])/i;
+const HELMET_SHELL_TOKEN = /(^|[_\s-])(?:gear_)?helmet(?:_shell)?$/i;
 
 export function isUniformMaterialName(name: string): boolean {
   return UNIFORM_TOKEN.test(name);
+}
+
+function isTeamColorMaterialName(name: string): boolean {
+  return isUniformMaterialName(name) || HELMET_SHELL_TOKEN.test(name);
 }
 
 export function applyUniformMaterialColor(
@@ -25,7 +30,7 @@ export function applyUniformMaterialColor(
       }
 
       const semanticName = `${node.name} ${material.name}`.trim();
-      if (!isUniformMaterialName(semanticName)) {
+      if (!isTeamColorMaterialName(semanticName)) {
         continue;
       }
 
