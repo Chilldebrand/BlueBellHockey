@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { createWorld, magnitude, stepWorld, type InputFrame } from "../index";
+import {
+  PUCK_CONFIG,
+  createWorld,
+  magnitude,
+  stepWorld,
+  type InputFrame
+} from "../index";
 
 function inputFrame(
   slotId: string,
@@ -101,5 +107,74 @@ describe("puck actions", () => {
 
     expect(world.puck.velocity.x).toBeGreaterThan(0);
     expect(world.puck.velocity.y).toBeGreaterThan(0);
+  });
+
+  it("leads a moving receiver instead of passing to their old position", () => {
+    const world = givePuckToFirstSkater();
+    const passer = world.skaters[0];
+    const receiver = world.skaters[1];
+    receiver.position = { x: passer.position.x + 360, y: passer.position.y };
+    receiver.velocity = { x: 0, y: 480 };
+    world.skaters[2].position = {
+      x: passer.position.x + 640,
+      y: passer.position.y + 640
+    };
+
+    tapPass(world, { moveX: 1, moveY: 0 });
+
+    expect(world.puck.velocity.y).toBeGreaterThan(150);
+  });
+
+  it("uses the 40 percent faster quick and charged pass speeds", () => {
+    const tap = givePuckToFirstSkater();
+    tapPass(tap, { moveX: 1 });
+    expect(PUCK_CONFIG.passSpeed).toBe(1512);
+    expect(magnitude(tap.puck.velocity)).toBeCloseTo(
+      PUCK_CONFIG.passSpeed +
+        PUCK_CONFIG.passChargeSpeedBonus * (16 / PUCK_CONFIG.passChargeMaxMs)
+    );
+
+    const charged = givePuckToFirstSkater();
+    for (let sequence = 1; sequence <= 38; sequence += 1) {
+      stepWorld(
+        charged,
+        [inputFrame("home-skater-1", sequence, { pass: true })],
+        16
+      );
+    }
+    stepWorld(charged, [inputFrame("home-skater-1", 39, { pass: false })], 16);
+
+    expect(PUCK_CONFIG.passChargeSpeedBonus).toBe(638);
+    expect(magnitude(charged.puck.velocity)).toBeCloseTo(2150, 0);
+  });
+
+  it("keeps a fully charged pass catchable by its intended teammate", () => {
+    const world = givePuckToFirstSkater();
+    const passer = world.skaters[0];
+    const receiver = world.skaters[1];
+    receiver.position = { x: passer.position.x + 360, y: passer.position.y };
+    world.skaters[2].position = {
+      x: passer.position.x + 720,
+      y: passer.position.y + 720
+    };
+
+    for (let sequence = 1; sequence <= 38; sequence += 1) {
+      stepWorld(
+        world,
+        [inputFrame("home-skater-1", sequence, { pass: true, moveX: 1 })],
+        16
+      );
+    }
+    stepWorld(world, [inputFrame("home-skater-1", 39, { moveX: 1 })], 16);
+
+    for (let sequence = 40; sequence <= 55; sequence += 1) {
+      stepWorld(world, [inputFrame(receiver.id, sequence)], 16);
+      if (world.puck.carrierSlotId === receiver.id) {
+        break;
+      }
+    }
+
+    expect(PUCK_CONFIG.passCatchMaxRelativeSpeed).toBe(2400);
+    expect(world.puck.carrierSlotId).toBe(receiver.id);
   });
 });

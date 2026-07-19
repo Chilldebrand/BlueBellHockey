@@ -1,6 +1,7 @@
 import { TUNING } from "../config/tuning.js";
 import { containCircleInRink } from "./boards.js";
 import { goalieHoldPosition, resetGoalieOutletState } from "./goalie.js";
+import { passTargetWithAssist } from "./passTargeting.js";
 import { magnitude, normalizeOrZero } from "./physics.js";
 import type { GoalieEntity, InputFrame, SkaterEntity, Vec2, WorldState } from "./types.js";
 
@@ -79,8 +80,21 @@ function releaseGoalieOutlet(world: WorldState, goalie: GoalieEntity, direction:
     goalie.passChargeMs / TUNING.puck.passChargeMaxMs,
     1
   );
-  const normalized = normalizeOrZero(direction);
   const releasePosition = goalieHoldPosition(goalie);
+  const speed =
+    TUNING.puck.passSpeed + TUNING.puck.passChargeSpeedBonus * charge;
+  const target = passTargetWithAssist(
+    world,
+    { id: goalie.id, teamId: goalie.teamId, position: releasePosition },
+    direction,
+    speed
+  );
+  const normalized = target
+    ? normalizeOrZero({
+        x: target.x - releasePosition.x,
+        y: target.y - releasePosition.y
+      })
+    : fallbackDirection(world, goalie);
 
   world.puck.goalieCarrierId = null;
   world.puck.carrierSlotId = null;
@@ -96,8 +110,8 @@ function releaseGoalieOutlet(world: WorldState, goalie: GoalieEntity, direction:
     world.time.nowMs + TUNING.puck.releasePickupCooldownMs;
   world.puck.position = { ...releasePosition };
   world.puck.velocity = {
-    x: normalized.x * (TUNING.puck.passSpeed + TUNING.puck.passChargeSpeedBonus * charge),
-    y: normalized.y * (TUNING.puck.passSpeed + TUNING.puck.passChargeSpeedBonus * charge)
+    x: normalized.x * speed,
+    y: normalized.y * speed
   };
   containCircleInRink(world.puck.position, world.puck.velocity, TUNING.puck.radius, 0);
   world.puck.height = 0;

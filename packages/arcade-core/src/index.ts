@@ -36,6 +36,7 @@ export * from "./sim/goal.js";
 export * from "./sim/goalie.js";
 export * from "./sim/goalieOutlet.js";
 export * from "./sim/physics.js";
+export * from "./sim/passTargeting.js";
 export * from "./sim/puck.js";
 export * from "./sim/powerups.js";
 export * from "./sim/skater.js";

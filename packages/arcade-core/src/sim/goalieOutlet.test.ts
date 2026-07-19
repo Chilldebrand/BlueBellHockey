@@ -122,7 +122,12 @@ describe("goalie outlets", () => {
   it("uses the latest goalie frame and remembers a nonzero aim through neutral input", () => {
     const world = playingWorld();
     const goalie = homeGoalieOf(world);
+    const receiver = homeSkater(world, 0);
     givePuckToGoalie(world, goalie);
+    receiver.position = {
+      x: goalieHoldPosition(goalie).x,
+      y: goalieHoldPosition(goalie).y + 400
+    };
 
     stepWorld(
       world,
@@ -167,6 +172,38 @@ describe("goalie outlets", () => {
     expect(magnitude(held.puck.velocity)).toBeCloseTo(
       PUCK_CONFIG.passSpeed + PUCK_CONFIG.passChargeSpeedBonus
     );
+  });
+
+  it("leads an aimed outlet receiver at the faster maximum pass speed", () => {
+    const world = playingWorld();
+    const goalie = homeGoalieOf(world);
+    const receiver = homeSkater(world, 0);
+    const otherReceiver = homeSkater(world, 1);
+    const thirdReceiver = homeSkater(world, 2);
+    givePuckToGoalie(world, goalie);
+
+    const releasePosition = goalieHoldPosition(goalie);
+    receiver.position = { x: releasePosition.x + 420, y: releasePosition.y };
+    receiver.velocity = { x: 0, y: 360 };
+    otherReceiver.position = {
+      x: releasePosition.x + 640,
+      y: releasePosition.y + 640
+    };
+    thirdReceiver.position = {
+      x: releasePosition.x + 720,
+      y: releasePosition.y + 720
+    };
+
+    stepGoalieOutlet(
+      world,
+      goalie,
+      goalieInput(goalie, 1, { pass: true, moveX: 1 }),
+      PUCK_CONFIG.passChargeMaxMs
+    );
+    stepGoalieOutlet(world, goalie, goalieInput(goalie, 2, { moveX: 1 }), 16);
+
+    expect(world.puck.velocity.y).toBeGreaterThan(250);
+    expect(magnitude(world.puck.velocity)).toBeCloseTo(2150, 0);
   });
 
   it("releases from the goalie-safe hold point, clears possession, and locks out self pickup", () => {

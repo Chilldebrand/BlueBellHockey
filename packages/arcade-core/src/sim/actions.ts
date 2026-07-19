@@ -1,6 +1,7 @@
 import { getCharacterById } from "../config/characters.js";
 import type { InputFrame, SkaterEntity, Vec2, WorldState } from "./types.js";
 import { clearPendingRelease } from "./gestures.js";
+import { passTargetWithAssist } from "./passTargeting.js";
 import { fromAngle, magnitude, normalizeOrZero } from "./physics.js";
 import { hasActivePowerup } from "./powerups.js";
 import { playerStatLine } from "./stats.js";
@@ -434,34 +435,24 @@ export function passDirectionWithAssist(
   world: WorldState,
   carrier: SkaterEntity,
   aim: Vec2,
+  releasePosition: Vec2,
+  speed: number,
   assistCosine = 0.65
 ): Vec2 {
-  let bestTeammate: SkaterEntity | null = null;
-  let bestScore = assistCosine;
+  const target = passTargetWithAssist(
+    world,
+    { id: carrier.id, teamId: carrier.teamId, position: releasePosition },
+    aim,
+    speed,
+    assistCosine
+  );
 
-  for (const teammate of world.skaters) {
-    if (teammate.id === carrier.id || teammate.teamId !== carrier.teamId) {
-      continue;
-    }
-
-    const toTeammate = normalizeOrZero({
-      x: teammate.position.x - carrier.position.x,
-      y: teammate.position.y - carrier.position.y
-    });
-    const score = aim.x * toTeammate.x + aim.y * toTeammate.y;
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestTeammate = teammate;
-    }
-  }
-
-  if (!bestTeammate) {
+  if (!target) {
     return aim;
   }
 
   return normalizeOrZero({
-    x: bestTeammate.position.x - carrier.position.x,
-    y: bestTeammate.position.y - carrier.position.y
+    x: target.x - releasePosition.x,
+    y: target.y - releasePosition.y
   });
 }

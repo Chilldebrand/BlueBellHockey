@@ -100,10 +100,10 @@ export const PUCK_CONFIG: PuckConfig = {
   // catchable well above the loose-puck deflection gate, so passes stick
   // instead of sailing through the receiver. Interceptions keep the strict
   // gate. Tuning 2026-07-07: +20% pass pace and slap-shot pace; catch assist
-  // raised to keep a full-charge pass (1080 + 456 = 1536) receivable.
-  passSpeed: 1080,
+  // raised to keep a full-charge pass (1512 + 638 = 2150) receivable.
+  passSpeed: 1512,
   passCatchRadius: 72,
-  passCatchMaxRelativeSpeed: 1750,
+  passCatchMaxRelativeSpeed: 2400,
   wristShotSpeed: 1040,
   maxChargedShotSpeed: 1980,
   oneTimerWindowMs: 550,
@@ -118,7 +118,7 @@ export const PUCK_CONFIG: PuckConfig = {
   shotPlacementMargin: 30,
   releasePickupCooldownMs: 220,
   passChargeMaxMs: 600,
-  passChargeSpeedBonus: 456
+  passChargeSpeedBonus: 638
 };
 
 /** Height of the goal frame — a puck at or above this hits the crossbar. */
@@ -200,14 +200,21 @@ function stepCarriedPuck(
   } else if (carrier.passChargeMs > 0) {
     const charge = Math.min(carrier.passChargeMs / config.passChargeMaxMs, 1);
     const aim = passAimDirection(input, carrier);
-    releasePuck(world, carrier, passDirectionWithAssist(world, carrier, aim), {
-      speed: config.passSpeed + config.passChargeSpeedBonus * charge,
-      lift: 0,
-      shotPower: 0,
-      isChargedShot: false,
-      shotBySlotId: null,
-      pickupCooldownMs: config.releasePickupCooldownMs
-    });
+    const speed = config.passSpeed + config.passChargeSpeedBonus * charge;
+    const releasePosition = bladeWorldPosition(carrier, undefined, world.time.nowMs);
+    releasePuck(
+      world,
+      carrier,
+      passDirectionWithAssist(world, carrier, aim, releasePosition, speed),
+      {
+        speed,
+        lift: 0,
+        shotPower: 0,
+        isChargedShot: false,
+        shotBySlotId: null,
+        pickupCooldownMs: config.releasePickupCooldownMs
+      }
+    );
     carrier.passChargeMs = 0;
     // A teammate gathering this in-flight pass gets a one-timer window.
     puck.passedFromSlotId = carrier.id;
