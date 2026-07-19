@@ -9,6 +9,7 @@ import {
   shouldAdvanceClip,
   type SkaterGltfSource
 } from "./skaterGltfSource.js";
+import { applyUniformMaterialColor } from "./uniformMaterials.js";
 
 export interface GltfSkaterBodyProps {
   readonly source: SkaterGltfSource;
@@ -38,22 +39,34 @@ export function GltfSkaterBody({
   // the cached GLTF without fighting over one set of bones.
   const instance = useMemo(() => {
     const cloned = cloneSkeleton(gltf.scene) as Group;
-    const jersey = new Color(TEAM_PALETTES[teamId].uniform.jersey);
     cloned.traverse((node) => {
       if (node instanceof Mesh) {
         node.castShadow = true;
         node.receiveShadow = false;
         // Clone materials so recolouring this instance is isolated.
-        const baseMaterial = node.material as MeshStandardMaterial;
-        const tinted = baseMaterial.clone() as MeshStandardMaterial;
-        tinted.color = tinted.color.clone().lerp(jersey, 0.55);
-        if (isLocal) {
-          tinted.emissive = new Color("#334155");
-          tinted.emissiveIntensity = 0.25;
-        }
-        node.material = tinted;
+        const baseMaterials = Array.isArray(node.material)
+          ? node.material
+          : [node.material];
+        const clonedMaterials = baseMaterials.map((material) => {
+          if (!(material instanceof MeshStandardMaterial)) {
+            return material;
+          }
+          const clonedMaterial = material.clone() as MeshStandardMaterial;
+          if (isLocal) {
+            clonedMaterial.emissive = new Color("#334155");
+            clonedMaterial.emissiveIntensity = 0.25;
+          }
+          return clonedMaterial;
+        });
+        node.material = Array.isArray(node.material)
+          ? clonedMaterials
+          : clonedMaterials[0];
       }
     });
+    const recolored = applyUniformMaterialColor(cloned, TEAM_PALETTES[teamId].uniform);
+    if (!recolored) {
+      throw new Error("GLB skater has no named uniform materials");
+    }
     return cloned;
   }, [gltf.scene, teamId, isLocal]);
 
