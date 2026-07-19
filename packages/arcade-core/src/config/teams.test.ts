@@ -29,6 +29,9 @@ describe("arcade team palettes", () => {
   });
 
   it("uses one primary color from skater jersey through pants and socks", () => {
+    expect(TEAM_PALETTES.home.uniform.jersey).toBe("#1267d8");
+    expect(TEAM_PALETTES.away.uniform.jersey).toBe("#b3132b");
+
     for (const teamId of TEAM_IDS) {
       const uniform = TEAM_PALETTES[teamId].uniform;
       expect(uniform.pants).toBe(uniform.jersey);
