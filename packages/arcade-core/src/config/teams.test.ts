@@ -15,8 +15,8 @@ describe("arcade team palettes", () => {
   });
 
   it("keeps home and away palettes visually distinct", () => {
-    // Distinctness comes from opposing hues (blue vs red), not luminance —
-    // a bright red and a bright blue can be equally light yet unmistakable.
+    // Distinctness comes from opposing hues (blue vs red), not luminance - a
+    // bright red and a bright blue can be equally light yet unmistakable.
     const channel = (hex: string, index: number) =>
       Number.parseInt(hex.replace("#", "").slice(index * 2, index * 2 + 2), 16);
     const home = TEAM_PALETTES.home.uniform.jersey;
@@ -26,5 +26,15 @@ describe("arcade team palettes", () => {
     expect(channel(home, 2)).toBeGreaterThan(channel(home, 0) * 2);
     // ...away reads red (red channel dominates blue).
     expect(channel(away, 0)).toBeGreaterThan(channel(away, 2) * 2);
+  });
+
+  it("uses one primary color from skater jersey through pants and socks", () => {
+    for (const teamId of TEAM_IDS) {
+      const uniform = TEAM_PALETTES[teamId].uniform;
+      expect(uniform.pants).toBe(uniform.jersey);
+      expect(uniform.socks).toBe(uniform.jersey);
+      expect(uniform.numbers).toBe("#ffffff");
+      expect(uniform.trim).toBe("#ffffff");
+    }
   });
 });

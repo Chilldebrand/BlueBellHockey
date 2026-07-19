@@ -52,10 +52,10 @@ export const TEAM_PALETTES: Record<TeamId, TeamPalette> = {
     iconColor: "#1f8fff",
     uniform: {
       jersey: "#1267d8",
-      pants: "#082b63",
-      socks: "#eaf6ff",
+      pants: "#1267d8",
+      socks: "#1267d8",
       numbers: "#ffffff",
-      trim: "#ffd95a"
+      trim: "#ffffff"
     }
   },
   away: {
@@ -64,12 +64,11 @@ export const TEAM_PALETTES: Record<TeamId, TeamPalette> = {
     shortName: "RED",
     iconColor: "#ff4f5e",
     uniform: {
-      // A real hockey red — the old #3b0714 read as black on the ice.
       jersey: "#b3132b",
-      pants: "#3a0b14",
-      socks: "#fff1f2",
+      pants: "#b3132b",
+      socks: "#b3132b",
       numbers: "#ffffff",
-      trim: "#72f1d1"
+      trim: "#ffffff"
     }
   }
 };
