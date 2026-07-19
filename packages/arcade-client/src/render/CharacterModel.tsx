@@ -28,6 +28,7 @@ import {
   LOCOMOTION_STATES,
   type SkaterGltfSource
 } from "./gltf/skaterGltfSource.js";
+import { getHeadgearColor } from "./headgearColor.js";
 
 // Re-exported for existing importers; the source of truth is skaterManifest.ts.
 export { FIRST_SKATER_MODEL_MANIFEST };
@@ -247,7 +248,7 @@ function BlockoutBody({
               args={[15.6, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.62]}
             />
             <meshPhysicalMaterial
-              color="#eef1f5"
+              color={getHeadgearColor(palette)}
               roughness={0.14}
               metalness={0.05}
               clearcoat={1}
@@ -258,7 +259,7 @@ function BlockoutBody({
           <mesh position={[-13.6, 43, 0.5]} castShadow>
             <boxGeometry args={[4, 11, 13]} />
             <meshPhysicalMaterial
-              color="#e6e9ee"
+              color={getHeadgearColor(palette)}
               roughness={0.18}
               metalness={0.05}
               clearcoat={1}
@@ -268,7 +269,7 @@ function BlockoutBody({
           <mesh position={[13.6, 43, 0.5]} castShadow>
             <boxGeometry args={[4, 11, 13]} />
             <meshPhysicalMaterial
-              color="#e6e9ee"
+              color={getHeadgearColor(palette)}
               roughness={0.18}
               metalness={0.05}
               clearcoat={1}

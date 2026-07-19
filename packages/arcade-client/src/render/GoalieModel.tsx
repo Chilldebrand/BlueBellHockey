@@ -9,6 +9,7 @@ import {
   validateModelManifest
 } from "./modelValidation.js";
 import type { GoalieAnimationState } from "./animation/clipMap.js";
+import { getHeadgearColor } from "./headgearColor.js";
 
 export interface GoalieModelProps {
   readonly teamId: TeamId;
@@ -78,7 +79,7 @@ export function GoalieModel({
       </mesh>
       <mesh position={[0, 54, -2]} castShadow>
         <sphereGeometry args={[16, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.62]} />
-        <meshStandardMaterial color="#f8fafc" />
+        <meshStandardMaterial color={getHeadgearColor(palette)} />
       </mesh>
       <mesh position={[-15, 14, 0]} castShadow>
         <boxGeometry args={[11, 23, 22]} />
