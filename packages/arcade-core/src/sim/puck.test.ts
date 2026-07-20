@@ -64,6 +64,30 @@ describe("puck simulation", () => {
     expect(world.puck.position.x).toBeGreaterThan(skater.position.x);
   });
 
+  it("gathers a loose puck 70 units from the blade within the expanded pickup radius", () => {
+    const world = playingWorld();
+    const skater = world.skaters[0];
+    const blade = bladeWorldPosition(skater);
+    world.puck.position = { x: blade.x + 70, y: blade.y };
+
+    stepWorld(world, [inputFrame(skater.id, 1)], 16);
+
+    expect(world.puck.carrierSlotId).toBe(skater.id);
+  });
+
+  it("does not gather a puck within the expanded pickup radius while pickup is disabled", () => {
+    const world = playingWorld();
+    const skater = world.skaters[0];
+    const blade = bladeWorldPosition(skater);
+    world.puck.position = { x: blade.x + 70, y: blade.y };
+    world.puck.pickupDisabledForSlotId = skater.id;
+    world.puck.pickupDisabledUntilMs = world.time.nowMs + 100;
+
+    stepWorld(world, [inputFrame(skater.id, 1)], 16);
+
+    expect(world.puck.carrierSlotId).toBeNull();
+  });
+
   it("tethers the carried puck to the rest blade after a poke has expired", () => {
     const world = playingWorld();
     const carrier = world.skaters[0];

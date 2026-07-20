@@ -6,6 +6,8 @@ export interface ArcadeInputState {
   /** Raw right-stick sample in body space: X lateral, Y forward. */
   readonly stickX: number;
   readonly stickY: number;
+  /** True only while Space is generating an accessibility shooting gesture. */
+  readonly isAccessibilityShotGesture?: boolean;
   readonly pass: boolean;
   readonly check: boolean;
   readonly turbo: boolean;
@@ -20,6 +22,7 @@ export function createNeutralInputState(): ArcadeInputState {
     moveY: 0,
     stickX: 0,
     stickY: 0,
+    isAccessibilityShotGesture: false,
     pass: false,
     check: false,
     turbo: false,
@@ -69,6 +72,9 @@ export function mergeInputStates(
     moveY: dominantAxis(primary.moveY, secondary.moveY),
     stickX: dominantAxis(primary.stickX, secondary.stickX),
     stickY: dominantAxis(primary.stickY, secondary.stickY),
+    isAccessibilityShotGesture:
+      primary.isAccessibilityShotGesture &&
+      Math.abs(primary.stickY) >= Math.abs(secondary.stickY),
     pass: primary.pass || secondary.pass,
     check: primary.check || secondary.check,
     turbo: primary.turbo || secondary.turbo,

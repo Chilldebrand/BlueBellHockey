@@ -1122,6 +1122,81 @@ describe("ArcadeRoom", () => {
     ).toBeTruthy();
   });
 
+  it("rejects team selection after the match has ended without changing the roster", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    const sender = vi
+      .spyOn(room, "send")
+      .mockImplementation(() => room as never);
+    const clientA = client("session-a");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(clientA as never, { playerName: "Ada" });
+    const chooseTeam = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.chooseTeam"
+    )?.[1];
+    const before = room.state.teams.home.slots[0]?.sessionId;
+
+    room["world"]!.phase = "ended";
+    chooseTeam?.(clientA as never, { teamId: "away" });
+
+    expect(room.state.teams.home.slots[0]?.sessionId).toBe(before);
+    expect(sender).toHaveBeenCalledWith(clientA, "server.error", {
+      message: "Can't switch teams mid-match."
+    });
+  });
+
+  it("rejects character selection during play without changing the roster", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    const sender = vi
+      .spyOn(room, "send")
+      .mockImplementation(() => room as never);
+    const clientA = client("session-a");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(clientA as never, { playerName: "Ada" });
+    const chooseCharacter = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.chooseCharacterFor"
+    )?.[1];
+    const before = room.state.teams.home.slots[0]?.characterId;
+
+    room["world"]!.phase = "playing";
+    chooseCharacter?.(clientA as never, {
+      slotId: "home-skater-1",
+      characterId: "milo-ghost"
+    });
+
+    expect(room.state.teams.home.slots[0]?.characterId).toBe(before);
+    expect(sender).toHaveBeenCalledWith(clientA, "server.error", {
+      message: "Can't change character mid-match."
+    });
+  });
+
+  it("rejects character selection after the match has ended without changing the roster", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    const sender = vi
+      .spyOn(room, "send")
+      .mockImplementation(() => room as never);
+    const clientA = client("session-a");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(clientA as never, { playerName: "Ada" });
+    const chooseCharacter = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.chooseCharacterFor"
+    )?.[1];
+    const before = room.state.teams.home.slots[0]?.characterId;
+
+    room["world"]!.phase = "ended";
+    chooseCharacter?.(clientA as never, {
+      slotId: "home-skater-1",
+      characterId: "milo-ghost"
+    });
+
+    expect(room.state.teams.home.slots[0]?.characterId).toBe(before);
+    expect(sender).toHaveBeenCalledWith(clientA, "server.error", {
+      message: "Can't change character mid-match."
+    });
+  });
+
   it("does not apply control switches outside of play", () => {
     const room = createTestRoom();
     room.onCreate({ quickMatch: true, mode: "arcade3v3" });

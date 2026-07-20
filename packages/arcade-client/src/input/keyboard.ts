@@ -52,6 +52,8 @@ export function createKeyboardInputTracker(
     read: () => {
       const base = keyboardStateFromPressedKeys(pressed);
       let stickY = base.stickY;
+      const isAccessibilityShotGesture =
+        pressed.has("Space") || flickFramesLeft > 0;
 
       if (pressed.has("Space") && shootHeldSinceMs !== null) {
         // Held past the tap window: wind up (pull the stick back).
@@ -63,7 +65,11 @@ export function createKeyboardInputTracker(
         stickY = 1;
       }
 
-      return { ...base, stickY };
+      return {
+        ...base,
+        stickY,
+        isAccessibilityShotGesture
+      };
     },
     clear: () => {
       pressed.clear();

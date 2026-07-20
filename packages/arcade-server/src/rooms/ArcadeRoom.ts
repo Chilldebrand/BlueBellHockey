@@ -421,19 +421,17 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
   }
 
   private handleChooseTeam(client: Client, message: unknown): void {
+    if (this.world?.phase !== "waiting") {
+      this.send(client, "server.error", {
+        message: "Can't switch teams mid-match."
+      });
+      return;
+    }
+
     const teamId = getRequestedTeamId(message);
 
     if (teamId !== "home" && teamId !== "away") {
       this.send(client, "server.error", { message: "Invalid team." });
-      return;
-    }
-
-    // Team choice is a lobby/postgame decision — switching sides mid-match
-    // would hand a hostile client control of an opposing skater.
-    if (this.world?.phase === "playing") {
-      this.send(client, "server.error", {
-        message: "Can't switch teams mid-match."
-      });
       return;
     }
 
@@ -448,6 +446,13 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
    * enforced in selectCharacterForSlot.
    */
   private handleChooseCharacterFor(client: Client, message: unknown): void {
+    if (this.world?.phase !== "waiting") {
+      this.send(client, "server.error", {
+        message: "Can't change character mid-match."
+      });
+      return;
+    }
+
     const characterId = getRequestedCharacterId(message);
     const slotId = getRequestedSlotId(message);
 

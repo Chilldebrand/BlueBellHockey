@@ -394,7 +394,8 @@ export function App({
           stickY: transformStickForTeam(
             input.stickY,
             localTeamId,
-            controlPreferences.alwaysUpStickControls
+            controlPreferences.alwaysUpStickControls,
+            input.isAccessibilityShotGesture === true
           )
         },
         playerId: playerSessionId,

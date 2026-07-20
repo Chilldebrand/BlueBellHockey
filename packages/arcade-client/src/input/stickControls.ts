@@ -3,7 +3,10 @@ import type { TeamId } from "@bbh/arcade-core";
 export function transformStickForTeam(
   stickY: number,
   teamId: TeamId,
-  alwaysUp: boolean
+  alwaysUp: boolean,
+  preserveAccessibilityShotGesture = false
 ): number {
-  return teamId === "away" && !alwaysUp ? -stickY : stickY;
+  return teamId === "away" && !alwaysUp && !preserveAccessibilityShotGesture
+    ? -stickY
+    : stickY;
 }
