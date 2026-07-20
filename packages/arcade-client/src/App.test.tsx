@@ -8,8 +8,24 @@ vi.stubGlobal("window", {
   setInterval: vi.fn(() => 1),
   clearInterval: vi.fn()
 });
+vi.stubGlobal("navigator", {
+  getGamepads: vi.fn(() => [])
+});
 
 const reconnectPreviousRoom = vi.fn();
+const predictedFrames: unknown[] = [];
+let currentInput = {
+  moveX: 0,
+  moveY: 0,
+  stickX: 0,
+  stickY: 0,
+  pass: false,
+  check: false,
+  turbo: false,
+  poke: false,
+  dive: false,
+  usePowerup: false
+};
 
 const baseState: ArcadeClientState = {
   connectionStatus: "idle",
@@ -59,7 +75,10 @@ vi.mock("react", async (importOriginal) => {
         return [currentAudioReady as T, () => undefined];
       }
 
-      return [initial, () => undefined];
+      return [
+        (typeof initial === "function" ? initial() : initial) as T,
+        () => undefined
+      ];
     },
     useRef: <T,>(initial: T) => {
       const hookIndex = refHookCall++;
@@ -117,9 +136,21 @@ vi.mock("./input/keyboard.js", () => ({
   createKeyboardInputTracker: () => ({
     dispose: vi.fn(),
     clear: vi.fn(),
-    read: vi.fn(() => new Map())
+    read: vi.fn(() => currentInput)
   })
 }));
+
+vi.mock("./game/prediction.js", async (importOriginal) => {
+  const prediction = await importOriginal<typeof import("./game/prediction.js")>();
+
+  return {
+    ...prediction,
+    pushInputFrame: vi.fn((buffer: unknown[], frame: unknown) => {
+      predictedFrames.push(frame);
+      buffer.push(frame);
+    })
+  };
+});
 
 import { App } from "./App.js";
 
@@ -200,5 +231,75 @@ describe("App", () => {
     await Promise.resolve();
 
     expect(reconnectPreviousRoom).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the same away-team transformed frame for local prediction and session input", () => {
+    const world = createWorld(13, "arcade3v3");
+    const sendInput = vi.fn();
+    const audio = {
+      start: vi.fn(),
+      dispose: vi.fn(),
+      getPreferences: vi.fn(() => ({ announcer: 1, gameplay: 1, music: 1 })),
+      consumeWorld: vi.fn(),
+      setPreferences: vi.fn(),
+      setMenuMusicAllowed: vi.fn(),
+      resetEventCursor: vi.fn()
+    };
+
+    currentInput = {
+      moveX: 0.25,
+      moveY: -0.5,
+      stickX: 0.5,
+      stickY: 0.75,
+      pass: true,
+      check: false,
+      turbo: false,
+      poke: false,
+      dive: false,
+      usePowerup: false
+    };
+    currentState = {
+      ...baseState,
+      connectionStatus: "connected",
+      playerSessionId: "away-session",
+      phase: "playing",
+      currentWorld: world,
+      roster: [
+        {
+          slotId: "away-skater-1",
+          teamId: "away",
+          index: 0,
+          kind: "human",
+          sessionId: "away-session",
+          playerName: "Away Player",
+          botId: null,
+          characterId: "dash-iron",
+          displayName: "Away Player",
+          isBot: false,
+          isCaptain: true,
+          ready: true,
+          teamJoinOrder: 1,
+          isOwnedByLocalPlayer: true,
+          controlledGoalieId: null
+        }
+      ]
+    };
+    currentScreen = "lobby";
+    currentAudioReady = false;
+    predictedFrames.length = 0;
+    resetHookState();
+    priorRefs[0] = { current: { session: { sendInput } } };
+
+    App({ audio });
+
+    expect(sendInput).toHaveBeenCalledTimes(1);
+    expect(predictedFrames).toEqual([sendInput.mock.calls[0][0]]);
+    expect(sendInput.mock.calls[0][0]).toMatchObject({
+      moveX: 0.5,
+      moveY: 0.25,
+      stickX: 0.5,
+      stickY: -0.75,
+      pass: true
+    });
   });
 });

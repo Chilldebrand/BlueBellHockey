@@ -59,6 +59,12 @@ import {
   loadAudioPreferences,
   type AudioPreferences
 } from "./audio/preferences.js";
+import {
+  loadControlPreferences,
+  saveControlPreferences,
+  type ControlPreferences
+} from "./input/controlPreferences.js";
+import { transformStickForTeam } from "./input/stickControls.js";
 import { HUD } from "./ui/HUD.js";
 import { BootSplash } from "./ui/BootSplash.js";
 import { ControllerPrompt } from "./ui/ControllerPrompt.js";
@@ -116,6 +122,8 @@ export function App({
   const [audioPreferences, setAudioPreferences] = useState<AudioPreferences>(() =>
     loadAudioPreferences()
   );
+  const [controlPreferences, setControlPreferences] =
+    useState<ControlPreferences>(() => loadControlPreferences());
   const audioRef = useRef(audio);
   const consumedWorldCursorRef = useRef<{
     readonly tick: number;
@@ -312,6 +320,14 @@ export function App({
     audioRef.current.setPreferences(next);
   }, []);
 
+  const handleControlPreferencesChange = useCallback(
+    (next: ControlPreferences) => {
+      setControlPreferences(next);
+      saveControlPreferences(next);
+    },
+    []
+  );
+
   const handleOpenSettings = useCallback(() => {
     setSettingsOpen(true);
   }, []);
@@ -322,6 +338,7 @@ export function App({
 
   const localSlot = state.roster.find((slot) => slot.isOwnedByLocalPlayer);
   const localSlotId = localSlot?.slotId ?? null;
+  const localTeamId = localSlot?.teamId ?? null;
   // Temporary goalie control: while the server grants us the covering goalie,
   // input, highlight, and camera target it; the skater slot stays ours.
   const localGoalieId = localSlot?.controlledGoalieId ?? null;
@@ -357,7 +374,7 @@ export function App({
   );
 
   useEffect(() => {
-    if (!localControlledEntityId || !state.playerSessionId) {
+    if (!localControlledEntityId || !localTeamId || !state.playerSessionId) {
       unackedFramesRef.current = [];
       return;
     }
@@ -372,7 +389,14 @@ export function App({
             gamepadStateFromGamepad(navigator.getGamepads?.()[0] ?? null)
           );
       const frame = createInputFrame({
-        input,
+        input: {
+          ...input,
+          stickY: transformStickForTeam(
+            input.stickY,
+            localTeamId,
+            controlPreferences.alwaysUpStickControls
+          )
+        },
         playerId: playerSessionId,
         slotId: localControlledEntityId,
         sequence: (inputSequenceRef.current += 1)
@@ -395,7 +419,14 @@ export function App({
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [localControlledEntityId, localSlotId, settingsOpen, state.playerSessionId]);
+  }, [
+    controlPreferences.alwaysUpStickControls,
+    localControlledEntityId,
+    localSlotId,
+    localTeamId,
+    settingsOpen,
+    state.playerSessionId
+  ]);
 
   // Madden-style control switching (and a goalie grant starting or ending)
   // reassigns which entity we drive mid-play. The buffered unacked frames are
@@ -472,7 +503,9 @@ export function App({
         <SettingsOverlay
           open={settingsOpen}
           preferences={audioPreferences}
+          controlPreferences={controlPreferences}
           onChange={handleAudioPreferencesChange}
+          onControlPreferencesChange={handleControlPreferencesChange}
           onClose={handleCloseSettings}
         />
       </>
@@ -526,7 +559,9 @@ export function App({
         <SettingsOverlay
           open={settingsOpen}
           preferences={audioPreferences}
+          controlPreferences={controlPreferences}
           onChange={handleAudioPreferencesChange}
+          onControlPreferencesChange={handleControlPreferencesChange}
           onClose={handleCloseSettings}
         />
       </>
@@ -567,7 +602,9 @@ export function App({
       <SettingsOverlay
         open={settingsOpen}
         preferences={audioPreferences}
+        controlPreferences={controlPreferences}
         onChange={handleAudioPreferencesChange}
+        onControlPreferencesChange={handleControlPreferencesChange}
         onClose={handleCloseSettings}
       />
     </>

@@ -1,5 +1,9 @@
 import { useEffect, useRef } from "react";
 import type { AudioPreferences } from "../audio/preferences.js";
+import {
+  DEFAULT_CONTROL_PREFERENCES,
+  type ControlPreferences
+} from "../input/controlPreferences.js";
 import { AudioSettings } from "./AudioSettings.js";
 
 const GAMEPLAY_KEYS = new Set([
@@ -40,14 +44,18 @@ function isRangeInputTarget(target: EventTarget | null): boolean {
 export interface SettingsOverlayProps {
   readonly open: boolean;
   readonly preferences: AudioPreferences;
+  readonly controlPreferences?: ControlPreferences;
   readonly onChange: (next: AudioPreferences) => void;
+  readonly onControlPreferencesChange?: (next: ControlPreferences) => void;
   readonly onClose: () => void;
 }
 
 export function SettingsOverlay({
   open,
   preferences,
+  controlPreferences = DEFAULT_CONTROL_PREFERENCES,
   onChange,
+  onControlPreferencesChange = () => undefined,
   onClose
 }: SettingsOverlayProps): JSX.Element | null {
   const openerRef = useRef<HTMLElement | null>(null);
@@ -114,6 +122,21 @@ export function SettingsOverlay({
           </button>
         </div>
         <AudioSettings value={preferences} onChange={onChange} />
+        <label className="audio-settings-row">
+          <span className="audio-settings-copy">
+            <span className="audio-settings-label">Always Up Stick Controls</span>
+          </span>
+          <input
+            aria-label="Always Up Stick Controls"
+            type="checkbox"
+            checked={controlPreferences.alwaysUpStickControls}
+            onChange={(event) =>
+              onControlPreferencesChange({
+                alwaysUpStickControls: event.currentTarget.checked
+              })
+            }
+          />
+        </label>
       </section>
     </section>
   );
