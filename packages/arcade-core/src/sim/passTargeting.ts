@@ -8,7 +8,7 @@ import {
 } from "./physics.js";
 import type { SkaterEntity, Vec2, WorldState } from "./types.js";
 
-export const PASS_AIM_ASSIST_COSINE = 0.65;
+export const PASS_AIM_ASSIST_COSINE = 0.42;
 export const PASS_LEAD_MAX_SECONDS = 0.3;
 export const PASS_LEAD_MAX_DISTANCE = 220;
 const PASS_TARGET_RINK_MARGIN = 60;

@@ -44,13 +44,19 @@ function playingWorld(): WorldState {
 }
 
 describe("powerup simulation", () => {
-  it("does not spawn before the first cadence boundary", () => {
+  it("spawns the first powerup on the 11250 ms cadence boundary", () => {
     const world = playingWorld();
-    world.time.nowMs = POWERUP_SPAWN_INTERVAL_MS - 1;
+    expect(POWERUP_SPAWN_INTERVAL_MS).toBe(11250);
+    world.time.nowMs = 11249;
     stepWorld(world, [], 1);
     expect(world.powerupPickups).toHaveLength(0);
     expect(world.bananaPeels).toHaveLength(0);
     expect(world.lastPowerupSpawnIndex).toBe(-1);
+
+    world.time.nowMs = 11250;
+    stepWorld(world, [], 1);
+    expect(world.powerupPickups.length + world.bananaPeels.length).toBe(1);
+    expect(world.lastPowerupSpawnIndex).toBe(0);
   });
 
   it("processes due spawn indices in order with unique scheduler event ids", () => {

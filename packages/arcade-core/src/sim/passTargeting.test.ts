@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createWorld } from "../index.js";
-import { passTargetWithAssist, predictPassTarget } from "./passTargeting.js";
+import {
+  findAimedPassRecipient,
+  passTargetWithAssist,
+  predictPassTarget
+} from "./passTargeting.js";
 
 function setupPassWorld() {
   const world = createWorld(1, "arcade3v3");
@@ -44,6 +48,22 @@ describe("predictive pass targeting", () => {
     const { world, passer } = setupPassWorld();
 
     expect(passTargetWithAssist(world, passer, { x: -1, y: 0 }, 1512)).toBeNull();
+  });
+
+  it("selects a same-team recipient 60 degrees off the aim direction", () => {
+    const { world, passer, receiver } = setupPassWorld();
+    receiver.position = {
+      x: passer.position.x + 200,
+      y: passer.position.y + 200 * Math.sqrt(3)
+    };
+    const otherTeammates = world.skaters.filter(
+      (skater) => skater.teamId === passer.teamId && skater.id !== passer.id && skater.id !== receiver.id
+    );
+    for (const teammate of otherTeammates) {
+      teammate.position = { x: passer.position.x - 300, y: passer.position.y };
+    }
+
+    expect(findAimedPassRecipient(world, passer, { x: 1, y: 0 })?.id).toBe(receiver.id);
   });
 
   it("caps the predicted target inside the rink instead of leading beyond the boards", () => {

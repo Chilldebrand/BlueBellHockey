@@ -17,7 +17,7 @@ export interface PowerupDefinition {
   readonly durationMs: number;
 }
 
-export const POWERUP_SPAWN_INTERVAL_MS = 9000;
+export const POWERUP_SPAWN_INTERVAL_MS = 11250;
 export const POWERUP_PICKUP_RADIUS = 80;
 
 // Labels are the announcer copy (banner + any HUD): arcade-caster style by

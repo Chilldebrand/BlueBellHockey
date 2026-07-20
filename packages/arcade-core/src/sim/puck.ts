@@ -77,7 +77,7 @@ export const PUCK_CONFIG: PuckConfig = {
   // Tuning 2026-07-07: stronger loose-puck magnetism — wider blade gather and
   // a tolerance above turbo speed (840) so skating over a resting puck at full
   // tilt no longer deflects it instead of picking it up.
-  pickupRadius: 60,
+  pickupRadius: 75,
   pickupMaxRelativeSpeed: 1000,
   frictionPerSecond: 0.55,
   airDragPerSecond: 0.12,
@@ -101,9 +101,9 @@ export const PUCK_CONFIG: PuckConfig = {
   // instead of sailing through the receiver. Interceptions keep the strict
   // gate. Tuning 2026-07-07: +20% pass pace and slap-shot pace; catch assist
   // raised to keep a full-charge pass (1512 + 638 = 2150) receivable.
-  passSpeed: 1512,
-  passCatchRadius: 72,
-  passCatchMaxRelativeSpeed: 2400,
+  passSpeed: 1815,
+  passCatchRadius: 90,
+  passCatchMaxRelativeSpeed: 2850,
   wristShotSpeed: 1040,
   maxChargedShotSpeed: 1980,
   oneTimerWindowMs: 550,
@@ -118,7 +118,7 @@ export const PUCK_CONFIG: PuckConfig = {
   shotPlacementMargin: 30,
   releasePickupCooldownMs: 220,
   passChargeMaxMs: 600,
-  passChargeSpeedBonus: 638
+  passChargeSpeedBonus: 766
 };
 
 /** Height of the goal frame — a puck at or above this hits the crossbar. */
