@@ -374,7 +374,7 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
   }
 
   private handleSetPlayerName(client: Client, message: unknown): void {
-    if (this.world?.phase === "playing") {
+    if (this.world?.phase !== "waiting") {
       this.send(client, "server.error", {
         message: "Can't change name mid-match."
       });
@@ -396,7 +396,7 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
   }
 
   private handleSetReady(client: Client, message: unknown): void {
-    if (this.world?.phase === "playing") {
+    if (this.world?.phase !== "waiting") {
       this.send(client, "server.error", {
         message: "Can't change readiness mid-match."
       });

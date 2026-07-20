@@ -569,6 +569,40 @@ describe("ArcadeRoom", () => {
     });
   });
 
+  it("rejects ended-phase name and ready messages without changing player state", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    const sender = vi
+      .spyOn(room, "send")
+      .mockImplementation(() => room as never);
+    const clientA = client("session-a");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(clientA as never, { playerName: "Ada" });
+    const setPlayerName = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setPlayerName"
+    )?.[1];
+    const setReady = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setReady"
+    )?.[1];
+
+    room["world"]!.phase = "ended";
+    const before = {
+      playerName: room.state.teams.home.slots[0]?.playerName,
+      ready: room.state.teams.home.slots[0]?.ready
+    };
+
+    setPlayerName?.(clientA as never, { playerName: "Changed" });
+    setReady?.(clientA as never, { ready: true });
+
+    expect(room.state.teams.home.slots[0]).toMatchObject(before);
+    expect(sender).toHaveBeenCalledWith(clientA, "server.error", {
+      message: "Can't change name mid-match."
+    });
+    expect(sender).toHaveBeenCalledWith(clientA, "server.error", {
+      message: "Can't change readiness mid-match."
+    });
+  });
+
   it("buffers client input by session and applies it to the assigned skater on tick", () => {
     const room = createTestRoom();
     const onMessage = vi.spyOn(room, "onMessage");

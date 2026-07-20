@@ -52,3 +52,17 @@ Reviewed the server-side authority boundaries, roster mutation invariants,
 creator transfer ordering, reconnect preservation, and schema synchronization.
 No unresolved implementation concerns remain. The only scope expansion is the
 necessary performance-test readiness setup described above.
+
+## P1 review fix: waiting-only name and readiness updates
+
+The review found that `client.setPlayerName` and `client.setReady` rejected only
+the `playing` phase, so an ended room still accepted and replicated both
+mutations. Both handlers now reject every phase other than `waiting`.
+
+Added an ended-phase regression that attempts to change the joined player's
+name and ready state, then verifies both remain unchanged and server errors are
+sent. The regression first failed as expected: the ended handlers changed
+`Ada` to `Changed` and `ready` from `false` to `true`.
+
+- Focused: `npm.cmd run test --workspace @bbh/arcade-server -- src/rooms/roster.test.ts src/rooms/ArcadeRoom.test.ts` - 77 passed, 0 failed.
+- Full: `npm.cmd run test --workspace @bbh/arcade-server` - 81 passed, 0 failed across 5 files.
