@@ -203,7 +203,7 @@ describe("goalie outlets", () => {
     stepGoalieOutlet(world, goalie, goalieInput(goalie, 2, { moveX: 1 }), 16);
 
     expect(world.puck.velocity.y).toBeGreaterThan(250);
-    expect(magnitude(world.puck.velocity)).toBeCloseTo(2150, 0);
+    expect(magnitude(world.puck.velocity)).toBeCloseTo(2581, 0);
   });
 
   it("releases from the goalie-safe hold point, clears possession, and locks out self pickup", () => {
