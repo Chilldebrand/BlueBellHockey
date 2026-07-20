@@ -29,6 +29,7 @@
 - Modify: `packages/arcade-core/src/sim/puck.test.ts`
 - Modify: `packages/arcade-core/src/config/powerups.ts`
 - Modify: `packages/arcade-core/src/sim/powerups.test.ts`
+- Modify when their expectations encode the changed pass values: `packages/arcade-core/src/sim/actions.test.ts`, `packages/arcade-core/src/sim/goalieOutlet.test.ts`
 
 **Produces:** Existing public APIs with the exact global-constraint tuning.
 
