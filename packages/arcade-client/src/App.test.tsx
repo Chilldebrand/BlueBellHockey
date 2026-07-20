@@ -15,6 +15,7 @@ const baseState: ArcadeClientState = {
   connectionStatus: "idle",
   roomCode: "",
   playerSessionId: null,
+  roomCreatorSessionId: null,
   roster: [],
   score: { home: 0, away: 0 },
   phase: "waiting",

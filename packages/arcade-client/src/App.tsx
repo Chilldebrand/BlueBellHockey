@@ -286,6 +286,14 @@ export function App({
     []
   );
 
+  const handleSetPlayerName = useCallback((playerName: string) => {
+    activeRoomRef.current?.session.setPlayerName(playerName);
+  }, []);
+
+  const handleSetReady = useCallback((ready: boolean) => {
+    activeRoomRef.current?.session.setReady(ready);
+  }, []);
+
   const handleRequestStart = useCallback(() => {
     activeRoomRef.current?.session.requestStart();
   }, []);
@@ -548,6 +556,8 @@ export function App({
             onJoinPrivateRoom={handleJoinPrivateRoom}
             onChooseTeam={handleChooseTeam}
             onChooseCharacterFor={handleChooseCharacterFor}
+            onSetPlayerName={handleSetPlayerName}
+            onSetReady={handleSetReady}
             onRequestStart={handleRequestStart}
             onOpenSettings={handleOpenSettings}
           />

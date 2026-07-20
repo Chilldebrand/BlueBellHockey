@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { createInitialArcadeClientState, reduceArcadeClientState } from "../store.js";
 import {
+  ARCADE_PLAYER_NAME_STORAGE_KEY,
   ARCADE_RECONNECT_STORAGE_KEY,
   ArcadeRoomConnection,
+  ArcadeRoomSession,
   hasReconnectTicket,
   connectQuickMatch,
   createPrivateRoom,
@@ -29,7 +31,9 @@ function serverState(): ArcadeRoomConnection["state"] {
             botId: null,
             characterId: "rook-rocket",
             isBot: false,
-            isCaptain: true
+            isCaptain: true,
+            ready: false,
+            teamJoinOrder: 1
           },
           {
             slotId: "home-skater-2",
@@ -41,7 +45,9 @@ function serverState(): ArcadeRoomConnection["state"] {
             botId: "bot-home-skater-2",
             characterId: "nova-screen",
             isBot: true,
-            isCaptain: false
+            isCaptain: false,
+            ready: false,
+            teamJoinOrder: null
           }
         ]
       },
@@ -57,7 +63,9 @@ function serverState(): ArcadeRoomConnection["state"] {
             botId: "bot-away-skater-1",
             characterId: "dash-iron",
             isBot: true,
-            isCaptain: false
+            isCaptain: false,
+            ready: false,
+            teamJoinOrder: null
           }
         ]
       }
@@ -149,7 +157,8 @@ describe("arcade room connection", () => {
     expect(matchmaker.joinOrCreate).toHaveBeenCalledWith("arcade", {
       mode: "arcade3v3",
       privateCode: "",
-      quickMatch: true
+      quickMatch: true,
+      playerName: ""
     });
   });
 
@@ -166,7 +175,8 @@ describe("arcade room connection", () => {
     expect(matchmaker.create).toHaveBeenCalledWith("arcade", {
       mode: "arcade3v3",
       privateCode: "PUCK42",
-      quickMatch: false
+      quickMatch: false,
+      playerName: ""
     });
   });
 
@@ -195,7 +205,8 @@ describe("arcade room connection", () => {
     expect(matchmaker.join).toHaveBeenCalledWith("arcade", {
       mode: "arcade3v3",
       privateCode: "PUCK42",
-      quickMatch: false
+      quickMatch: false,
+      playerName: ""
     });
     expect(room.send).toHaveBeenCalledWith("client.chooseTeam", {
       teamId: "away"
@@ -214,6 +225,53 @@ describe("arcade room connection", () => {
     });
   });
 
+  it("uses the persisted player name and safely defaults for malformed storage", async () => {
+    const room = fakeRoom();
+    const matchmaker = { joinOrCreate: vi.fn().mockResolvedValue(room) };
+    const storage = memoryStorage();
+    storage.setItem(ARCADE_PLAYER_NAME_STORAGE_KEY, "Ada");
+
+    await connectQuickMatch({ matchmaker, storage });
+
+    expect(matchmaker.joinOrCreate).toHaveBeenCalledWith("arcade", {
+      mode: "arcade3v3",
+      privateCode: "",
+      quickMatch: true,
+      playerName: "Ada"
+    });
+
+    const malformedStorage = {
+      getItem: vi.fn(() => 42),
+      setItem: vi.fn(),
+      removeItem: vi.fn()
+    } as unknown as Storage;
+    const fallbackMatchmaker = { joinOrCreate: vi.fn().mockResolvedValue(room) };
+
+    await connectQuickMatch({ matchmaker: fallbackMatchmaker, storage: malformedStorage });
+
+    expect(fallbackMatchmaker.joinOrCreate).toHaveBeenCalledWith("arcade", {
+      mode: "arcade3v3",
+      privateCode: "",
+      quickMatch: true,
+      playerName: ""
+    });
+  });
+
+  it("sends exact name and readiness messages while saving the name draft", () => {
+    const room = fakeRoom();
+    const storage = memoryStorage();
+    const session = new ArcadeRoomSession(room, storage);
+
+    session.setPlayerName("Ada");
+    session.setReady(true);
+
+    expect(storage.getItem(ARCADE_PLAYER_NAME_STORAGE_KEY)).toBe("Ada");
+    expect(room.send).toHaveBeenCalledWith("client.setPlayerName", {
+      playerName: "Ada"
+    });
+    expect(room.send).toHaveBeenCalledWith("client.setReady", { ready: true });
+  });
+
   it("saves and reuses a short-lived reconnect ticket", async () => {
     const storage = memoryStorage();
     const room = fakeRoom();
@@ -221,7 +279,8 @@ describe("arcade room connection", () => {
     const options = {
       mode: "arcade3v3" as const,
       privateCode: "PUCK42",
-      quickMatch: false
+      quickMatch: false,
+      playerName: ""
     };
 
     const ticket = saveReconnectTicket(room, options, storage, 1000);
@@ -249,7 +308,7 @@ describe("arcade room connection", () => {
 
     saveReconnectTicket(
       room,
-      { mode: "arcade3v3", privateCode: "", quickMatch: true },
+      { mode: "arcade3v3", privateCode: "", quickMatch: true, playerName: "" },
       storage,
       1000
     );

@@ -16,6 +16,8 @@ export interface LobbyProps {
     slotId: string,
     characterId: CharacterId
   ) => void;
+  readonly onSetPlayerName: (playerName: string) => void;
+  readonly onSetReady: (ready: boolean) => void;
   readonly onRequestStart: () => void;
   readonly onOpenSettings?: () => void;
 }
@@ -27,6 +29,8 @@ export function Lobby({
   onJoinPrivateRoom,
   onChooseTeam,
   onChooseCharacterFor,
+  onSetPlayerName,
+  onSetReady,
   onRequestStart,
   onOpenSettings
 }: LobbyProps): JSX.Element {
@@ -40,6 +44,17 @@ export function Lobby({
 
   const localSlot =
     state.roster.find((slot) => slot.isOwnedByLocalPlayer) ?? null;
+  const [playerName, setPlayerName] = useState(localSlot?.playerName ?? "");
+  const isCreator =
+    state.roomCreatorSessionId !== null &&
+    state.roomCreatorSessionId === state.playerSessionId;
+  const allHumansReady =
+    state.roster.some((slot) => slot.kind === "human") &&
+    state.roster
+      .filter((slot) => slot.kind === "human")
+      .every((slot) => slot.ready);
+  const canSetReady = Boolean(localSlot?.playerName?.trim());
+  const canStart = isConnected && state.isRosterValid && allHumansReady;
 
   // Default the picker to your own slot once connected, preserving the old
   // "pick your character immediately" flow.
@@ -50,6 +65,10 @@ export function Lobby({
       setEditingSlotId(null);
     }
   }, [localSlot?.slotId]);
+
+  useEffect(() => {
+    setPlayerName(localSlot?.playerName ?? "");
+  }, [localSlot?.playerName]);
 
   // Guard stale targets at RENDER time (lost captaincy, team switch, slot
   // became human): fall back to the local player's own slot, never a
@@ -104,6 +123,33 @@ export function Lobby({
         <header>
           <div>
             <p>Phase {state.phase}</p>
+            {localSlot ? (
+              <div className="lobby-player-controls">
+                <label>
+                  Your name
+                  <input
+                    name="player-name"
+                    value={playerName}
+                    onChange={(event) => {
+                      const nextPlayerName = event.currentTarget.value;
+                      setPlayerName(nextPlayerName);
+                      onSetPlayerName(nextPlayerName);
+                    }}
+                    disabled={!isConnected}
+                    maxLength={24}
+                  />
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={localSlot.ready}
+                    onChange={(event) => onSetReady(event.currentTarget.checked)}
+                    disabled={!isConnected || !canSetReady}
+                  />
+                  Ready
+                </label>
+              </div>
+            ) : null}
           </div>
           <div className="lobby-panel-actions">
             {onOpenSettings ? (
@@ -111,8 +157,12 @@ export function Lobby({
                 Settings
               </button>
             ) : null}
-            {state.isRosterValid ? (
-              <button type="button" onClick={onRequestStart}>
+            {isCreator ? (
+              <button
+                type="button"
+                onClick={onRequestStart}
+                disabled={!canStart}
+              >
                 Start Match
               </button>
             ) : null}

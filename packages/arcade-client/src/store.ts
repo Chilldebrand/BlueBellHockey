@@ -25,6 +25,8 @@ export interface ServerRosterSlot {
   readonly characterId: CharacterId;
   readonly isBot: boolean;
   readonly isCaptain: boolean;
+  readonly ready: boolean;
+  readonly teamJoinOrder: number | null;
   /**
    * Temporary goalie-control grant: while this human's team goalie covers the
    * puck, their input drives that goalie. Null for everyone else. The local
@@ -44,6 +46,7 @@ export interface ArcadeClientState {
   readonly connectionStatus: ConnectionStatus;
   readonly roomCode: string;
   readonly playerSessionId: string | null;
+  readonly roomCreatorSessionId: string | null;
   readonly roster: readonly ClientRosterSlot[];
   readonly score: ArcadeScore;
   readonly phase: WorldPhase;
@@ -60,6 +63,7 @@ export interface ServerRoomState {
   readonly privateCode?: string;
   readonly score?: Partial<ArcadeScore>;
   readonly isRosterValid?: boolean;
+  readonly roomCreatorSessionId?: string | null;
   readonly teams?: {
     readonly home?: { readonly slots?: Iterable<ServerRosterSlot> };
     readonly away?: { readonly slots?: Iterable<ServerRosterSlot> };
@@ -84,6 +88,7 @@ export function createInitialArcadeClientState(): ArcadeClientState {
     connectionStatus: "idle",
     roomCode: "",
     playerSessionId: null,
+    roomCreatorSessionId: null,
     roster: [],
     score: INITIAL_SCORE,
     phase: "waiting",
@@ -145,6 +150,7 @@ export function mapRoomState(room: ArcadeRoomConnection): ArcadeClientState {
     connectionStatus: "connected",
     roomCode: serverState.privateCode ?? "",
     playerSessionId: room.sessionId,
+    roomCreatorSessionId: serverState.roomCreatorSessionId ?? null,
     roster,
     score: {
       home: score.home ?? 0,
@@ -174,11 +180,10 @@ function mapRosterSlot(
 }
 
 /**
- * Identity colors for humans, assigned local-player-first: on your own screen
- * you are always blue, other humans take the next colors in stable order.
+ * Identity colors for humans, assigned by the server's shared join order.
  */
 export const PLAYER_HIGHLIGHT_COLORS = [
-  "#1f8fff", // blue — always the local player
+  "#1f8fff", // blue — first shared human roster position
   "#ff4f5e", // red
   "#3dfc9d", // green
   "#ffdf6e", // yellow
@@ -199,12 +204,12 @@ export function buildHighlightColorByEntityId(
   const humans = roster.filter(
     (slot) => slot.kind === "human" && slot.sessionId
   );
-  const ordered = [
-    ...humans.filter((slot) => slot.isOwnedByLocalPlayer),
-    ...humans
-      .filter((slot) => !slot.isOwnedByLocalPlayer)
-      .sort((a, b) => (a.sessionId ?? "").localeCompare(b.sessionId ?? ""))
-  ];
+  const ordered = [...humans].sort((a, b) => {
+    const byJoinOrder =
+      (a.teamJoinOrder ?? Number.POSITIVE_INFINITY) -
+      (b.teamJoinOrder ?? Number.POSITIVE_INFINITY);
+    return byJoinOrder || a.slotId.localeCompare(b.slotId);
+  });
   const map: Record<string, string> = {};
   ordered.forEach((slot, index) => {
     const color = PLAYER_HIGHLIGHT_COLORS[index % PLAYER_HIGHLIGHT_COLORS.length];

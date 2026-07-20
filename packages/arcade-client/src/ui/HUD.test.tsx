@@ -29,8 +29,10 @@ describe("HUD", () => {
           botId: null,
           characterId: "rook-rocket",
           displayName: "Ada",
-          isBot: false,
-          isCaptain: true,
+        isBot: false,
+        isCaptain: true,
+        ready: false,
+        teamJoinOrder: 1,
           isOwnedByLocalPlayer: true,
           controlledGoalieId: null
         }

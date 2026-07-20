@@ -44,6 +44,11 @@ export function SlotCard({
           <span className="you-badge">You</span>
         ) : null}
       </div>
+      {!slot.isBot ? (
+        <span className="slot-card-ready-status">
+          {slot.ready ? "Ready" : "Not ready"}
+        </span>
+      ) : null}
       <span className="slot-card-character">
         {character?.displayName ?? slot.characterId}
         {character ? <small> · {character.silhouette}</small> : null}

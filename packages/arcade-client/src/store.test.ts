@@ -51,6 +51,8 @@ function serverSlot(overrides: Partial<ServerRosterSlot>): ServerRosterSlot {
     characterId: "milo-ghost",
     isBot: false,
     isCaptain: true,
+    ready: false,
+    teamJoinOrder: 1,
     controlledGoalieId: null,
     ...overrides
   } as ServerRosterSlot;
@@ -115,18 +117,61 @@ describe("goalie-control presentation state", () => {
     expect(map["home-skater-3"]).toBeUndefined();
   });
 
-  it("always colors the local player first (blue on their own screen)", () => {
+  it("maps ready, join order, and room creator directly from the server", () => {
+    const room = {
+      sessionId: "session-a",
+      state: {
+        roomCreatorSessionId: "session-b",
+        teams: {
+          home: {
+            slots: [
+              serverSlot({ ready: true, teamJoinOrder: 4 }),
+              serverSlot({
+                slotId: "home-skater-2",
+                sessionId: "session-b",
+                ready: false,
+                teamJoinOrder: null
+              })
+            ]
+          },
+          away: { slots: [] }
+        }
+      }
+    } as unknown as ArcadeRoomConnection;
+
+    const state = mapRoomState(room);
+
+    expect(state.roomCreatorSessionId).toBe("session-b");
+    expect(state.roster).toMatchObject([
+      { slotId: "home-skater-1", ready: true, teamJoinOrder: 4 },
+      { slotId: "home-skater-2", ready: false, teamJoinOrder: null }
+    ]);
+  });
+
+  it("assigns identical rings across local sessions from shared join order", () => {
     const roster = [
       clientSlot({
         slotId: "home-skater-2",
         sessionId: "session-b",
+        teamJoinOrder: 2,
         isOwnedByLocalPlayer: false
       }),
-      clientSlot({ slotId: "home-skater-1", sessionId: "session-a" })
+      clientSlot({
+        slotId: "home-skater-1",
+        sessionId: "session-a",
+        teamJoinOrder: 1,
+        isOwnedByLocalPlayer: true
+      })
     ];
+
+    const otherLocalSession = roster.map((slot) => ({
+      ...slot,
+      isOwnedByLocalPlayer: slot.sessionId === "session-b"
+    }));
 
     const map = buildHighlightColorByEntityId(roster);
 
+    expect(buildHighlightColorByEntityId(otherLocalSession)).toEqual(map);
     expect(map["home-skater-1"]).toBe(PLAYER_HIGHLIGHT_COLORS[0]);
     expect(map["home-skater-2"]).toBe(PLAYER_HIGHLIGHT_COLORS[1]);
   });

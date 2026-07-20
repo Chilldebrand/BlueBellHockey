@@ -18,11 +18,13 @@ function lobbyState(overrides: Partial<ArcadeClientState> = {}): ArcadeClientSta
         kind: "human",
         sessionId: "session-a",
         playerName: "Ada",
+        ready: false,
         botId: null,
         characterId: "rook-rocket",
         displayName: "Ada",
         isBot: false,
         isCaptain: true,
+        teamJoinOrder: 1,
         isOwnedByLocalPlayer: true,
         controlledGoalieId: null
       },
@@ -33,11 +35,13 @@ function lobbyState(overrides: Partial<ArcadeClientState> = {}): ArcadeClientSta
         kind: "bot",
         sessionId: null,
         playerName: null,
+        ready: false,
         botId: "bot-home-skater-2",
         characterId: "nova-screen",
         displayName: "Bot",
         isBot: true,
         isCaptain: false,
+        teamJoinOrder: null,
         isOwnedByLocalPlayer: false,
         controlledGoalieId: null
       },
@@ -48,11 +52,13 @@ function lobbyState(overrides: Partial<ArcadeClientState> = {}): ArcadeClientSta
         kind: "bot",
         sessionId: null,
         playerName: null,
+        ready: false,
         botId: "bot-away-skater-1",
         characterId: "dash-iron",
         displayName: "Bot",
         isBot: true,
         isCaptain: false,
+        teamJoinOrder: null,
         isOwnedByLocalPlayer: false,
         controlledGoalieId: null
       }
@@ -71,6 +77,8 @@ function renderLobby(state: ArcadeClientState): string {
       onChooseCharacterFor={vi.fn()}
       onQuickMatch={vi.fn()}
       onRequestStart={vi.fn()}
+      onSetPlayerName={vi.fn()}
+      onSetReady={vi.fn()}
     />
   );
 }
@@ -118,11 +126,49 @@ describe("Lobby", () => {
     expect(html).toContain("disabled=\"\"");
   });
 
-  it("renders the start button only when the authoritative roster is valid", () => {
-    const invalidHtml = renderLobby(lobbyState({ isRosterValid: false }));
-    const validHtml = renderLobby(lobbyState({ isRosterValid: true }));
+  it("renders the local name and readiness while limiting start to a ready creator", () => {
+    const local = lobbyState().roster[0];
+    const teammate = {
+      ...local,
+      slotId: "home-skater-2",
+      index: 1,
+      sessionId: "session-b",
+      playerName: "Bo",
+      displayName: "Bo",
+      isCaptain: false,
+      isOwnedByLocalPlayer: false,
+      ready: false,
+      teamJoinOrder: 2
+    };
+    const waitingHtml = renderLobby(
+      lobbyState({
+        isRosterValid: true,
+        roomCreatorSessionId: "session-a",
+        roster: [{ ...local, ready: true }, teammate]
+      })
+    );
+    const readyHtml = renderLobby(
+      lobbyState({
+        isRosterValid: true,
+        roomCreatorSessionId: "session-a",
+        roster: [{ ...local, ready: true }, { ...teammate, ready: true }]
+      })
+    );
+    const nonCreatorHtml = renderLobby(
+      lobbyState({
+        isRosterValid: true,
+        roomCreatorSessionId: "session-b",
+        roster: [{ ...local, ready: true }, { ...teammate, ready: true }]
+      })
+    );
 
-    expect(invalidHtml).not.toContain("Start Match");
-    expect(validHtml).toContain("Start Match");
+    expect(waitingHtml).toContain('name="player-name"');
+    expect(waitingHtml).toContain('value="Ada"');
+    expect(waitingHtml).toContain("Ready");
+    expect(waitingHtml).toContain("Not ready");
+    expect(waitingHtml).toMatch(/<button[^>]*disabled=""[^>]*>Start Match<\/button>/);
+    expect(readyHtml).toContain(">Start Match</button>");
+    expect(readyHtml).not.toMatch(/<button[^>]*disabled=""[^>]*>Start Match<\/button>/);
+    expect(nonCreatorHtml).not.toContain("Start Match");
   });
 });

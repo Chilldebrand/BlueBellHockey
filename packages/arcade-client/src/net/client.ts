@@ -38,11 +38,13 @@ export interface ArcadeRoomOptions {
   readonly mode: "arcade3v3";
   readonly privateCode: string;
   readonly quickMatch: boolean;
+  readonly playerName: string;
 }
 
 export interface ArcadeConnectionDependencies {
   readonly matchmaker?: ArcadeMatchmaker;
   readonly codeGenerator?: () => string;
+  readonly storage?: ArcadeStorage | null;
 }
 
 export interface ArcadeConnectionResult {
@@ -60,6 +62,7 @@ const ROOM_NAME = "arcade";
 const MODE = "arcade3v3";
 const DEFAULT_WS_URL = "ws://localhost:2567";
 export const ARCADE_RECONNECT_STORAGE_KEY = "bbh.arcade.reconnect.v1";
+export const ARCADE_PLAYER_NAME_STORAGE_KEY = "bbh.arcade.player-name.v1";
 const RECONNECT_WINDOW_MS = 30_000;
 
 export interface ArcadeReconnectTicket {
@@ -76,7 +79,19 @@ export interface ArcadeStorage {
 }
 
 export class ArcadeRoomSession {
-  constructor(readonly room: ArcadeRoomConnection) {}
+  constructor(
+    readonly room: ArcadeRoomConnection,
+    private readonly storage: ArcadeStorage | null = getBrowserStorage()
+  ) {}
+
+  setPlayerName(playerName: string): void {
+    savePlayerName(playerName, this.storage);
+    this.room.send("client.setPlayerName", { playerName });
+  }
+
+  setReady(ready: boolean): void {
+    this.room.send("client.setReady", { ready });
+  }
 
   chooseTeam(teamId: TeamId): void {
     this.room.send("client.chooseTeam", { teamId });
@@ -117,37 +132,44 @@ export class ArcadeRoomSession {
 export async function connectQuickMatch(
   dependencies: ArcadeConnectionDependencies = {}
 ): Promise<ArcadeConnectionResult> {
+  const storage = connectionStorage(dependencies);
   const options = {
     mode: MODE,
     privateCode: "",
-    quickMatch: true
+    quickMatch: true,
+    playerName: readPlayerName(storage)
   } satisfies ArcadeRoomOptions;
   const room = await joinOrCreateRoom(getMatchmaker(dependencies), options);
 
-  return connectResult(room, options);
+  return connectResult(room, options, storage);
 }
 
 export async function createPrivateRoom(
   dependencies: ArcadeConnectionDependencies = {}
 ): Promise<ArcadePrivateRoomResult> {
   const code = createPrivateRoomCode(dependencies.codeGenerator);
-  const options = privateRoomOptions(code);
+  const storage = connectionStorage(dependencies);
+  const options = privateRoomOptions(code, readPlayerName(storage));
   const matchmaker = getMatchmaker(dependencies);
   const room = matchmaker.create
     ? await matchmaker.create(ROOM_NAME, options)
     : await joinOrCreateRoom(matchmaker, options);
 
-  return { ...connectResult(room, options), code };
+  return { ...connectResult(room, options, storage), code };
 }
 
 export async function joinPrivateRoom(
   code: string,
   dependencies: ArcadeConnectionDependencies = {}
 ): Promise<ArcadeConnectionResult> {
-  const options = privateRoomOptions(normalizePrivateRoomCode(code));
+  const storage = connectionStorage(dependencies);
+  const options = privateRoomOptions(
+    normalizePrivateRoomCode(code),
+    readPlayerName(storage)
+  );
   const room = await joinRoom(getMatchmaker(dependencies), options);
 
-  return connectResult(room, options);
+  return connectResult(room, options, storage);
 }
 
 export async function reconnectPreviousRoom(
@@ -169,7 +191,7 @@ export async function reconnectPreviousRoom(
   try {
     const room = await matchmaker.reconnect(ticket.reconnectionToken);
     return {
-      ...connectResult(room, ticket.options),
+      ...connectResult(room, ticket.options, storage),
       isReconnect: true
     };
   } catch (error) {
@@ -228,20 +250,25 @@ export function normalizePrivateRoomCode(code: string): string {
 
 function connectResult(
   room: ArcadeRoomConnection,
-  options?: ArcadeRoomOptions
+  options?: ArcadeRoomOptions,
+  storage: ArcadeStorage | null = getBrowserStorage()
 ): ArcadeConnectionResult {
   return {
-    connection: new ArcadeRoomSession(room),
+    connection: new ArcadeRoomSession(room, storage),
     room,
     options
   };
 }
 
-function privateRoomOptions(privateCode: string): ArcadeRoomOptions {
+function privateRoomOptions(
+  privateCode: string,
+  playerName: string
+): ArcadeRoomOptions {
   return {
     mode: MODE,
     privateCode,
-    quickMatch: false
+    quickMatch: false,
+    playerName
   };
 }
 
@@ -340,6 +367,41 @@ function readReconnectTicket(
   }
 }
 
+export function readPlayerName(
+  storage: ArcadeStorage | null = getBrowserStorage()
+): string {
+  try {
+    const playerName = storage?.getItem(ARCADE_PLAYER_NAME_STORAGE_KEY);
+    return typeof playerName === "string" ? playerName.trim() : "";
+  } catch {
+    return "";
+  }
+}
+
+export function savePlayerName(
+  playerName: string,
+  storage: ArcadeStorage | null = getBrowserStorage()
+): void {
+  try {
+    storage?.setItem(ARCADE_PLAYER_NAME_STORAGE_KEY, playerName);
+  } catch {
+    // Browser privacy settings can make local storage unavailable. The room
+    // message remains authoritative even when the local draft cannot persist.
+  }
+}
+
+function connectionStorage(
+  dependencies: ArcadeConnectionDependencies
+): ArcadeStorage | null {
+  return dependencies.storage === undefined
+    ? getBrowserStorage()
+    : dependencies.storage;
+}
+
 function getBrowserStorage(): ArcadeStorage | null {
-  return typeof window === "undefined" ? null : window.localStorage;
+  try {
+    return typeof window === "undefined" ? null : window.localStorage;
+  } catch {
+    return null;
+  }
 }
