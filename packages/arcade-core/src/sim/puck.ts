@@ -100,7 +100,7 @@ export const PUCK_CONFIG: PuckConfig = {
   // catchable well above the loose-puck deflection gate, so passes stick
   // instead of sailing through the receiver. Interceptions keep the strict
   // gate. Tuning 2026-07-07: +20% pass pace and slap-shot pace; catch assist
-  // raised to keep a full-charge pass (1512 + 638 = 2150) receivable.
+  // raised to keep a full-charge pass (1815 + 766 = 2581) receivable.
   passSpeed: 1815,
   passCatchRadius: 90,
   passCatchMaxRelativeSpeed: 2850,
