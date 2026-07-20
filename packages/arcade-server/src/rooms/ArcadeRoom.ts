@@ -20,15 +20,19 @@ import {
   type ArcadeRoomState
 } from "./schema.js";
 import {
+  allHumansReady,
   applyRosterCharactersToWorld,
   assignHumanToOpenSlot,
   createRoster,
+  earliestHumanSessionId,
   fillRosterWithBots,
-  moveHumanToTeam,
   InvalidCharacterSelectionError,
+  moveHumanToTeam,
   releaseHuman,
   selectCharacterForSlot,
   selectGoalieController,
+  setHumanPlayerName,
+  setHumanReady,
   switchHumanControl,
   type RoomRosterSlot
 } from "./roster.js";
@@ -56,6 +60,14 @@ interface ChooseTeamMessage {
 
 interface ChooseCharacterMessage {
   readonly characterId?: string;
+}
+
+interface SetPlayerNameMessage {
+  readonly playerName?: string;
+}
+
+interface SetReadyMessage {
+  readonly ready?: boolean;
 }
 
 type StoredArcadeRoomOptions = {
@@ -130,6 +142,7 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
   private accumulatedTickMs = 0;
   private botInputSequence = 0;
   private idleTickCounter = 0;
+  private roomCreatorSessionId: string | null = null;
   private world: WorldState | null = null;
 
   constructor(dependencies: ArcadeRoomDependencies = {}) {
@@ -170,6 +183,12 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     this.syncRoomMetadata();
     this.syncStateFromWorld();
     this.syncRosterState();
+    this.onMessage("client.setPlayerName", (client, message: unknown) => {
+      this.handleSetPlayerName(client, message);
+    });
+    this.onMessage("client.setReady", (client, message: unknown) => {
+      this.handleSetReady(client, message);
+    });
     this.onMessage("client.chooseTeam", (client, message: unknown) => {
       this.handleChooseTeam(client, message);
     });
@@ -202,6 +221,9 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
       sessionId: client.sessionId,
       playerName: sanitizePlayerName(options?.playerName)
     });
+    if (this.roomCreatorSessionId === null) {
+      this.roomCreatorSessionId = client.sessionId;
+    }
     fillRosterWithBots(this.roster);
     this.syncRosterState();
   }
@@ -212,7 +234,9 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
         candidate.kind === "human" && candidate.sessionId === client.sessionId
     );
     const playerName = slot?.playerName ?? undefined;
+    const ready = slot?.ready ?? false;
     const previousSlotId = slot?.slotId;
+    const isCreator = this.roomCreatorSessionId === client.sessionId;
 
     // Release immediately either way: a bot takes the body over so the match
     // never carries an input-starved statue while we wait out the grace.
@@ -225,6 +249,9 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     this.syncRosterState();
 
     if (consented || !previousSlotId) {
+      if (isCreator) {
+        this.transferRoomCreator();
+      }
       return;
     }
 
@@ -234,6 +261,9 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     try {
       await this.allowReconnection(client, RECONNECT_GRACE_SECONDS);
     } catch {
+      if (isCreator) {
+        this.transferRoomCreator();
+      }
       return;
     }
 
@@ -243,10 +273,14 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
         playerName,
         preferredSlotId: previousSlotId
       });
+      setHumanReady(this.roster, client.sessionId, ready);
       fillRosterWithBots(this.roster);
       this.syncRosterState();
     } catch {
       // Roster filled up during the grace window — nothing to re-seat.
+      if (isCreator) {
+        this.transferRoomCreator();
+      }
     }
   }
 
@@ -330,8 +364,60 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
       return;
     }
 
-    applyRosterToState(this.state, this.roster);
+    applyRosterToState(this.state, this.roster, this.roomCreatorSessionId);
     this.state.isRosterValid = this.roster.every((slot) => slot.kind !== "open");
+  }
+
+  private transferRoomCreator(): void {
+    this.roomCreatorSessionId = earliestHumanSessionId(this.roster);
+    this.syncRosterState();
+  }
+
+  private handleSetPlayerName(client: Client, message: unknown): void {
+    if (this.world?.phase === "playing") {
+      this.send(client, "server.error", {
+        message: "Can't change name mid-match."
+      });
+      return;
+    }
+
+    const slot = setHumanPlayerName(
+      this.roster,
+      client.sessionId,
+      sanitizePlayerName(getRequestedPlayerName(message)) ?? "Player"
+    );
+
+    if (!slot) {
+      this.send(client, "server.error", { message: "Join a slot first." });
+      return;
+    }
+
+    this.syncRosterState();
+  }
+
+  private handleSetReady(client: Client, message: unknown): void {
+    if (this.world?.phase === "playing") {
+      this.send(client, "server.error", {
+        message: "Can't change readiness mid-match."
+      });
+      return;
+    }
+
+    const ready = getRequestedReady(message);
+
+    if (ready === undefined) {
+      this.send(client, "server.error", { message: "Invalid readiness." });
+      return;
+    }
+
+    const slot = setHumanReady(this.roster, client.sessionId, ready);
+
+    if (!slot) {
+      this.send(client, "server.error", { message: "Join a slot first." });
+      return;
+    }
+
+    this.syncRosterState();
   }
 
   private handleChooseTeam(client: Client, message: unknown): void {
@@ -408,6 +494,20 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     }
 
     if (this.world.phase !== "waiting") {
+      return;
+    }
+
+    if (this.roomCreatorSessionId !== client.sessionId) {
+      this.send(client, "server.error", {
+        message: "Only the room creator can start."
+      });
+      return;
+    }
+
+    if (!allHumansReady(this.roster)) {
+      this.send(client, "server.error", {
+        message: "All human players must be ready."
+      });
       return;
     }
 
@@ -776,6 +876,25 @@ function getRequestedSlotId(message: unknown): string | undefined {
 
   const slotId = (message as { slotId?: unknown }).slotId;
   return typeof slotId === "string" && slotId ? slotId : undefined;
+}
+
+function getRequestedPlayerName(
+  message: unknown
+): SetPlayerNameMessage["playerName"] {
+  if (!message || typeof message !== "object" || !("playerName" in message)) {
+    return undefined;
+  }
+
+  return (message as SetPlayerNameMessage).playerName;
+}
+
+function getRequestedReady(message: unknown): SetReadyMessage["ready"] {
+  if (!message || typeof message !== "object" || !("ready" in message)) {
+    return undefined;
+  }
+
+  const ready = (message as SetReadyMessage).ready;
+  return typeof ready === "boolean" ? ready : undefined;
 }
 
 function getClientInputFrame(message: unknown): InputFrame | null {

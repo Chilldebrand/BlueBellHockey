@@ -16,7 +16,11 @@ describe("arcade room tick budget smoke", () => {
     const startHandler = onMessage.mock.calls.find(
       ([messageType]) => messageType === "client.requestStart"
     )?.[1];
+    const setReady = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setReady"
+    )?.[1];
 
+    setReady?.(client("session-a") as never, { ready: true });
     startHandler?.(client("session-a") as never, undefined);
     for (let i = 0; i < 600; i += 1) {
       room.tick(MATCH_CONFIG.fixedTickMs);

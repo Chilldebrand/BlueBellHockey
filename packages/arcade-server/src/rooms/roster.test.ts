@@ -1,9 +1,11 @@
 import { createWorld, SKATER_SLOTS } from "@bbh/arcade-core";
 import { describe, expect, it } from "vitest";
 import {
+  allHumansReady,
   assignHumanToOpenSlot,
   captainSessionId,
   createRoster,
+  earliestHumanSessionId,
   fillRosterWithBots,
   InvalidCharacterSelectionError,
   moveHumanToTeam,
@@ -11,6 +13,8 @@ import {
   RosterFullError,
   selectCharacterForSlot,
   selectGoalieController,
+  setHumanPlayerName,
+  setHumanReady,
   switchHumanControl
 } from "./roster.js";
 
@@ -44,7 +48,8 @@ describe("room roster lifecycle", () => {
       kind: "human",
       sessionId: "session-a",
       playerName: "Ada",
-      botId: null
+      botId: null,
+      ready: false
     });
   });
 
@@ -135,6 +140,55 @@ describe("room roster lifecycle", () => {
     });
   });
 
+  it("starts new humans unready, ignores bots in ready checks, and clears ready on name, team, and own-slot character changes", () => {
+    const roster = createRoster();
+    const first = assignHumanToOpenSlot(roster, {
+      sessionId: "session-a",
+      playerName: "Ada"
+    });
+    assignHumanToOpenSlot(roster, {
+      sessionId: "session-b",
+      playerName: "Bo"
+    });
+    fillRosterWithBots(roster);
+
+    expect(first.ready).toBe(false);
+    expect(roster.filter((slot) => slot.kind === "bot").every((slot) => slot.ready === false)).toBe(
+      true
+    );
+    expect(allHumansReady(roster)).toBe(false);
+
+    setHumanReady(roster, "session-a", true);
+    expect(allHumansReady(roster)).toBe(false);
+
+    setHumanReady(roster, "session-b", true);
+    expect(allHumansReady(roster)).toBe(true);
+
+    setHumanPlayerName(roster, "session-a", "Ada Prime");
+    expect(first.playerName).toBe("Ada Prime");
+    expect(first.ready).toBe(false);
+
+    setHumanReady(roster, "session-a", true);
+    const moved = moveHumanToTeam(roster, "session-a", "away");
+    expect(moved).toMatchObject({
+      sessionId: "session-a",
+      ready: false
+    });
+
+    setHumanReady(roster, "session-a", true);
+    const changed = selectCharacterForSlot(
+      roster,
+      "session-a",
+      moved!.slotId,
+      "milo-ghost"
+    );
+    expect(changed).toMatchObject({
+      slotId: moved!.slotId,
+      ready: false,
+      characterId: "milo-ghost"
+    });
+  });
+
   it("switches a human's control to a same-team bot slot, keeping each skin", () => {
     const roster = createRoster();
     assignHumanToOpenSlot(roster, { sessionId: "session-a", playerName: "Ada" });
@@ -213,6 +267,25 @@ describe("room roster lifecycle", () => {
     expect(() =>
       selectCharacterForSlot(roster, "session-a", slot.slotId, "real-player-name")
     ).toThrow(InvalidCharacterSelectionError);
+  });
+
+  it("finds the earliest remaining human by join order and slot id", () => {
+    const roster = createRoster();
+    assignHumanToOpenSlot(roster, { sessionId: "session-a", playerName: "Ada" });
+    assignHumanToOpenSlot(roster, { sessionId: "session-b", playerName: "Bo" });
+    assignHumanToOpenSlot(roster, { sessionId: "session-c", playerName: "Cy" });
+
+    expect(earliestHumanSessionId(roster)).toBe("session-a");
+
+    releaseHuman(roster, "session-a");
+    expect(earliestHumanSessionId(roster)).toBe("session-b");
+
+    const second = roster.find((slot) => slot.sessionId === "session-b")!;
+    const third = roster.find((slot) => slot.sessionId === "session-c")!;
+    second.teamJoinOrder = 9;
+    third.teamJoinOrder = 9;
+
+    expect(earliestHumanSessionId(roster)).toBe("session-b");
   });
 });
 

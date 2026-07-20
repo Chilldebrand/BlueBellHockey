@@ -21,10 +21,12 @@ export class ArcadeRoomSlotState extends Schema {
   @type("string") kind: RosterSlotKind = "open";
   @type("string") sessionId: string | null = null;
   @type("string") playerName: string | null = null;
+  @type("boolean") ready = false;
   @type("string") botId: string | null = null;
   @type("string") characterId = "";
   @type("boolean") isBot = false;
   @type("boolean") isCaptain = false;
+  @type("number") teamJoinOrder: number | null = null;
   @type("string") controlledGoalieId: string | null = null;
 }
 
@@ -45,6 +47,7 @@ export class ArcadeRoomState extends Schema {
   @type("string") privateCode = "";
   @type("string") mode: MatchMode = "arcade3v3";
   @type("boolean") isRosterValid = false;
+  @type("string") roomCreatorSessionId: string | null = null;
   @type(ArcadeTeamsState) teams = new ArcadeTeamsState();
 }
 
@@ -65,6 +68,7 @@ function createSlotState(
   state.kind = slot.kind;
   state.sessionId = slot.sessionId;
   state.playerName = slot.playerName;
+  state.ready = slot.ready;
   state.botId = slot.botId;
   state.characterId = slot.characterId;
   state.isBot = slot.kind === "bot";
@@ -72,6 +76,7 @@ function createSlotState(
     slot.kind === "human" &&
     slot.sessionId !== null &&
     slot.sessionId === teamCaptainSessionId;
+  state.teamJoinOrder = slot.teamJoinOrder;
   state.controlledGoalieId = slot.controlledGoalieId;
   return state;
 }
@@ -88,10 +93,12 @@ export function createInitialRoomState(options: {
 
 export function applyRosterToState(
   state: ArcadeRoomState,
-  roster: readonly RoomRosterSlot[]
+  roster: readonly RoomRosterSlot[],
+  roomCreatorSessionId: string | null
 ): void {
   const homeCaptain = captainSessionId(roster, "home");
   const awayCaptain = captainSessionId(roster, "away");
+  state.roomCreatorSessionId = roomCreatorSessionId;
   state.teams.home.slots = new ArraySchema(
     ...roster
       .filter((slot) => slot.teamId === "home")

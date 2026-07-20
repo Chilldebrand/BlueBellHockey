@@ -17,6 +17,7 @@ export interface RoomRosterSlot {
   kind: RosterSlotKind;
   sessionId: string | null;
   playerName: string | null;
+  ready: boolean;
   botId: string | null;
   characterId: CharacterId;
   /**
@@ -69,6 +70,7 @@ function createSlot(slot: SkaterSlot): RoomRosterSlot {
     kind: "open",
     sessionId: null,
     playerName: null,
+    ready: false,
     botId: null,
     characterId: characterIdForSlot(slot),
     teamJoinOrder: null,
@@ -110,6 +112,30 @@ export function captainSessionId(
   }
 
   return captain?.sessionId ?? null;
+}
+
+export function earliestHumanSessionId(
+  roster: readonly RoomRosterSlot[]
+): string | null {
+  let earliest: RoomRosterSlot | null = null;
+
+  for (const slot of roster) {
+    if (slot.kind !== "human" || !slot.sessionId) {
+      continue;
+    }
+
+    if (
+      !earliest ||
+      (slot.teamJoinOrder ?? Number.POSITIVE_INFINITY) <
+        (earliest.teamJoinOrder ?? Number.POSITIVE_INFINITY) ||
+      (slot.teamJoinOrder === earliest.teamJoinOrder &&
+        slot.slotId < earliest.slotId)
+    ) {
+      earliest = slot;
+    }
+  }
+
+  return earliest?.sessionId ?? null;
 }
 
 function botIdForSlot(slotId: string): string {
@@ -156,6 +182,7 @@ export function assignHumanToOpenSlot(
   slot.kind = "human";
   slot.sessionId = assignment.sessionId;
   slot.playerName = playerName;
+  slot.ready = false;
   slot.botId = null;
   slot.teamJoinOrder = teamJoinOrder;
 
@@ -168,6 +195,7 @@ export function fillRosterWithBots(roster: RoomRosterSlot[]): RoomRosterSlot[] {
       slot.kind = "bot";
       slot.sessionId = null;
       slot.playerName = null;
+      slot.ready = false;
       slot.botId = botIdForSlot(slot.slotId);
     }
   }
@@ -191,6 +219,7 @@ export function releaseHuman(
   slot.kind = "open";
   slot.sessionId = null;
   slot.playerName = null;
+  slot.ready = false;
   slot.botId = null;
   slot.teamJoinOrder = null;
   slot.controlledGoalieId = null;
@@ -225,6 +254,7 @@ export function moveHumanToTeam(
   current.kind = "bot";
   current.sessionId = null;
   current.playerName = null;
+  current.ready = false;
   current.botId = botIdForSlot(current.slotId);
   current.characterId = characterIdForSlot(current);
   current.teamJoinOrder = null;
@@ -233,6 +263,7 @@ export function moveHumanToTeam(
   target.kind = "human";
   target.sessionId = sessionId;
   target.playerName = playerName;
+  target.ready = false;
   target.botId = null;
   target.characterId = characterId;
   // Fresh order on the NEW team: a switching captain relinquishes the old
@@ -273,9 +304,11 @@ export function switchHumanControl(
 
   const playerName = current.playerName;
   const teamJoinOrder = current.teamJoinOrder;
+  const ready = current.ready;
   current.kind = "bot";
   current.sessionId = null;
   current.playerName = null;
+  current.ready = false;
   current.botId = botIdForSlot(current.slotId);
   current.teamJoinOrder = null;
   current.controlledGoalieId = null;
@@ -283,6 +316,7 @@ export function switchHumanControl(
   target.kind = "human";
   target.sessionId = sessionId;
   target.playerName = playerName;
+  target.ready = ready;
   target.botId = null;
   // Captaincy rides with the session through mid-match control switches.
   target.teamJoinOrder = teamJoinOrder;
@@ -333,8 +367,56 @@ export function selectCharacterForSlot(
     return null;
   }
 
+  const changed = target.characterId !== characterId;
   target.characterId = characterId;
+  if (target === sender && changed) {
+    target.ready = false;
+  }
   return target;
+}
+
+export function setHumanPlayerName(
+  roster: RoomRosterSlot[],
+  sessionId: string,
+  playerName: string
+): RoomRosterSlot | null {
+  const slot = roster.find(
+    (candidate) =>
+      candidate.kind === "human" && candidate.sessionId === sessionId
+  );
+
+  if (!slot) {
+    return null;
+  }
+
+  if (slot.playerName !== playerName) {
+    slot.playerName = playerName;
+    slot.ready = false;
+  }
+
+  return slot;
+}
+
+export function setHumanReady(
+  roster: RoomRosterSlot[],
+  sessionId: string,
+  ready: boolean
+): RoomRosterSlot | null {
+  const slot = roster.find(
+    (candidate) =>
+      candidate.kind === "human" && candidate.sessionId === sessionId
+  );
+
+  if (!slot) {
+    return null;
+  }
+
+  slot.ready = ready;
+  return slot;
+}
+
+export function allHumansReady(roster: readonly RoomRosterSlot[]): boolean {
+  return roster.every((slot) => slot.kind !== "human" || slot.ready);
 }
 
 /**

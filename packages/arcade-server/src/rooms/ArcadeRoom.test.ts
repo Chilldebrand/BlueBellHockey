@@ -191,13 +191,18 @@ describe("ArcadeRoom", () => {
       slotId: "home-skater-1",
       sessionId: "session-a",
       playerName: "Ada",
-      isBot: false
+      isBot: false,
+      ready: false,
+      teamJoinOrder: 1
     });
     expect(slots[2]).toMatchObject({
       kind: "bot",
       isBot: true,
-      botId: "bot-home-skater-3"
+      botId: "bot-home-skater-3",
+      ready: false,
+      teamJoinOrder: null
     });
+    expect(room.state.roomCreatorSessionId).toBe("session-a");
     expect(room.state.isRosterValid).toBe(true);
   });
 
@@ -336,6 +341,34 @@ describe("ArcadeRoom", () => {
     ).toBe("tess-flash");
   });
 
+  it("sanitizes lobby name updates and clears ready", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    const sender = vi
+      .spyOn(room, "send")
+      .mockImplementation(() => room as never);
+    const clientA = client("session-a");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(clientA as never, { playerName: "Ada" });
+    const setPlayerName = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setPlayerName"
+    )?.[1];
+    const setReady = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setReady"
+    )?.[1];
+
+    setReady?.(clientA as never, { ready: true });
+    setPlayerName?.(clientA as never, {
+      playerName: `  Ada${String.fromCharCode(0)}${String.fromCharCode(27)} Lovelace ${"x".repeat(100)}`
+    });
+
+    const slot = room.state.teams.home.slots[0];
+    expect(slot.playerName?.startsWith("Ada Lovelace")).toBe(true);
+    expect(slot.playerName?.length).toBeLessThanOrEqual(24);
+    expect(slot.ready).toBe(false);
+    expect(sender).not.toHaveBeenCalled();
+  });
+
   it("syncs isCaptain through joins, leaves, and team switches", () => {
     const room = createTestRoom();
     const onMessage = vi.spyOn(room, "onMessage");
@@ -369,6 +402,23 @@ describe("ArcadeRoom", () => {
     expect(captainFlags()).toEqual(["session-b"]);
   });
 
+  it("transfers creator authority on a deliberate leave using join order then slot id", async () => {
+    const room = createTestRoom();
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(client("session-a") as never, { playerName: "Ada" });
+    room.onJoin(client("session-b") as never, { playerName: "Bo" });
+    room.onJoin(client("session-c") as never, { playerName: "Cy" });
+
+    const second = room["roster"].find((slot) => slot.sessionId === "session-b")!;
+    const third = room["roster"].find((slot) => slot.sessionId === "session-c")!;
+    second.teamJoinOrder = 9;
+    third.teamJoinOrder = 9;
+
+    await room.onLeave(client("session-a") as never, true);
+
+    expect(room.state.roomCreatorSessionId).toBe("session-b");
+  });
+
   it("stamps lobby character picks into the world at match start", () => {
     const room = createTestRoom();
     const onMessage = vi.spyOn(room, "onMessage");
@@ -380,6 +430,9 @@ describe("ArcadeRoom", () => {
     const chooseCharacter = onMessage.mock.calls.find(
       ([messageType]) => messageType === "client.chooseCharacterFor"
     )?.[1];
+    const setReady = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setReady"
+    )?.[1];
     const requestStart = onMessage.mock.calls.find(
       ([messageType]) => messageType === "client.requestStart"
     )?.[1];
@@ -390,6 +443,7 @@ describe("ArcadeRoom", () => {
       slotId: "home-skater-1",
       characterId: "zara-crush"
     });
+    setReady?.(clientA as never, { ready: true });
     requestStart?.(clientA as never, undefined);
 
     const world = (room as unknown as { world: { skaters: { id: string; characterId: string }[] } }).world;
@@ -398,7 +452,86 @@ describe("ArcadeRoom", () => {
     ).toBe("zara-crush");
   });
 
-  it("starts the authoritative room phase from a client start request", () => {
+  it("rejects non-creators and creators with unready humans from starting", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    const sender = vi
+      .spyOn(room, "send")
+      .mockImplementation(() => room as never);
+    const clientA = client("session-a");
+    const clientB = client("session-b");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(clientA as never, { playerName: "Ada" });
+    room.onJoin(clientB as never, { playerName: "Bo" });
+    const setReady = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setReady"
+    )?.[1];
+    const handler = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.requestStart"
+    )?.[1];
+
+    expect(handler).toBeTypeOf("function");
+    expect(room.state.phase).toBe("waiting");
+    handler?.(clientB as never, undefined);
+    setReady?.(clientA as never, { ready: true });
+    handler?.(clientA as never, undefined);
+
+    expect(room.state.phase).toBe("waiting");
+    expect(sender).toHaveBeenCalledWith(clientB, "server.error", {
+      message: "Only the room creator can start."
+    });
+    expect(sender).toHaveBeenCalledWith(clientA, "server.error", {
+      message: "All human players must be ready."
+    });
+  });
+
+  it("lets the creator start once every human is ready and exposes creator and ready fields in schema", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    const sender = vi
+      .spyOn(room, "send")
+      .mockImplementation(() => room as never);
+    const clientA = client("session-a");
+    const clientB = client("session-b");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(clientA as never, { playerName: "Ada" });
+    room.onJoin(clientB as never, { playerName: "Bo" });
+    const setReady = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setReady"
+    )?.[1];
+    const handler = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.requestStart"
+    )?.[1];
+    const slots = [...room.state.teams.home.slots, ...room.state.teams.away.slots];
+
+    expect(room.state.roomCreatorSessionId).toBe("session-a");
+    expect(slots.find((slot) => slot.sessionId === "session-a")).toMatchObject({
+      ready: false,
+      teamJoinOrder: 1
+    });
+    expect(slots.find((slot) => slot.sessionId === "session-b")).toMatchObject({
+      ready: false,
+      teamJoinOrder: 2
+    });
+
+    setReady?.(clientA as never, { ready: true });
+    setReady?.(clientB as never, { ready: true });
+    handler?.(clientA as never, undefined);
+
+    expect(room.state.phase).toBe("playing");
+    expect(room.state.roomCreatorSessionId).toBe("session-a");
+    expect(
+      [...room.state.teams.home.slots, ...room.state.teams.away.slots].find(
+        (slot) => slot.sessionId === "session-a"
+      )
+    ).toMatchObject({
+      ready: true,
+      teamJoinOrder: 1
+    });
+    expect(sender).not.toHaveBeenCalled();
+  });
+
+  it("rejects live-match name and ready messages without changing player state", () => {
     const room = createTestRoom();
     const onMessage = vi.spyOn(room, "onMessage");
     const sender = vi
@@ -407,16 +540,33 @@ describe("ArcadeRoom", () => {
     const clientA = client("session-a");
     room.onCreate({ quickMatch: true, mode: "arcade3v3" });
     room.onJoin(clientA as never, { playerName: "Ada" });
-    const handler = onMessage.mock.calls.find(
+    const setPlayerName = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setPlayerName"
+    )?.[1];
+    const setReady = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setReady"
+    )?.[1];
+    const requestStart = onMessage.mock.calls.find(
       ([messageType]) => messageType === "client.requestStart"
     )?.[1];
 
-    expect(handler).toBeTypeOf("function");
-    expect(room.state.phase).toBe("waiting");
-    handler?.(clientA as never, undefined);
+    setReady?.(clientA as never, { ready: true });
+    requestStart?.(clientA as never, undefined);
+    const before = {
+      playerName: room.state.teams.home.slots[0]?.playerName,
+      ready: room.state.teams.home.slots[0]?.ready
+    };
 
-    expect(room.state.phase).toBe("playing");
-    expect(sender).not.toHaveBeenCalled();
+    setPlayerName?.(clientA as never, { playerName: "Changed" });
+    setReady?.(clientA as never, { ready: false });
+
+    expect(room.state.teams.home.slots[0]).toMatchObject(before);
+    expect(sender).toHaveBeenCalledWith(clientA, "server.error", {
+      message: "Can't change name mid-match."
+    });
+    expect(sender).toHaveBeenCalledWith(clientA, "server.error", {
+      message: "Can't change readiness mid-match."
+    });
   });
 
   it("buffers client input by session and applies it to the assigned skater on tick", () => {
@@ -428,6 +578,9 @@ describe("ArcadeRoom", () => {
     const clientA = client("session-a");
     room.onCreate({ quickMatch: true, mode: "arcade3v3" });
     room.onJoin(clientA as never, { playerName: "Ada" });
+    const setReady = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setReady"
+    )?.[1];
     const startHandler = onMessage.mock.calls.find(
       ([messageType]) => messageType === "client.requestStart"
     )?.[1];
@@ -435,6 +588,7 @@ describe("ArcadeRoom", () => {
       ([messageType]) => messageType === "client.input"
     )?.[1];
 
+    setReady?.(clientA as never, { ready: true });
     startHandler?.(clientA as never, undefined);
     inputHandler?.(clientA as never, {
       type: "client.input",
@@ -479,10 +633,14 @@ describe("ArcadeRoom", () => {
     const clientA = client("session-a");
     room.onCreate({ quickMatch: true, mode: "arcade3v3" });
     room.onJoin(clientA as never, { playerName: "Ada" });
+    const setReady = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setReady"
+    )?.[1];
     const startHandler = onMessage.mock.calls.find(
       ([messageType]) => messageType === "client.requestStart"
     )?.[1];
 
+    setReady?.(clientA as never, { ready: true });
     startHandler?.(clientA as never, undefined);
     room.tick(MATCH_CONFIG.fixedTickMs * 3);
 
@@ -512,6 +670,9 @@ describe("ArcadeRoom", () => {
     const clientA = client("session-a");
     room.onCreate({ quickMatch: true, mode: "arcade3v3" });
     room.onJoin(clientA as never, { playerName: "Ada" });
+    const setReady = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setReady"
+    )?.[1];
     const startHandler = onMessage.mock.calls.find(
       ([messageType]) => messageType === "client.requestStart"
     )?.[1];
@@ -519,6 +680,7 @@ describe("ArcadeRoom", () => {
       ([messageType]) => messageType === "client.input"
     )?.[1];
 
+    setReady?.(clientA as never, { ready: true });
     startHandler?.(clientA as never, undefined);
     inputHandler?.(clientA as never, inputMessage(1, { moveX: 1 }));
     room.tick(MATCH_CONFIG.fixedTickMs);
@@ -569,6 +731,9 @@ describe("ArcadeRoom", () => {
     const clientA = client("session-a");
     room.onCreate({ quickMatch: true, mode: "arcade3v3" });
     room.onJoin(clientA as never, { playerName: "Ada" });
+    const setReady = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setReady"
+    )?.[1];
     const startHandler = onMessage.mock.calls.find(
       ([messageType]) => messageType === "client.requestStart"
     )?.[1];
@@ -576,6 +741,7 @@ describe("ArcadeRoom", () => {
       ([messageType]) => messageType === "client.input"
     )?.[1];
 
+    setReady?.(clientA as never, { ready: true });
     startHandler?.(clientA as never, undefined);
     inputHandler?.(clientA as never, inputMessage(1, { moveX: 1 }));
     room.tick(MATCH_CONFIG.fixedTickMs * 2 + 1);
@@ -659,6 +825,10 @@ describe("ArcadeRoom", () => {
     const startHandler = onMessage.mock.calls.find(
       ([messageType]) => messageType === "client.requestStart"
     )?.[1];
+    const setReady = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setReady"
+    )?.[1];
+    setReady?.(clientA as never, { ready: true });
     startHandler?.(clientA as never, undefined);
     const beforePlaying = snapshotCount();
     for (let i = 0; i < 10; i += 1) {
@@ -953,6 +1123,7 @@ describe("ArcadeRoom", () => {
       slotId: "home-skater-1",
       kind: "bot"
     });
+    expect(room.state.roomCreatorSessionId).toBe("session-a");
 
     grantReconnect(client("session-a"));
     await leavePromise;
@@ -963,6 +1134,7 @@ describe("ArcadeRoom", () => {
       sessionId: "session-a",
       playerName: "Ada"
     });
+    expect(room.state.roomCreatorSessionId).toBe("session-a");
   });
 
   it("keeps the slot released when the reconnect grace expires", async () => {
