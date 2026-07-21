@@ -76,8 +76,17 @@ export interface TuningPanelProps {
  * Dragging a slider mutates TUNING in place, and the running local sim reads
  * it on the next tick — tune while you skate. "Copy JSON" exports the current
  * values for pasting into DEFAULT_TUNING when a feel is locked in.
+ * Dev builds only — production Free Skate must not expose live tuning.
  */
-export function TuningPanel({ readOnly = false }: TuningPanelProps): JSX.Element {
+export function TuningPanel(props: TuningPanelProps = {}): JSX.Element | null {
+  if (!import.meta.env.DEV) {
+    return null;
+  }
+
+  return <TuningPanelImpl {...props} />;
+}
+
+function TuningPanelImpl({ readOnly = false }: TuningPanelProps): JSX.Element {
   const [, bump] = useReducer((n: number) => n + 1, 0);
   const [openGroup, setOpenGroup] = useState<TuningGroup | null>("skater");
   const [presetName, setPresetName] = useState("");

@@ -32,9 +32,18 @@ const EMPTY_SAMPLE: PerfSample = {
  * Diagnostic overlay (dev tool, like the Feel Lab): frame rate, main-thread
  * long-task saturation, network dispatch rates, and JS heap, sampled over
  * 1s windows. Mounted in both Free Skate and online play so the two can be
- * compared with the same instrument.
+ * compared with the same instrument. Dev builds only — production players
+ * must never see it.
  */
-export function PerfHud(): JSX.Element {
+export function PerfHud(): JSX.Element | null {
+  if (!import.meta.env.DEV) {
+    return null;
+  }
+
+  return <PerfHudImpl />;
+}
+
+function PerfHudImpl(): JSX.Element {
   const [sample, setSample] = useState<PerfSample>(EMPTY_SAMPLE);
 
   useEffect(() => {
