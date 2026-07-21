@@ -1,7 +1,7 @@
 # 3v3 Arcade Hockey — Session Handoff
 
 Paste the **Paste Into Next Chat** section into a new chat to continue. This top section is
-authoritative as of 2026-07-20; historical notes below may describe older checkpoints.
+authoritative as of 2026-07-21; historical notes below may describe older checkpoints.
 
 ## Paste Into Next Chat
 
@@ -9,6 +9,48 @@ Continue work in `C:\Users\hilde\OneDrive\Desktop\3V3 Hockey Files\BBellHockey` 
 Read `HANDOFF.md` first. Work only in `packages/arcade-core`, `packages/arcade-server`, and
 `packages/arcade-client`; `packages/shared`, `packages/server`, and `packages/client` are legacy
 reference code and must not be modified. Use `npm.cmd` in PowerShell.
+
+**NEXT TASK — IMPLEMENT MUSIC (user-approved 2026-07-21).** Do not research the lineup again;
+the user has approved these 15 Pixabay tracks. Download the official MP3s, retain each Pixabay
+license/download record in the repository, and wire them into the existing client music system
+without replacing the shipped announcer voice. Use a non-repeating shuffle that never immediately
+repeats a track. Keep audio preferences/sliders working.
+
+- **Regular match rotation:** Steel Grit (Sports Rock Background), 342 Maxed Out (The Action
+  Rock), Full Blast (Energetic Sport Rock), Motivation Sport Rock Trailer, Action Rock, On My
+  Way (Cool Rock Background), Shout It (Sports Rock), Motivation Epic Rock.
+- **High-intensity rotation:** Power Drive Extreme Sports, Bringing Thunder (The Cool Rock
+  Background), Sports Energetic Metalcore. Use these for overtime, power plays, and late close
+  games; Power Drive is specifically user-approved for high-intensity moments.
+- **Menu/lobby/intermission/postgame rotation:** Cool Old School – Classic Boom Bap Hip-Hop,
+  Delinquente Hip Hop Old School Instrumental, Positive Hip Hop, Hip Hop Old School.
+
+Source links (download only from official Pixabay):
+`https://pixabay.com/music/rock-steel-grit-sports-rock-background-457395/`,
+`https://pixabay.com/music/rock-342-maxed-out-the-action-rock-442304/`,
+`https://pixabay.com/music/rock-full-blast-energetic-sport-rock-457401/`,
+`https://pixabay.com/music/rock-motivation-sport-rock-trailer-478796/`,
+`https://pixabay.com/music/rock-action-rock-15038/`,
+`https://pixabay.com/music/rock-on-my-way-cool-rock-background-457389/`,
+`https://pixabay.com/music/rock-shout-it-sports-rock-454151/`,
+`https://pixabay.com/music/rock-motivation-epic-rock-111444/`,
+`https://pixabay.com/music/rock-power-drive-extreme-sports-123406/`,
+`https://pixabay.com/music/rock-bringing-thunder-the-cool-rock-background-449653/`,
+`https://pixabay.com/music/metal-sports-sports-energetic-metalcore-521530/`,
+`https://pixabay.com/music/beats-cool-old-school-classic-boom-bap-hip-hop-483600/`,
+`https://pixabay.com/music/beats-delinquente-hip-hop-old-school-instrumental-tristu-13589/`,
+`https://pixabay.com/music/beats-positive-hip-hop-184768/`, and
+`https://pixabay.com/music/beats-hip-hop-old-school-208627/`.
+
+**LATEST SHIPPED FEATURE — host rules + unlimited overtime (2026-07-21, pushed `9330ffa`).**
+Hosts can open a pre-game **Rules** panel; everyone sees it, but only the creator may choose 3/5/7/10
+minutes and no-limit/3/5/7/10-goal caps. Ready states never change when rules change. Tied clocks
+now enter unlimited next-goal-wins overtime, with the HUD showing `OT` / `NEXT GOAL`; rules persist
+through rematch. The implementation includes server authority validation, deterministic core rules,
+and client race/lifecycle handling for rapid selections and room changes. Final verification passed:
+227 core, 95 server, 197 client tests. Specs/plan:
+`docs/superpowers/specs/2026-07-21-host-rules-sudden-death-design.md` and
+`docs/superpowers/plans/2026-07-21-host-rules-sudden-death.md`.
 
 **AUDIO + ANNOUNCER SHIPPED (2026-07-17).** The full approved design is implemented and live:
 Web Audio runtime with three localStorage-persisted sliders (Announcer/Gameplay/Music in
