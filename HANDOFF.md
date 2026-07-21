@@ -1,7 +1,7 @@
 # 3v3 Arcade Hockey — Session Handoff
 
 Paste the **Paste Into Next Chat** section into a new chat to continue. This top section is
-authoritative as of 2026-07-17; historical notes below may describe older checkpoints.
+authoritative as of 2026-07-20; historical notes below may describe older checkpoints.
 
 ## Paste Into Next Chat
 
@@ -10,46 +10,85 @@ Read `HANDOFF.md` first. Work only in `packages/arcade-core`, `packages/arcade-s
 `packages/arcade-client`; `packages/shared`, `packages/server`, and `packages/client` are legacy
 reference code and must not be modified. Use `npm.cmd` in PowerShell.
 
-**CURRENT FEATURE TRACK (2026-07-17): AUDIO + ANNOUNCER.** The user approved a polished recorded/
-generated arcade announcer using fixed character names (not arbitrary player display names), menu-only
-music, gameplay sounds, and three independent local sliders. The approved design is committed in
-`docs/superpowers/specs/2026-07-17-arcade-audio-announcer-design.md` (`bca03de`). The implementation
-plan is saved in `docs/superpowers/plans/2026-07-17-arcade-audio-announcer.md` and is currently
-uncommitted. No audio implementation code has been written yet.
+**AUDIO + ANNOUNCER SHIPPED (2026-07-17).** The full approved design is implemented and live:
+Web Audio runtime with three localStorage-persisted sliders (Announcer/Gameplay/Music in
+`SettingsOverlay`, available on every screen without pausing online play), procedural menu music
+(main menu / lobby / postgame only, silent in matches and Free Skate), generated announcer voice
+clips (character name + quip for goals, character + label for powerups; ogg+mp3 under
+`packages/arcade-client/public/audio/`, manifest-driven, TTS fallback), and gameplay effects
+(hits, saves, shots, posts, pokes, plus a speed-tracked skating scrape loop). Key files:
+`src/audio/AudioManager.ts`, `announcer.ts`, `gameplay.ts`, `music.ts`, `synth.ts`,
+`preferences.ts`; manual end-to-end checker `scripts/verify-arcade-audio.cjs`
+(`npm run verify:arcade-audio`, needs a live dev server + Chrome).
 
-**NEXT CHAT STARTING POINT:** Read the audio design spec and implementation plan first. The plan is
-organized into TDD tasks: persisted preferences/sliders; Web Audio runtime + menu music; announcer
-resolution/queue + asset manifest; gameplay effects + skating loop; App/settings integration; browser
-smoke verification. Before coding, choose either subagent-driven or inline plan execution as described
-at the end of the plan. Use the active `@bbh/arcade-client` only; the legacy `packages/client/src/audio`
-files are reference material that may be adapted, not the integration target.
+**RAILWAY DEPLOY + SINGLE-ORIGIN HOSTING (2026-07-17, `11d3cc8` + `2478e24`):** the arcade
+server now serves the built client (express.static + SPA fallback), the client self-derives
+`wss://<host>` from `window.location` outside localhost, `railway.json` builds core→server→client
+and honors `$PORT`, `/health` is the healthcheck. Local dev is unchanged.
 
-**AUDIO REQUIREMENTS ALREADY DECIDED:** Music plays only after Press Start and only on main menu,
-lobby, and postgame screens; it fades out for matches and Free Skate. Settings is a local overlay
-available from main menu, lobby, postgame, match gameplay, and Free Skate; it never pauses the online
-match. Sliders are Announcer, Gameplay, and Music, persisted in localStorage. Goals announce the
-scorer's character name plus a funny quip. Powerups announce the character and configured powerup
-label. Gameplay audio covers hits, skating, saves, shots, posts, blocks, pokes, and other puck contact.
-Repeated snapshots must not replay an event; goals outrank powerups.
+**2026-07-19 BATCH:** predictive passing (`sim/passTargeting.ts` — passes lead the receiver),
+tightened pass/pickup tuning, lobby readiness gating (`client.setReady`, start requires all humans
+ready), lobby player names, team-aware stick controls (away-team stick flip preference,
+`input/stickControls.ts` + `controlPreferences.ts`), and full team-color uniforms/headgear
+(blockout + parked GLB path via `render/gltf/uniformMaterials.ts`).
 
-**THE FULL GAME AUDIT WAS COMPLETED 2026-07-13** — all six priorities executed, fixes landed in
-five pushed commits (`d752749..7154dc9`). Read "Audit results" below before anything else.
+**SECOND FULL AUDIT COMPLETED 2026-07-20 (this session)** over everything since `bca03de`
+(~9.6k lines: audio, deploy, readiness, predictive passing, uniforms). Method: four parallel
+subsystem audits (server hostile-client, sim determinism, audio lifecycle, deploy/controls/
+uniforms) + baseline runs. Verified clean: new server messages are phase-gated and
+permission-checked; no sim non-determinism (no Math.random/Date.now anywhere in arcade-core);
+no server/localSim drift (predictive passing is shared-core; the away stick flip is applied
+before both prediction and send); static serving is traversal-safe; Railway build order/port
+binding correct; audio prefs corruption-safe; music screen rules match spec. All findings that
+mattered were FIXED the same day in four pushed commits:
 
-**THE AUDIT'S ONE FEATURE GAP IS NOW CLOSED (2026-07-13, same day, later session):**
-WO-GOALIE-01 + WO-GOALIE-02 are implemented in `982f5ed` (server grants), `d27367a` (Free Skate
-parity), `bbd89e0` (client presentation). After a covered save the nearest defending human now
-actually drives the goalie: aim with the left stick, hold/release pass for the outlet, control
-returns to their skater on release; unauthorized clients can't reach the goalie; the 2.5s
-deterministic fallback still backstops no-input cases. See "Goalie outlet control" below.
-**The user still owes an in-browser eyeball** (covered save → blue disc on goalie → aimed outlet
-→ control returns), solo and ideally two-client.
+- `3713865` — the two-client smoke was silently RED since readiness gating landed (it never sent
+  `client.setReady`). Smoke clients now ready up. **Lesson: no CI exists; the smoke only runs
+  when someone runs it.**
+- `ceff1b3` — audio lifecycle: reconnect no longer replays the ~5s retained event queue as one
+  sound burst (`resetEventCursor` swallows the first snapshot's backlog); the skating loop is
+  silenced on screen changes (it used to keep scraping on the main menu after exiting Free Skate
+  at speed); goals now INTERRUPT an active powerup announcement (the priority queue's
+  `interruptWith` was never wired in) and the announcer drain timer tracks real clip length so
+  clips can't overlap. Dangling `music.menu.0` manifest entry removed (menu music is procedural;
+  it 404'd every session).
+- `118ff83` — readiness lifecycle: `backToLobby` clears all ready flags (stale flags let the
+  creator relaunch instantly); an unready player can no longer deadlock a lobby forever — after a
+  20s grace from the creator's first blocked start, the creator's retry force-starts
+  (`FORCE_START_GRACE_MS`, newcomer join resets the window); the four lobby mutation messages
+  share a per-session token bucket (burst 10, refill 250ms, silent drop) so one client can't
+  amplify roster-rebuild broadcasts room-wide. Wall clock injectable via
+  `ArcadeRoomDependencies.now` for tests.
+- `6243ee7` — PerfHud and the Feel Lab TuningPanel render null outside `import.meta.env.DEV`;
+  production players no longer see dev overlays (local `npm run dev` unchanged).
 
-### Current repository and runtime state (2026-07-17, post-feel-batch)
+**KNOWN REMAINING FINDINGS (deliberately not fixed yet, low priority):**
+- Predictive passing will lead a pass to a knocked-down/frozen teammate (no `contactState` filter
+  in `passTargeting.ts` recipient selection) — likely turnover; add a filter if it annoys.
+- Goalie-outlet 2.5s fallback re-runs the wide aim-assist cone and can bypass its lane-block
+  vetting when two teammates are colinear; also skater pass hardcodes assistCosine 0.65 while
+  `PASS_AIM_ASSIST_COSINE` is 0.42 (maintenance foot-gun).
+- Name sanitization strips only ASCII control chars; Unicode bidi/zero-width survive (display
+  spoofing only, 24-char capped).
+- Reconnect restores name+ready but NOT characterId if the old slot was taken (cosmetic).
+- Reconnect waits for the audio-init click; a slow player can miss the 30s ticket window —
+  consider connecting in parallel with audio init.
+- GLB cloned materials are never disposed (latent leak; GLB bodies still OFF via
+  `GLTF_SKATER_BODIES_ENABLED = false`).
+- Keyboard+gamepad merge can drop `isAccessibilityShotGesture` when the gamepad stick dominates
+  (one-frame away-team shot inversion, rare).
+- Away-team analog players physically flick opposite windup/release directions from home (design
+  consequence of the team-aware flip — decide deliberately).
+- ogg loader requires `content-type: audio/*`; `application/ogg` servers fall back to mp3.
+- npm audit: 19 vulns (1 critical, 1 high) — all in the deferred vitest 4 / vite 8 /
+  colyseus 0.17 major bumps. Colyseus matters more now that a public deploy exists.
 
-- Verify with `git status --short --branch` (push after every accepted change).
-- This audio handoff session changed documentation only; no runtime tests were rerun here. Run the
-  relevant checks before claiming new implementation work is green. The last certified runtime
-  baseline is recorded in the historical notes below.
+### Current repository and runtime state (2026-07-20, post-audit-fixes)
+
+- `main` in sync with `origin/main` (`6243ee7`). Verify with `git status --short --branch`
+  (push after every accepted change).
+- Certified this session: `npm run typecheck` clean, `npm test` 183 arcade-client + 88
+  arcade-server + core suites all green, two-client smoke OK, production client build OK.
 
 ### Online perf fix (2026-07-13, `14fa2d9`) — quick play was melting CPUs
 
@@ -166,20 +205,24 @@ All three layers are live (the audit had found only WO-GOALIE-00 existed):
 
 ### Recommended next steps (in rough order)
 
-1. **Start the approved audio/announcer implementation track** from
-   `docs/superpowers/plans/2026-07-17-arcade-audio-announcer.md`. Preserve the fixed character-name
-   announcer decision and menu-only music constraint. The plan's initial voice asset IDs and copy
-   slots are in Task 3; generated/recorded `.ogg`/`.mp3` files should follow that manifest.
+1. **Add CI** (GitHub Action: `typecheck` + `npm test` + the two-client smoke). The smoke was
+   silently red for a day because nothing runs it automatically — that's how the 2026-07-20 audit
+   found it.
+2. **User eyeballs owed:** the audio system end-to-end (music screens, announcer over a real
+   goal, sliders, skating loop cutoff when exiting Free Skate), the 07-19 uniforms/predictive
+   passing feel, the readiness/force-start lobby flow with two browsers, and the older goalie
+   outlet + 2026-07-09 feel batch items below.
+3. **Snapshot bandwidth before real strangers play** the Railway deploy: full-world snapshots are
+   ~8-11 KiB at 62.5/s per client; broadcast every 2nd-3rd tick (client interpolates) or move to
+   deltas.
+4. Colyseus 0.17 bump (public deploy makes the nanoid advisory more relevant), then vitest 4 /
+   vite 8 in the same dedicated upgrade session.
+5. Pick off the "known remaining findings" list above as taste dictates (contactState filter for
+   predictive passes and the reconnect/audio-init ordering are the most player-visible).
+6. Optional `/code-review ultra` (user-triggered, billed) on the audit-fix commits.
 
-2. **User eyeball of goalie outlet control** in the browser (Free Skate: force a cover by
-   letting the AI shoot a soft centered shot at your goalie, or online two-client).
-3. User-owed feel passes on the 2026-07-09 batch (see "Known next steps" below).
-4. Optional `/code-review ultra` (user-triggered, billed) now that targeted fixes have landed.
-5. Real deploy (Fly/Render + static host) — the server surface is now hardened for strangers;
-   revisit snapshot bandwidth (④) when it happens.
-6. Dedicated major-upgrade session: vitest 4, vite 8, colyseus 0.17 (⑤ leftovers).
-
-Method that worked: read-first, worst-first, regression test → fix → suite green → commit → push.
+Method that worked (both audits): read-first, worst-first, parallel subsystem audit agents,
+regression test → fix → suite green → commit → push.
 
 ## What this project is
 A 3v3 online multiplayer **arcade hockey game** with grounded core physics (NHL-Threes-style skating,
@@ -220,13 +263,12 @@ Preferred way to run servers with the assistant: the preview tools + `.claude/la
 
 ## GIT STATE
 
-**Current status for next chat (2026-07-17):** `main` is one commit ahead of `origin/main` because
-the approved audio design spec was committed as `bca03de`; the new audio implementation plan is
-untracked until it is intentionally committed. No gameplay source files were modified by this
-handoff session.
+**Current status for next chat (2026-07-20):** everything committed AND pushed — `main` in sync
+with `origin/main` at `6243ee7` (audit-fix batch: smoke readiness, audio lifecycle, lobby
+readiness lifecycle, prod dev-tool gating). Certified: typecheck, full test suite, two-client
+smoke, production client build — all green this session.
 
-**Current status (2026-07-13):** everything committed AND pushed — `main` in sync with origin.
-Certified baseline: `npm test` (341), `npm run typecheck`, two-client smoke, all green.
+**Older status (2026-07-13):** certified baseline `npm test` (341), typecheck, smoke all green.
 Stale merged branches `DalesMajorPLan` / `arcade-hockey-game-i4zwau` are fully contained in `main`
 (safe to prune).
 
