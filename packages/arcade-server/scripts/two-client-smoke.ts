@@ -124,6 +124,11 @@ async function main(): Promise<void> {
   roomB.send("client.chooseTeam", { teamId: "away" });
   await wait(200);
 
+  // Start is gated on every human being ready.
+  roomA.send("client.setReady", { ready: true });
+  roomB.send("client.setReady", { ready: true });
+  await wait(200);
+
   trackedA.mySlotId = slotOf(roomA);
   trackedB.mySlotId = slotOf(roomB);
   console.log(`A slot=${trackedA.mySlotId}  B slot=${trackedB.mySlotId}`);
