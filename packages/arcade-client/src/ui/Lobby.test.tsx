@@ -233,16 +233,56 @@ describe("Lobby", () => {
     });
   });
 
-  it("keeps an optimistic draft until the replicated rules catch up", () => {
+  it("keeps an optimistic draft after a partial authoritative acknowledgement", () => {
+    const replicatedRules = { timeLimitMs: 180_000, goalLimit: 0 } as const;
     const pendingRules = { timeLimitMs: 420_000, goalLimit: 7 } as const;
 
     expect(
       reconcileMatchRulesDraft(pendingRules, {
         timeLimitMs: 420_000,
         goalLimit: 0
-      })
+      }, { previousReplicatedRules: replicatedRules })
     ).toEqual(pendingRules);
-    expect(reconcileMatchRulesDraft(pendingRules, pendingRules)).toBeNull();
+    expect(
+      reconcileMatchRulesDraft(pendingRules, pendingRules, {
+        previousReplicatedRules: replicatedRules
+      })
+    ).toBeNull();
+  });
+
+  it("drops a pending draft when its room, session, or waiting connection scope changes", () => {
+    const pendingRules = { timeLimitMs: 420_000, goalLimit: 7 } as const;
+    const replicatedRules = { timeLimitMs: 180_000, goalLimit: 0 } as const;
+    const previousScope = {
+      roomCode: "PUCK42",
+      playerSessionId: "session-a",
+      rulesAvailable: true
+    };
+
+    for (const scope of [
+      { ...previousScope, roomCode: "FRESH99" },
+      { ...previousScope, playerSessionId: "session-b" },
+      { ...previousScope, rulesAvailable: false }
+    ]) {
+      expect(
+        reconcileMatchRulesDraft(pendingRules, replicatedRules, {
+          previousScope,
+          scope
+        })
+      ).toBeNull();
+    }
+  });
+
+  it("rolls back an optimistic draft when authoritative rules contradict it", () => {
+    const replicatedRules = { timeLimitMs: 180_000, goalLimit: 0 } as const;
+    const pendingRules = { timeLimitMs: 420_000, goalLimit: 7 } as const;
+
+    expect(
+      reconcileMatchRulesDraft(pendingRules, {
+        timeLimitMs: 300_000,
+        goalLimit: 0
+      }, { previousReplicatedRules: replicatedRules })
+    ).toBeNull();
   });
 
   it("only exposes rules controls in a connected waiting room", () => {

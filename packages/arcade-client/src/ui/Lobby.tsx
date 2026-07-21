@@ -69,7 +69,20 @@ export function Lobby({
   const canStart = isConnected && state.isRosterValid && allHumansReady;
   const rulesAvailable = isConnected && state.phase === "waiting";
   const canEditRules = rulesAvailable && isCreator;
-  const visibleRules = rulesDraft ?? state.rules;
+  const rulesDraftScope = {
+    roomCode: state.roomCode,
+    playerSessionId: state.playerSessionId,
+    rulesAvailable
+  };
+  const previousRulesRef = useRef(state.rules);
+  const rulesDraftScopeRef = useRef(rulesDraftScope);
+  const draftBelongsToCurrentScope = !hasRulesDraftScopeChanged(
+    rulesDraftScopeRef.current,
+    rulesDraftScope
+  );
+  const visibleRules = draftBelongsToCurrentScope
+    ? rulesDraft ?? state.rules
+    : state.rules;
 
   // Default the picker to your own slot once connected, preserving the old
   // "pick your character immediately" flow.
@@ -88,18 +101,25 @@ export function Lobby({
   useEffect(() => {
     const nextDraft = reconcileMatchRulesDraft(
       pendingRulesRef.current,
-      state.rules
+      state.rules,
+      {
+        previousReplicatedRules: previousRulesRef.current,
+        previousScope: rulesDraftScopeRef.current,
+        scope: rulesDraftScope
+      }
     );
+    previousRulesRef.current = state.rules;
+    rulesDraftScopeRef.current = rulesDraftScope;
 
     if (nextDraft !== pendingRulesRef.current) {
       pendingRulesRef.current = nextDraft;
       setRulesDraft(nextDraft);
     }
-  }, [state.rules]);
+  }, [rulesAvailable, state.playerSessionId, state.roomCode, state.rules]);
 
   const selectMatchRules = (update: Partial<MatchRules>) => {
     const nextRules = nextMatchRulesDraft(
-      pendingRulesRef.current,
+      draftBelongsToCurrentScope ? pendingRulesRef.current : null,
       state.rules,
       update
     );
@@ -364,17 +384,81 @@ export function nextMatchRulesDraft(
 
 export function reconcileMatchRulesDraft(
   pendingRules: MatchRules | null,
-  replicatedRules: MatchRules
+  replicatedRules: MatchRules,
+  {
+    previousReplicatedRules,
+    previousScope,
+    scope
+  }: MatchRulesDraftReconciliationOptions = {}
 ): MatchRules | null {
   if (
-    pendingRules &&
-    pendingRules.timeLimitMs === replicatedRules.timeLimitMs &&
-    pendingRules.goalLimit === replicatedRules.goalLimit
+    !pendingRules ||
+    hasRulesDraftScopeChanged(previousScope, scope) ||
+    sameMatchRules(pendingRules, replicatedRules)
   ) {
     return null;
   }
 
-  return pendingRules;
+  if (
+    !previousReplicatedRules ||
+    sameMatchRules(previousReplicatedRules, replicatedRules) ||
+    isPartialOptimisticRulesAcknowledgement(
+      pendingRules,
+      previousReplicatedRules,
+      replicatedRules
+    )
+  ) {
+    return pendingRules;
+  }
+
+  return null;
+}
+
+interface MatchRulesDraftReconciliationOptions {
+  readonly previousReplicatedRules?: MatchRules;
+  readonly previousScope?: RulesDraftScope;
+  readonly scope?: RulesDraftScope;
+}
+
+interface RulesDraftScope {
+  readonly roomCode: string;
+  readonly playerSessionId: string | null;
+  readonly rulesAvailable: boolean;
+}
+
+function hasRulesDraftScopeChanged(
+  previousScope: RulesDraftScope | undefined,
+  scope: RulesDraftScope | undefined
+): boolean {
+  if (!previousScope || !scope) {
+    return false;
+  }
+
+  return (
+    previousScope.roomCode !== scope.roomCode ||
+    previousScope.playerSessionId !== scope.playerSessionId ||
+    previousScope.rulesAvailable !== scope.rulesAvailable
+  );
+}
+
+function sameMatchRules(first: MatchRules, second: MatchRules): boolean {
+  return (
+    first.timeLimitMs === second.timeLimitMs &&
+    first.goalLimit === second.goalLimit
+  );
+}
+
+function isPartialOptimisticRulesAcknowledgement(
+  pendingRules: MatchRules,
+  previousReplicatedRules: MatchRules,
+  replicatedRules: MatchRules
+): boolean {
+  return (
+    (replicatedRules.timeLimitMs === previousReplicatedRules.timeLimitMs ||
+      replicatedRules.timeLimitMs === pendingRules.timeLimitMs) &&
+    (replicatedRules.goalLimit === previousReplicatedRules.goalLimit ||
+      replicatedRules.goalLimit === pendingRules.goalLimit)
+  );
 }
 
 function formatClock(totalSeconds: number): string {
