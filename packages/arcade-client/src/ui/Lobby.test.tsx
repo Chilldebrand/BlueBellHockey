@@ -1,7 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { createInitialArcadeClientState, type ArcadeClientState } from "../store.js";
-import { Lobby } from "./Lobby.js";
+import {
+  Lobby,
+  nextMatchRulesDraft,
+  reconcileMatchRulesDraft
+} from "./Lobby.js";
 
 function lobbyState(overrides: Partial<ArcadeClientState> = {}): ArcadeClientState {
   return {
@@ -203,5 +207,58 @@ describe("Lobby", () => {
     expect(html).toContain("7 goals");
     expect(html).toContain("Host controls rules");
     expect(html.match(/lobby-rules-preset[^>]*disabled=""/g)).toHaveLength(9);
+  });
+
+  it("composes rapid host rule selections into complete outbound payloads", () => {
+    const replicatedRules = { timeLimitMs: 180_000, goalLimit: 0 } as const;
+    const sendRules = vi.fn();
+    let pendingRules = null;
+
+    pendingRules = nextMatchRulesDraft(pendingRules, replicatedRules, {
+      timeLimitMs: 420_000
+    });
+    sendRules(pendingRules);
+    pendingRules = nextMatchRulesDraft(pendingRules, replicatedRules, {
+      goalLimit: 7
+    });
+    sendRules(pendingRules);
+
+    expect(sendRules).toHaveBeenNthCalledWith(1, {
+      timeLimitMs: 420_000,
+      goalLimit: 0
+    });
+    expect(sendRules).toHaveBeenNthCalledWith(2, {
+      timeLimitMs: 420_000,
+      goalLimit: 7
+    });
+  });
+
+  it("keeps an optimistic draft until the replicated rules catch up", () => {
+    const pendingRules = { timeLimitMs: 420_000, goalLimit: 7 } as const;
+
+    expect(
+      reconcileMatchRulesDraft(pendingRules, {
+        timeLimitMs: 420_000,
+        goalLimit: 0
+      })
+    ).toEqual(pendingRules);
+    expect(reconcileMatchRulesDraft(pendingRules, pendingRules)).toBeNull();
+  });
+
+  it("only exposes rules controls in a connected waiting room", () => {
+    const disconnectedHtml = renderLobby(
+      lobbyState({ connectionStatus: "idle", roomCreatorSessionId: "session-a" })
+    );
+    const liveHtml = renderLobby(
+      lobbyState({ phase: "playing", roomCreatorSessionId: "session-a" })
+    );
+    const waitingHtml = renderLobby(
+      lobbyState({ phase: "waiting", roomCreatorSessionId: "session-a" })
+    );
+
+    expect(disconnectedHtml).not.toContain("lobby-rules-button");
+    expect(liveHtml).not.toContain("lobby-rules-button");
+    expect(waitingHtml).toContain("lobby-rules-button");
+    expect(waitingHtml).not.toMatch(/lobby-rules-preset[^>]*disabled=""/);
   });
 });

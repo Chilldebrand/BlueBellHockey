@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   GOAL_LIMIT_OPTIONS,
   TEAM_PALETTES,
@@ -46,6 +46,8 @@ export function Lobby({
   const [joinCode, setJoinCode] = useState("");
   const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [rulesDraft, setRulesDraft] = useState<MatchRules | null>(null);
+  const pendingRulesRef = useRef<MatchRules | null>(null);
   const joinInputId = useId();
   const isConnecting = state.connectionStatus === "connecting";
   const isConnected = state.connectionStatus === "connected";
@@ -65,7 +67,9 @@ export function Lobby({
       .every((slot) => slot.ready);
   const canSetReady = Boolean(localSlot?.playerName?.trim());
   const canStart = isConnected && state.isRosterValid && allHumansReady;
-  const canEditRules = isConnected && isCreator;
+  const rulesAvailable = isConnected && state.phase === "waiting";
+  const canEditRules = rulesAvailable && isCreator;
+  const visibleRules = rulesDraft ?? state.rules;
 
   // Default the picker to your own slot once connected, preserving the old
   // "pick your character immediately" flow.
@@ -80,6 +84,30 @@ export function Lobby({
   useEffect(() => {
     setPlayerName(localSlot?.playerName ?? "");
   }, [localSlot?.playerName]);
+
+  useEffect(() => {
+    const nextDraft = reconcileMatchRulesDraft(
+      pendingRulesRef.current,
+      state.rules
+    );
+
+    if (nextDraft !== pendingRulesRef.current) {
+      pendingRulesRef.current = nextDraft;
+      setRulesDraft(nextDraft);
+    }
+  }, [state.rules]);
+
+  const selectMatchRules = (update: Partial<MatchRules>) => {
+    const nextRules = nextMatchRulesDraft(
+      pendingRulesRef.current,
+      state.rules,
+      update
+    );
+
+    pendingRulesRef.current = nextRules;
+    setRulesDraft(nextRules);
+    onSetMatchRules(nextRules);
+  };
 
   // Guard stale targets at RENDER time (lost captaincy, team switch, slot
   // became human): fall back to the local player's own slot, never a
@@ -239,15 +267,17 @@ export function Lobby({
                 Settings
               </button>
             ) : null}
-            <button
-              type="button"
-              className="lobby-rules-button"
-              aria-expanded={rulesOpen}
-              aria-controls="lobby-match-rules"
-              onClick={() => setRulesOpen((open) => !open)}
-            >
-              Rules
-            </button>
+            {rulesAvailable ? (
+              <button
+                type="button"
+                className="lobby-rules-button"
+                aria-expanded={rulesOpen}
+                aria-controls="lobby-match-rules"
+                onClick={() => setRulesOpen((open) => !open)}
+              >
+                Rules
+              </button>
+            ) : null}
             {isCreator ? (
               <button
                 type="button"
@@ -260,52 +290,52 @@ export function Lobby({
             ) : null}
           </div>
 
-          <section
-            id="lobby-match-rules"
-            className="lobby-rules-panel"
-            aria-label="Match rules"
-            hidden={!rulesOpen}
-          >
-            <div className="lobby-rules-group">
-              <h3>Time limit</h3>
-              <div className="lobby-rules-presets">
-                {TIME_LIMIT_OPTIONS_MS.map((timeLimitMs) => (
-                  <button
-                    key={timeLimitMs}
-                    type="button"
-                    className="lobby-rules-preset"
-                    aria-pressed={state.rules.timeLimitMs === timeLimitMs}
-                    disabled={!canEditRules}
-                    onClick={() =>
-                      onSetMatchRules({ ...state.rules, timeLimitMs })
-                    }
-                  >
-                    {timeLimitMs / 60_000} min
-                  </button>
-                ))}
+          {rulesAvailable ? (
+            <section
+              id="lobby-match-rules"
+              className="lobby-rules-panel"
+              aria-label="Match rules"
+              hidden={!rulesOpen}
+            >
+              <div className="lobby-rules-group">
+                <h3>Time limit</h3>
+                <div className="lobby-rules-presets">
+                  {TIME_LIMIT_OPTIONS_MS.map((timeLimitMs) => (
+                    <button
+                      key={timeLimitMs}
+                      type="button"
+                      className="lobby-rules-preset"
+                      aria-pressed={visibleRules.timeLimitMs === timeLimitMs}
+                      disabled={!canEditRules}
+                      onClick={() => selectMatchRules({ timeLimitMs })}
+                    >
+                      {timeLimitMs / 60_000} min
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-            <div className="lobby-rules-group">
-              <h3>Goal limit</h3>
-              <div className="lobby-rules-presets">
-                {GOAL_LIMIT_OPTIONS.map((goalLimit) => (
-                  <button
-                    key={goalLimit}
-                    type="button"
-                    className="lobby-rules-preset"
-                    aria-pressed={state.rules.goalLimit === goalLimit}
-                    disabled={!canEditRules}
-                    onClick={() => onSetMatchRules({ ...state.rules, goalLimit })}
-                  >
-                    {goalLimit === 0 ? "No limit" : `${goalLimit} goals`}
-                  </button>
-                ))}
+              <div className="lobby-rules-group">
+                <h3>Goal limit</h3>
+                <div className="lobby-rules-presets">
+                  {GOAL_LIMIT_OPTIONS.map((goalLimit) => (
+                    <button
+                      key={goalLimit}
+                      type="button"
+                      className="lobby-rules-preset"
+                      aria-pressed={visibleRules.goalLimit === goalLimit}
+                      disabled={!canEditRules}
+                      onClick={() => selectMatchRules({ goalLimit })}
+                    >
+                      {goalLimit === 0 ? "No limit" : `${goalLimit} goals`}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-            {!canEditRules ? (
-              <p className="lobby-rules-help">Host controls rules</p>
-            ) : null}
-          </section>
+              {!canEditRules ? (
+                <p className="lobby-rules-help">Host controls rules</p>
+              ) : null}
+            </section>
+          ) : null}
 
           {editingSlot ? (
             <CharacterSelect
@@ -322,6 +352,29 @@ export function Lobby({
       </div>
     </main>
   );
+}
+
+export function nextMatchRulesDraft(
+  pendingRules: MatchRules | null,
+  replicatedRules: MatchRules,
+  update: Partial<MatchRules>
+): MatchRules {
+  return { ...(pendingRules ?? replicatedRules), ...update };
+}
+
+export function reconcileMatchRulesDraft(
+  pendingRules: MatchRules | null,
+  replicatedRules: MatchRules
+): MatchRules | null {
+  if (
+    pendingRules &&
+    pendingRules.timeLimitMs === replicatedRules.timeLimitMs &&
+    pendingRules.goalLimit === replicatedRules.goalLimit
+  ) {
+    return null;
+  }
+
+  return pendingRules;
 }
 
 function formatClock(totalSeconds: number): string {
