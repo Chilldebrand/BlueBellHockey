@@ -1,6 +1,8 @@
 import {
   createBotInputFrame,
   createWorld,
+  DEFAULT_MATCH_RULES,
+  isMatchRules,
   MATCH_CONFIG,
   resolveManualSwitchTarget,
   resolveReceptionSwitch,
@@ -10,6 +12,7 @@ import {
   type ClientInputMessage,
   type InputFrame,
   type MatchMode,
+  type MatchRules,
   type ServerWorldSnapshotMessage,
   type WorldState
 } from "@bbh/arcade-core";
@@ -163,6 +166,7 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
   private botInputSequence = 0;
   private idleTickCounter = 0;
   private roomCreatorSessionId: string | null = null;
+  private matchRules: MatchRules = { ...DEFAULT_MATCH_RULES };
   private world: WorldState | null = null;
   private readonly now: () => number;
   private readonly lobbyMutationBuckets = new Map<
@@ -200,8 +204,8 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     this.roomOptions.mode = mode;
 
     this.roster = fillRosterWithBots(createRoster());
-    this.world = createWorld(this.seedGenerator(), mode);
-    applyRosterCharactersToWorld(this.world, this.roster);
+    this.matchRules = { ...DEFAULT_MATCH_RULES };
+    this.world = this.createFreshWorld();
     this.setState(
       createInitialRoomState({
         privateCode,
@@ -209,6 +213,7 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
       })
     );
     this.syncRoomMetadata();
+    this.syncMatchRulesState();
     this.syncStateFromWorld();
     this.syncRosterState();
     this.onMessage("client.setPlayerName", (client, message: unknown) => {
@@ -216,6 +221,9 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     });
     this.onMessage("client.setReady", (client, message: unknown) => {
       this.handleSetReady(client, message);
+    });
+    this.onMessage("client.setMatchRules", (client, message: unknown) => {
+      this.handleSetMatchRules(client, message);
     });
     this.onMessage("client.chooseTeam", (client, message: unknown) => {
       this.handleChooseTeam(client, message);
@@ -378,6 +386,26 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     this.state.clock.fixedTickMs = this.world.time.fixedTickMs;
   }
 
+  private syncMatchRulesState(): void {
+    if (!this.state) {
+      return;
+    }
+
+    this.state.rules.timeLimitMs = this.matchRules.timeLimitMs;
+    this.state.rules.goalLimit = this.matchRules.goalLimit;
+  }
+
+  private createFreshWorld(): WorldState {
+    const world = createWorld(
+      this.seedGenerator(),
+      this.roomOptions.mode,
+      undefined,
+      this.matchRules
+    );
+    applyRosterCharactersToWorld(world, this.roster);
+    return world;
+  }
+
   private syncRoomMetadata(): void {
     if (!this.listing) {
       return;
@@ -485,6 +513,36 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     }
 
     this.syncRosterState();
+  }
+
+  private handleSetMatchRules(client: Client, message: unknown): void {
+    if (!this.allowLobbyMutation(client.sessionId)) {
+      return;
+    }
+
+    if (this.world?.phase !== "waiting") {
+      this.send(client, "server.error", {
+        message: "Can't change rules mid-match."
+      });
+      return;
+    }
+
+    if (this.roomCreatorSessionId !== client.sessionId) {
+      this.send(client, "server.error", {
+        message: "Only the room creator can change rules."
+      });
+      return;
+    }
+
+    if (!isMatchRules(message)) {
+      this.send(client, "server.error", { message: "Invalid match rules." });
+      return;
+    }
+
+    this.matchRules = { ...message };
+    this.world = this.createFreshWorld();
+    this.syncMatchRulesState();
+    this.syncStateFromWorld();
   }
 
   private handleChooseTeam(client: Client, message: unknown): void {
@@ -630,8 +688,7 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
       return;
     }
 
-    this.world = createWorld(this.seedGenerator(), this.roomOptions.mode);
-    applyRosterCharactersToWorld(this.world, this.roster);
+    this.world = this.createFreshWorld();
     this.world.phase = "playing";
     this.botInputSequence = 0;
     this.clearAllGoalieGrants();
@@ -646,8 +703,7 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
 
     // A fresh waiting world, not a phase flip on the ended one — otherwise
     // the next start would resume an expired clock and a finished score.
-    this.world = createWorld(this.seedGenerator(), this.roomOptions.mode);
-    applyRosterCharactersToWorld(this.world, this.roster);
+    this.world = this.createFreshWorld();
     this.botInputSequence = 0;
     this.clearAllGoalieGrants();
     // Everyone was necessarily ready when the finished match started; stale

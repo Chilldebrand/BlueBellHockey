@@ -150,6 +150,167 @@ describe("ArcadeRoom", () => {
     });
   });
 
+  it("replicates the default match rules", () => {
+    const room = createTestRoom();
+
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+
+    expect(room.state).toMatchObject({
+      rules: { timeLimitMs: 180000, goalLimit: 0 }
+    });
+  });
+
+  it("lets the room creator replace replicated waiting-world match rules", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    const creator = client("session-a");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(creator as never, { playerName: "Ada" });
+    const setMatchRules = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setMatchRules"
+    )?.[1];
+
+    setMatchRules?.(creator as never, { timeLimitMs: 420000, goalLimit: 7 });
+
+    expect(room.state).toMatchObject({
+      phase: "waiting",
+      rules: { timeLimitMs: 420000, goalLimit: 7 }
+    });
+    expect(room["world"]!.rules).toEqual({ timeLimitMs: 420000, goalLimit: 7 });
+  });
+
+  it("keeps ready humans ready when the room creator updates match rules", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    const creator = client("session-a");
+    const teammate = client("session-b");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(creator as never, { playerName: "Ada" });
+    room.onJoin(teammate as never, { playerName: "Bo" });
+    const setReady = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setReady"
+    )?.[1];
+    const setMatchRules = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setMatchRules"
+    )?.[1];
+
+    setReady?.(creator as never, { ready: true });
+    setReady?.(teammate as never, { ready: true });
+    setMatchRules?.(creator as never, { timeLimitMs: 420000, goalLimit: 7 });
+
+    const humans = [
+      ...room.state.teams.home.slots,
+      ...room.state.teams.away.slots
+    ].filter((slot) => slot.kind === "human");
+    expect(room["world"]!.rules).toEqual({ timeLimitMs: 420000, goalLimit: 7 });
+    expect(humans).toHaveLength(2);
+    expect(humans.every((slot) => slot.ready)).toBe(true);
+  });
+
+  it("rejects non-creators from changing match rules", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    const sender = vi
+      .spyOn(room, "send")
+      .mockImplementation(() => room as never);
+    const creator = client("session-a");
+    const nonCreator = client("session-b");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(creator as never, { playerName: "Ada" });
+    room.onJoin(nonCreator as never, { playerName: "Bo" });
+    const setMatchRules = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setMatchRules"
+    )?.[1];
+
+    setMatchRules?.(nonCreator as never, { timeLimitMs: 420000, goalLimit: 7 });
+
+    expect(room.state).toMatchObject({
+      rules: { timeLimitMs: 180000, goalLimit: 0 }
+    });
+    expect(sender).toHaveBeenCalledWith(nonCreator, "server.error", {
+      message: "Only the room creator can change rules."
+    });
+  });
+
+  it("rejects invalid match rule pairs without changing rules or the roster", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    const sender = vi
+      .spyOn(room, "send")
+      .mockImplementation(() => room as never);
+    const creator = client("session-a");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(creator as never, { playerName: "Ada" });
+    const setMatchRules = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setMatchRules"
+    )?.[1];
+    const rosterBefore = JSON.stringify(room.state.teams);
+
+    setMatchRules?.(creator as never, { timeLimitMs: 240000, goalLimit: 4 });
+
+    expect(room.state).toMatchObject({
+      rules: { timeLimitMs: 180000, goalLimit: 0 }
+    });
+    expect(JSON.stringify(room.state.teams)).toBe(rosterBefore);
+    expect(sender).toHaveBeenCalledWith(creator, "server.error", {
+      message: "Invalid match rules."
+    });
+  });
+
+  it("rejects creator match-rule updates outside the waiting phase", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    const sender = vi
+      .spyOn(room, "send")
+      .mockImplementation(() => room as never);
+    const creator = client("session-a");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(creator as never, { playerName: "Ada" });
+    const setMatchRules = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setMatchRules"
+    )?.[1];
+
+    room["world"]!.phase = "playing";
+    setMatchRules?.(creator as never, { timeLimitMs: 420000, goalLimit: 7 });
+    room["world"]!.phase = "ended";
+    setMatchRules?.(creator as never, { timeLimitMs: 420000, goalLimit: 7 });
+
+    expect(room.state).toMatchObject({
+      rules: { timeLimitMs: 180000, goalLimit: 0 }
+    });
+    expect(sender).toHaveBeenCalledTimes(2);
+    expect(sender).toHaveBeenLastCalledWith(creator, "server.error", {
+      message: "Can't change rules mid-match."
+    });
+  });
+
+  it("retains creator-selected match rules in rematch and back-to-lobby worlds", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    vi.spyOn(room, "broadcast").mockImplementation(() => room as never);
+    const creator = client("session-a");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(creator as never, { playerName: "Ada" });
+    const setMatchRules = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setMatchRules"
+    )?.[1];
+    const rematch = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.rematch"
+    )?.[1];
+    const backToLobby = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.backToLobby"
+    )?.[1];
+
+    setMatchRules?.(creator as never, { timeLimitMs: 420000, goalLimit: 7 });
+    room["world"]!.phase = "ended";
+    rematch?.(creator as never, undefined);
+    expect(room["world"]!.rules).toEqual({ timeLimitMs: 420000, goalLimit: 7 });
+
+    room["world"]!.phase = "ended";
+    backToLobby?.(creator as never, undefined);
+    expect(room["world"]!.rules).toEqual({ timeLimitMs: 420000, goalLimit: 7 });
+  });
+
   it("normalizes matchmaker options during auth before filtering", async () => {
     const quickOptions = { mode: "arcade3v3" as const };
     const privateOptions = {

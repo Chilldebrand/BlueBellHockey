@@ -1,6 +1,6 @@
 import { ArraySchema, Schema, type } from "@colyseus/schema";
 import type { MatchMode, TeamId, WorldPhase } from "@bbh/arcade-core";
-import { MATCH_CONFIG, TEAM_IDS } from "@bbh/arcade-core";
+import { DEFAULT_MATCH_RULES, MATCH_CONFIG, TEAM_IDS } from "@bbh/arcade-core";
 import { captainSessionId, type RoomRosterSlot, type RosterSlotKind } from "./roster.js";
 
 export class ArcadeScoreState extends Schema {
@@ -12,6 +12,11 @@ export class ArcadeClockState extends Schema {
   @type("number") nowMs = 0;
   @type("number") tick = 0;
   @type("number") fixedTickMs = MATCH_CONFIG.fixedTickMs;
+}
+
+export class ArcadeMatchRulesState extends Schema {
+  @type("number") timeLimitMs = DEFAULT_MATCH_RULES.timeLimitMs;
+  @type("number") goalLimit = DEFAULT_MATCH_RULES.goalLimit;
 }
 
 export class ArcadeRoomSlotState extends Schema {
@@ -44,6 +49,7 @@ export class ArcadeRoomState extends Schema {
   @type("string") phase: WorldPhase = "waiting";
   @type(ArcadeScoreState) score = new ArcadeScoreState();
   @type(ArcadeClockState) clock = new ArcadeClockState();
+  @type(ArcadeMatchRulesState) rules = new ArcadeMatchRulesState();
   @type("string") privateCode = "";
   @type("string") mode: MatchMode = "arcade3v3";
   @type("boolean") isRosterValid = false;
