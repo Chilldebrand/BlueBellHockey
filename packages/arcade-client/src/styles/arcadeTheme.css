@@ -1084,9 +1084,99 @@ input {
   background: rgba(8, 19, 32, 0.98);
   border: 1px solid rgba(119, 207, 255, 0.55);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.48);
-  max-width: min(420px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  max-width: min(720px, calc(100vw - 32px));
+  overflow-y: auto;
   padding: 18px;
   width: 100%;
+}
+
+/* --- controls reference (gamepad diagram + key list) --- */
+
+.controls-guide {
+  border-top: 1px solid rgba(119, 207, 255, 0.3);
+  margin-top: 16px;
+  padding-top: 12px;
+}
+
+.controls-guide h2 {
+  color: #ffdf6e;
+  font-size: 16px;
+  letter-spacing: 0.08em;
+  margin: 0 0 10px;
+  text-transform: uppercase;
+}
+
+.controls-guide h3 {
+  color: #8fb8e0;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  margin: 14px 0 8px;
+  text-transform: uppercase;
+}
+
+.controls-gamepad {
+  display: block;
+  height: auto;
+  width: 100%;
+}
+
+.controls-notes {
+  color: #8fb8e0;
+  font-size: 12px;
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.controls-notes li {
+  margin-bottom: 4px;
+}
+
+.controls-key-list {
+  display: grid;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.controls-key-list li {
+  align-items: baseline;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 130px 1fr;
+}
+
+.controls-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.controls-keys kbd {
+  background: rgba(5, 7, 12, 0.9);
+  border: 1px solid rgba(234, 243, 255, 0.35);
+  border-bottom-width: 2px;
+  color: #eaf3ff;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  min-width: 14px;
+  padding: 4px 6px;
+  text-align: center;
+}
+
+.controls-action {
+  color: #eaf3ff;
+  font-size: 12px;
+}
+
+@media (max-width: 560px) {
+  .controls-key-list li {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
 }
 
 .settings-overlay-header {

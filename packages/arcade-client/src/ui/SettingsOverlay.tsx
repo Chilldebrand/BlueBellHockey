@@ -5,6 +5,7 @@ import {
   type ControlPreferences
 } from "../input/controlPreferences.js";
 import { AudioSettings } from "./AudioSettings.js";
+import { ControlsGuide } from "./ControlsGuide.js";
 
 const GAMEPLAY_KEYS = new Set([
   " ",
@@ -137,6 +138,7 @@ export function SettingsOverlay({
             }
           />
         </label>
+        <ControlsGuide />
       </section>
     </section>
   );
