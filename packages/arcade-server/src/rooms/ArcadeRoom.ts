@@ -23,6 +23,7 @@ import {
   allHumansReady,
   applyRosterCharactersToWorld,
   assignHumanToOpenSlot,
+  clearHumanReadiness,
   createRoster,
   earliestHumanSessionId,
   fillRosterWithBots,
@@ -48,7 +49,26 @@ export type NormalizedArcadeRoomOptions = Required<ArcadeRoomOptions>;
 export interface ArcadeRoomDependencies {
   readonly seedGenerator?: () => number;
   readonly startSimulation?: boolean;
+  /** Wall-clock source for lobby pacing (force-start grace, rate limits). */
+  readonly now?: () => number;
 }
+
+/**
+ * How long an all-ready start stays blocked before the creator's retry starts
+ * the match anyway. Without this, one player who never readies up (or walked
+ * away) deadlocks a public quick-match lobby forever — there is no kick.
+ * Unready humans keep their seats; they simply enter the match unconfirmed.
+ */
+export const FORCE_START_GRACE_MS = 20_000;
+
+/**
+ * Lobby-mutation token bucket: each of setPlayerName / setReady / chooseTeam /
+ * chooseCharacterFor triggers a full roster rebuild broadcast to every client,
+ * so a wire-rate flood from one session amplifies room-wide. Human UI flows
+ * never approach this budget.
+ */
+const LOBBY_MUTATION_BURST = 10;
+const LOBBY_MUTATION_REFILL_MS = 250;
 
 interface JoinOptions {
   readonly playerName?: string;
@@ -144,11 +164,19 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
   private idleTickCounter = 0;
   private roomCreatorSessionId: string | null = null;
   private world: WorldState | null = null;
+  private readonly now: () => number;
+  private readonly lobbyMutationBuckets = new Map<
+    string,
+    { tokens: number; lastRefillMs: number }
+  >();
+  /** When the creator's start was first blocked on readiness; null once clear. */
+  private startBlockedFirstAtMs: number | null = null;
 
   constructor(dependencies: ArcadeRoomDependencies = {}) {
     super();
     this.seedGenerator = dependencies.seedGenerator ?? (() => 1);
     this.startSimulation = dependencies.startSimulation ?? true;
+    this.now = dependencies.now ?? (() => Date.now());
     this.roomOptions = {
       privateCode: "",
       quickMatch: true,
@@ -224,6 +252,8 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     if (this.roomCreatorSessionId === null) {
       this.roomCreatorSessionId = client.sessionId;
     }
+    // A newcomer gets the full grace window before a force-start can bypass them.
+    this.startBlockedFirstAtMs = null;
     fillRosterWithBots(this.roster);
     this.syncRosterState();
   }
@@ -245,6 +275,7 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     this.lastInputSequenceBySession.delete(client.sessionId);
     this.lastPassBySession.delete(client.sessionId);
     this.pendingManualSwitchBySession.delete(client.sessionId);
+    this.lobbyMutationBuckets.delete(client.sessionId);
     fillRosterWithBots(this.roster);
     this.syncRosterState();
 
@@ -373,7 +404,39 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     this.syncRosterState();
   }
 
+  /**
+   * Token-bucket check for the lobby mutation messages. Exhausted budgets drop
+   * the message silently — an error reply would itself be flood amplification.
+   */
+  private allowLobbyMutation(sessionId: string): boolean {
+    const now = this.now();
+    const bucket = this.lobbyMutationBuckets.get(sessionId) ?? {
+      tokens: LOBBY_MUTATION_BURST,
+      lastRefillMs: now
+    };
+
+    const refilled = Math.floor(
+      (now - bucket.lastRefillMs) / LOBBY_MUTATION_REFILL_MS
+    );
+    if (refilled > 0) {
+      bucket.tokens = Math.min(LOBBY_MUTATION_BURST, bucket.tokens + refilled);
+      bucket.lastRefillMs = now;
+    }
+
+    const allowed = bucket.tokens > 0;
+    if (allowed) {
+      bucket.tokens -= 1;
+    }
+
+    this.lobbyMutationBuckets.set(sessionId, bucket);
+    return allowed;
+  }
+
   private handleSetPlayerName(client: Client, message: unknown): void {
+    if (!this.allowLobbyMutation(client.sessionId)) {
+      return;
+    }
+
     if (this.world?.phase !== "waiting") {
       this.send(client, "server.error", {
         message: "Can't change name mid-match."
@@ -396,6 +459,10 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
   }
 
   private handleSetReady(client: Client, message: unknown): void {
+    if (!this.allowLobbyMutation(client.sessionId)) {
+      return;
+    }
+
     if (this.world?.phase !== "waiting") {
       this.send(client, "server.error", {
         message: "Can't change readiness mid-match."
@@ -421,6 +488,10 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
   }
 
   private handleChooseTeam(client: Client, message: unknown): void {
+    if (!this.allowLobbyMutation(client.sessionId)) {
+      return;
+    }
+
     if (this.world?.phase !== "waiting") {
       this.send(client, "server.error", {
         message: "Can't switch teams mid-match."
@@ -446,6 +517,10 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
    * enforced in selectCharacterForSlot.
    */
   private handleChooseCharacterFor(client: Client, message: unknown): void {
+    if (!this.allowLobbyMutation(client.sessionId)) {
+      return;
+    }
+
     if (this.world?.phase !== "waiting") {
       this.send(client, "server.error", {
         message: "Can't change character mid-match."
@@ -510,12 +585,24 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     }
 
     if (!allHumansReady(this.roster)) {
-      this.send(client, "server.error", {
-        message: "All human players must be ready."
-      });
-      return;
+      // One player who never readies must not deadlock the room forever: the
+      // first blocked attempt starts a grace window, and once it elapses the
+      // creator's retry starts the match anyway (unready humans keep their
+      // seats — they just enter unconfirmed).
+      const now = this.now();
+      if (this.startBlockedFirstAtMs === null) {
+        this.startBlockedFirstAtMs = now;
+      }
+
+      if (now - this.startBlockedFirstAtMs < FORCE_START_GRACE_MS) {
+        this.send(client, "server.error", {
+          message: "All human players must be ready."
+        });
+        return;
+      }
     }
 
+    this.startBlockedFirstAtMs = null;
     // Lobby character picks only mutate the roster — stamp them into the
     // waiting world before play begins.
     applyRosterCharactersToWorld(this.world, this.roster);
@@ -563,6 +650,11 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     applyRosterCharactersToWorld(this.world, this.roster);
     this.botInputSequence = 0;
     this.clearAllGoalieGrants();
+    // Everyone was necessarily ready when the finished match started; stale
+    // flags would let the creator relaunch before anyone re-picks.
+    clearHumanReadiness(this.roster);
+    this.startBlockedFirstAtMs = null;
+    this.syncRosterState();
     this.syncStateFromWorld();
     this.broadcastSnapshot();
   }

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   ArcadeRoom,
   createPrivateRoomCode,
+  FORCE_START_GRACE_MS,
   normalizeArcadeRoomOptions
 } from "./ArcadeRoom.js";
 import type { ServerWorldSnapshotMessage } from "@bbh/arcade-core";
@@ -529,6 +530,148 @@ describe("ArcadeRoom", () => {
       teamJoinOrder: 1
     });
     expect(sender).not.toHaveBeenCalled();
+  });
+
+  it("clears readiness when the room returns to the lobby so a restart needs fresh confirms", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    const sender = vi
+      .spyOn(room, "send")
+      .mockImplementation(() => room as never);
+    const clientA = client("session-a");
+    const clientB = client("session-b");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(clientA as never, { playerName: "Ada" });
+    room.onJoin(clientB as never, { playerName: "Bo" });
+    const setReady = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setReady"
+    )?.[1];
+    const requestStart = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.requestStart"
+    )?.[1];
+    const backToLobby = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.backToLobby"
+    )?.[1];
+
+    setReady?.(clientA as never, { ready: true });
+    setReady?.(clientB as never, { ready: true });
+    requestStart?.(clientA as never, undefined);
+    expect(room.state.phase).toBe("playing");
+
+    room["world"]!.phase = "ended";
+    backToLobby?.(clientA as never, undefined);
+
+    expect(room["world"]!.phase).toBe("waiting");
+    const slots = [
+      ...room.state.teams.home.slots,
+      ...room.state.teams.away.slots
+    ];
+    expect(slots.find((slot) => slot.sessionId === "session-a")?.ready).toBe(false);
+    expect(slots.find((slot) => slot.sessionId === "session-b")?.ready).toBe(false);
+
+    // The stale readiness from the finished match must not satisfy the gate.
+    requestStart?.(clientA as never, undefined);
+    expect(room.state.phase).toBe("waiting");
+    expect(sender).toHaveBeenCalledWith(clientA, "server.error", {
+      message: "All human players must be ready."
+    });
+  });
+
+  it("lets the creator force-start after the readiness grace window elapses", () => {
+    let nowMs = 100_000;
+    const room = createTestRoom({ now: () => nowMs });
+    const onMessage = vi.spyOn(room, "onMessage");
+    vi.spyOn(room, "send").mockImplementation(() => room as never);
+    const clientA = client("session-a");
+    const clientB = client("session-b");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(clientA as never, { playerName: "Ada" });
+    room.onJoin(clientB as never, { playerName: "Bo" });
+    const setReady = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setReady"
+    )?.[1];
+    const requestStart = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.requestStart"
+    )?.[1];
+
+    // B never readies. The creator's first attempt opens the grace window.
+    setReady?.(clientA as never, { ready: true });
+    requestStart?.(clientA as never, undefined);
+    expect(room.state.phase).toBe("waiting");
+
+    // Still blocked inside the window.
+    nowMs += FORCE_START_GRACE_MS - 1;
+    requestStart?.(clientA as never, undefined);
+    expect(room.state.phase).toBe("waiting");
+
+    // After the window the creator's retry starts the match anyway.
+    nowMs += 2;
+    requestStart?.(clientA as never, undefined);
+    expect(room.state.phase).toBe("playing");
+  });
+
+  it("restarts the readiness grace window when a new player joins", () => {
+    let nowMs = 50_000;
+    const room = createTestRoom({ now: () => nowMs });
+    const onMessage = vi.spyOn(room, "onMessage");
+    vi.spyOn(room, "send").mockImplementation(() => room as never);
+    const clientA = client("session-a");
+    const clientB = client("session-b");
+    const clientC = client("session-c");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(clientA as never, { playerName: "Ada" });
+    room.onJoin(clientB as never, { playerName: "Bo" });
+    const setReady = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setReady"
+    )?.[1];
+    const requestStart = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.requestStart"
+    )?.[1];
+
+    setReady?.(clientA as never, { ready: true });
+    requestStart?.(clientA as never, undefined);
+    nowMs += FORCE_START_GRACE_MS + 1;
+
+    // A newcomer mid-grace gets the full window again — no instant bypass.
+    room.onJoin(clientC as never, { playerName: "Cy" });
+    requestStart?.(clientA as never, undefined);
+    expect(room.state.phase).toBe("waiting");
+
+    nowMs += FORCE_START_GRACE_MS + 1;
+    requestStart?.(clientA as never, undefined);
+    expect(room.state.phase).toBe("playing");
+  });
+
+  it("rate-limits lobby mutation floods from a single session", () => {
+    let nowMs = 10_000;
+    const room = createTestRoom({ now: () => nowMs });
+    const onMessage = vi.spyOn(room, "onMessage");
+    vi.spyOn(room, "send").mockImplementation(() => room as never);
+    const clientA = client("session-a");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(clientA as never, { playerName: "Ada" });
+    const setReady = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setReady"
+    )?.[1];
+
+    // Burn the whole burst budget in one instant...
+    for (let index = 0; index < 10; index += 1) {
+      setReady?.(clientA as never, { ready: true });
+    }
+    const readySlot = () =>
+      [...room.state.teams.home.slots, ...room.state.teams.away.slots].find(
+        (slot) => slot.sessionId === "session-a"
+      );
+    expect(readySlot()?.ready).toBe(true);
+
+    // ...the next message in the same instant is silently dropped...
+    setReady?.(clientA as never, { ready: false });
+    expect(readySlot()?.ready).toBe(true);
+
+    // ...and a refill interval later the budget recovers.
+    nowMs += 250;
+    setReady?.(clientA as never, { ready: false });
+    expect(readySlot()?.ready).toBe(false);
   });
 
   it("rejects live-match name and ready messages without changing player state", () => {

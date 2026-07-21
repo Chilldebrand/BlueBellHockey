@@ -420,6 +420,20 @@ export function allHumansReady(roster: readonly RoomRosterSlot[]): boolean {
 }
 
 /**
+ * Clear every human's ready flag. Runs when the room returns to the lobby:
+ * everyone was necessarily ready when the finished match started, so without
+ * this the ready-gate would be instantly satisfied and the creator could
+ * relaunch before anyone re-picks a team or character.
+ */
+export function clearHumanReadiness(roster: RoomRosterSlot[]): void {
+  for (const slot of roster) {
+    if (slot.kind === "human") {
+      slot.ready = false;
+    }
+  }
+}
+
+/**
  * Picks which human temporarily drives a covering goalie: the human-controlled
  * skater on the goalie's own team nearest the goalie at the moment of cover,
  * with ascending slot ID as the deterministic tie-break. Null when the team
