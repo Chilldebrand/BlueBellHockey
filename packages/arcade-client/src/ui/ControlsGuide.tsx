@@ -166,6 +166,20 @@ function GamepadDiagram(): JSX.Element {
         <path d="M 434 100 C 410 84 378 78 358 80 L 358 91 C 378 89 408 92 428 104 Z" />
       </g>
 
+      {/* trigger + bumper labels */}
+      <g
+        fill="rgba(234, 243, 255, 0.75)"
+        fontFamily="inherit"
+        fontSize="9"
+        fontWeight="700"
+        textAnchor="middle"
+      >
+        <text x="268" y="73.5">LT</text>
+        <text x="412" y="73.5">RT</text>
+        <text x="292" y="92">LB</text>
+        <text x="388" y="92">RB</text>
+      </g>
+
       {/* Xbox-style body: wide shoulders, angled grips */}
       <path
         d="M 340 96
