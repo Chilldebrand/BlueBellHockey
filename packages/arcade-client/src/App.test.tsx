@@ -1,4 +1,4 @@
-import { createWorld } from "@bbh/arcade-core";
+import { createWorld, DEFAULT_MATCH_RULES } from "@bbh/arcade-core";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { ArcadeClientState } from "./store.js";
@@ -13,6 +13,7 @@ vi.stubGlobal("navigator", {
 });
 
 const reconnectPreviousRoom = vi.fn();
+let lobbyProps: Record<string, unknown> | null = null;
 const predictedFrames: unknown[] = [];
 let currentInput = {
   moveX: 0,
@@ -32,6 +33,7 @@ const baseState: ArcadeClientState = {
   roomCode: "",
   playerSessionId: null,
   roomCreatorSessionId: null,
+  rules: DEFAULT_MATCH_RULES,
   roster: [],
   score: { home: 0, away: 0 },
   phase: "waiting",
@@ -121,6 +123,13 @@ vi.mock("react", async (importOriginal) => {
 
 vi.mock("./render/Scene.js", () => ({
   Scene: () => <section aria-label="Arcade rink" />
+}));
+
+vi.mock("./ui/Lobby.js", () => ({
+  Lobby: (props: Record<string, unknown>) => {
+    lobbyProps = props;
+    return <section aria-label="Lobby" />;
+  }
 }));
 
 vi.mock("./render/ModelPreview.js", () => ({
@@ -300,6 +309,37 @@ describe("App", () => {
       stickX: 0.5,
       stickY: -0.75,
       pass: true
+    });
+  });
+
+  it("delegates Lobby rule selections to the active room session", () => {
+    const setMatchRules = vi.fn();
+    currentState = {
+      ...baseState,
+      connectionStatus: "connected",
+      phase: "waiting",
+      rules: DEFAULT_MATCH_RULES
+    };
+    currentScreen = "lobby";
+    currentAudioReady = false;
+    lobbyProps = null;
+    resetHookState();
+    priorRefs[0] = { current: { session: { setMatchRules } } };
+
+    renderToStaticMarkup(<App />);
+
+    const capturedLobbyProps = lobbyProps as Record<string, unknown> | null;
+    if (!capturedLobbyProps) {
+      throw new Error("Lobby did not render");
+    }
+    const onSetMatchRules = capturedLobbyProps.onSetMatchRules as
+      | ((rules: typeof DEFAULT_MATCH_RULES) => void)
+      | undefined;
+    onSetMatchRules?.({ ...DEFAULT_MATCH_RULES, timeLimitMs: 300_000 });
+
+    expect(setMatchRules).toHaveBeenCalledWith({
+      timeLimitMs: 300_000,
+      goalLimit: DEFAULT_MATCH_RULES.goalLimit
     });
   });
 });

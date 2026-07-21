@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createWorld } from "@bbh/arcade-core";
+import { createWorld, DEFAULT_MATCH_RULES } from "@bbh/arcade-core";
 import {
   buildHighlightColorByEntityId,
   createInitialArcadeClientState,
@@ -12,6 +12,22 @@ import {
 import type { ArcadeRoomConnection } from "./net/client.js";
 
 describe("reduceArcadeClientState", () => {
+  it("hydrates match rules and defaults fields missing from older room state", () => {
+    const room = {
+      sessionId: "session-a",
+      state: {
+        rules: { goalLimit: 7 }
+      }
+    } as unknown as ArcadeRoomConnection;
+
+    const state = mapRoomState(room);
+
+    expect(state.rules).toEqual({
+      timeLimitMs: DEFAULT_MATCH_RULES.timeLimitMs,
+      goalLimit: 7
+    });
+  });
+
   it("resets match state when the connection is lost", () => {
     const world = createWorld(1, "arcade3v3");
     world.phase = "playing";

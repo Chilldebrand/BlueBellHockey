@@ -1,4 +1,4 @@
-import type { CharacterId, InputFrame, TeamId } from "@bbh/arcade-core";
+import type { CharacterId, InputFrame, MatchRules, TeamId } from "@bbh/arcade-core";
 import { Client } from "colyseus.js";
 import type { ServerRoomState } from "../store.js";
 
@@ -91,6 +91,10 @@ export class ArcadeRoomSession {
 
   setReady(ready: boolean): void {
     this.room.send("client.setReady", { ready });
+  }
+
+  setMatchRules(rules: MatchRules): void {
+    this.room.send("client.setMatchRules", rules);
   }
 
   chooseTeam(teamId: TeamId): void {

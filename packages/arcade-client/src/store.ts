@@ -1,9 +1,11 @@
 import type {
   CharacterId,
+  MatchRules,
   TeamId,
   WorldPhase,
   WorldState
 } from "@bbh/arcade-core";
+import { DEFAULT_MATCH_RULES } from "@bbh/arcade-core";
 import type { ArcadeRoomConnection } from "./net/client.js";
 
 export type ConnectionStatus = "idle" | "connecting" | "connected" | "error";
@@ -47,6 +49,7 @@ export interface ArcadeClientState {
   readonly roomCode: string;
   readonly playerSessionId: string | null;
   readonly roomCreatorSessionId: string | null;
+  readonly rules: MatchRules;
   readonly roster: readonly ClientRosterSlot[];
   readonly score: ArcadeScore;
   readonly phase: WorldPhase;
@@ -64,6 +67,7 @@ export interface ServerRoomState {
   readonly score?: Partial<ArcadeScore>;
   readonly isRosterValid?: boolean;
   readonly roomCreatorSessionId?: string | null;
+  readonly rules?: Partial<MatchRules>;
   readonly teams?: {
     readonly home?: { readonly slots?: Iterable<ServerRosterSlot> };
     readonly away?: { readonly slots?: Iterable<ServerRosterSlot> };
@@ -89,6 +93,7 @@ export function createInitialArcadeClientState(): ArcadeClientState {
     roomCode: "",
     playerSessionId: null,
     roomCreatorSessionId: null,
+    rules: { ...DEFAULT_MATCH_RULES },
     roster: [],
     score: INITIAL_SCORE,
     phase: "waiting",
@@ -141,6 +146,11 @@ export function reduceArcadeClientState(
 export function mapRoomState(room: ArcadeRoomConnection): ArcadeClientState {
   const serverState = room.state;
   const score = serverState.score ?? INITIAL_SCORE;
+  const rules = {
+    timeLimitMs:
+      serverState.rules?.timeLimitMs ?? DEFAULT_MATCH_RULES.timeLimitMs,
+    goalLimit: serverState.rules?.goalLimit ?? DEFAULT_MATCH_RULES.goalLimit
+  };
   const roster = [
     ...Array.from(serverState.teams?.home?.slots ?? []),
     ...Array.from(serverState.teams?.away?.slots ?? [])
@@ -151,6 +161,7 @@ export function mapRoomState(room: ArcadeRoomConnection): ArcadeClientState {
     roomCode: serverState.privateCode ?? "",
     playerSessionId: room.sessionId,
     roomCreatorSessionId: serverState.roomCreatorSessionId ?? null,
+    rules,
     roster,
     score: {
       home: score.home ?? 0,

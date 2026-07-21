@@ -3,6 +3,7 @@ import {
   MATCH_CONFIG,
   type CharacterId,
   type InputFrame,
+  type MatchRules,
   type SkaterEntity,
   type TeamId
 } from "@bbh/arcade-core";
@@ -302,6 +303,10 @@ export function App({
     activeRoomRef.current?.session.setReady(ready);
   }, []);
 
+  const handleSetMatchRules = useCallback((rules: MatchRules) => {
+    activeRoomRef.current?.session.setMatchRules(rules);
+  }, []);
+
   const handleRequestStart = useCallback(() => {
     activeRoomRef.current?.session.requestStart();
   }, []);
@@ -598,6 +603,7 @@ export function App({
             onChooseCharacterFor={handleChooseCharacterFor}
             onSetPlayerName={handleSetPlayerName}
             onSetReady={handleSetReady}
+            onSetMatchRules={handleSetMatchRules}
             onRequestStart={handleRequestStart}
             onOpenSettings={handleOpenSettings}
           />

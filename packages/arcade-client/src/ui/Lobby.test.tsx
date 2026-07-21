@@ -79,6 +79,7 @@ function renderLobby(state: ArcadeClientState): string {
       onRequestStart={vi.fn()}
       onSetPlayerName={vi.fn()}
       onSetReady={vi.fn()}
+      onSetMatchRules={vi.fn()}
     />
   );
 }
@@ -170,5 +171,37 @@ describe("Lobby", () => {
     expect(readyHtml).toContain(">Start Match</button>");
     expect(readyHtml).not.toMatch(/<button[^>]*disabled=""[^>]*>Start Match<\/button>/);
     expect(nonCreatorHtml).not.toContain("Start Match");
+  });
+
+  it("shows the host every core rule preset", () => {
+    const html = renderLobby(
+      lobbyState({ roomCreatorSessionId: "session-a" })
+    );
+
+    expect(html).toContain("Rules");
+    expect(html).toContain("3 min");
+    expect(html).toContain("5 min");
+    expect(html).toContain("7 min");
+    expect(html).toContain("10 min");
+    expect(html).toContain("No limit");
+    expect(html).toContain("3 goals");
+    expect(html).toContain("5 goals");
+    expect(html).toContain("7 goals");
+    expect(html).toContain("10 goals");
+    expect(html).not.toContain("Host controls rules");
+  });
+
+  it("shows non-host participants the current rules but disables their presets", () => {
+    const html = renderLobby(
+      lobbyState({
+        roomCreatorSessionId: "session-b",
+        rules: { timeLimitMs: 420_000, goalLimit: 7 }
+      })
+    );
+
+    expect(html).toContain("7 min");
+    expect(html).toContain("7 goals");
+    expect(html).toContain("Host controls rules");
+    expect(html.match(/lobby-rules-preset[^>]*disabled=""/g)).toHaveLength(9);
   });
 });

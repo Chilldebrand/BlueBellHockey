@@ -11,6 +11,7 @@ export interface ScoreHudProps {
  * phase shown only when not actively playing.
  */
 export function ScoreHud({ state }: ScoreHudProps): JSX.Element {
+  const isOvertime = state.phase === "playing" && state.currentWorld?.isOvertime;
   const remainingSeconds = Math.max(
     0,
     Math.ceil((state.currentWorld?.remainingMs ?? 0) / 1000)
@@ -26,7 +27,10 @@ export function ScoreHud({ state }: ScoreHudProps): JSX.Element {
       </span>
       <strong className="score-hud-digits">{state.score.home}</strong>
       <div className="score-hud-center">
-        <span className="score-hud-clock">{formatClock(remainingSeconds)}</span>
+        <span className="score-hud-clock">
+          {isOvertime ? "NEXT GOAL" : formatClock(remainingSeconds)}
+        </span>
+        {isOvertime ? <span className="score-hud-overtime">OT</span> : null}
         {state.phase === "playing" ? null : (
           <span className="score-hud-phase">{state.phase}</span>
         )}

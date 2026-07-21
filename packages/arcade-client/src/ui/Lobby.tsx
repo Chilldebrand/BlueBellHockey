@@ -1,5 +1,12 @@
 import { useEffect, useId, useState } from "react";
-import { TEAM_PALETTES, type CharacterId, type TeamId } from "@bbh/arcade-core";
+import {
+  GOAL_LIMIT_OPTIONS,
+  TEAM_PALETTES,
+  TIME_LIMIT_OPTIONS_MS,
+  type CharacterId,
+  type MatchRules,
+  type TeamId
+} from "@bbh/arcade-core";
 import type { ArcadeClientState, ClientRosterSlot } from "../store.js";
 import { CharacterSelect } from "./CharacterSelect.js";
 import { canEditSlot } from "./lobbyPermissions.js";
@@ -18,6 +25,7 @@ export interface LobbyProps {
   ) => void;
   readonly onSetPlayerName: (playerName: string) => void;
   readonly onSetReady: (ready: boolean) => void;
+  readonly onSetMatchRules: (rules: MatchRules) => void;
   readonly onRequestStart: () => void;
   readonly onOpenSettings?: () => void;
 }
@@ -31,11 +39,13 @@ export function Lobby({
   onChooseCharacterFor,
   onSetPlayerName,
   onSetReady,
+  onSetMatchRules,
   onRequestStart,
   onOpenSettings
 }: LobbyProps): JSX.Element {
   const [joinCode, setJoinCode] = useState("");
   const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
+  const [rulesOpen, setRulesOpen] = useState(false);
   const joinInputId = useId();
   const isConnecting = state.connectionStatus === "connecting";
   const isConnected = state.connectionStatus === "connected";
@@ -55,6 +65,7 @@ export function Lobby({
       .every((slot) => slot.ready);
   const canSetReady = Boolean(localSlot?.playerName?.trim());
   const canStart = isConnected && state.isRosterValid && allHumansReady;
+  const canEditRules = isConnected && isCreator;
 
   // Default the picker to your own slot once connected, preserving the old
   // "pick your character immediately" flow.
@@ -228,6 +239,15 @@ export function Lobby({
                 Settings
               </button>
             ) : null}
+            <button
+              type="button"
+              className="lobby-rules-button"
+              aria-expanded={rulesOpen}
+              aria-controls="lobby-match-rules"
+              onClick={() => setRulesOpen((open) => !open)}
+            >
+              Rules
+            </button>
             {isCreator ? (
               <button
                 type="button"
@@ -239,6 +259,53 @@ export function Lobby({
               </button>
             ) : null}
           </div>
+
+          <section
+            id="lobby-match-rules"
+            className="lobby-rules-panel"
+            aria-label="Match rules"
+            hidden={!rulesOpen}
+          >
+            <div className="lobby-rules-group">
+              <h3>Time limit</h3>
+              <div className="lobby-rules-presets">
+                {TIME_LIMIT_OPTIONS_MS.map((timeLimitMs) => (
+                  <button
+                    key={timeLimitMs}
+                    type="button"
+                    className="lobby-rules-preset"
+                    aria-pressed={state.rules.timeLimitMs === timeLimitMs}
+                    disabled={!canEditRules}
+                    onClick={() =>
+                      onSetMatchRules({ ...state.rules, timeLimitMs })
+                    }
+                  >
+                    {timeLimitMs / 60_000} min
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="lobby-rules-group">
+              <h3>Goal limit</h3>
+              <div className="lobby-rules-presets">
+                {GOAL_LIMIT_OPTIONS.map((goalLimit) => (
+                  <button
+                    key={goalLimit}
+                    type="button"
+                    className="lobby-rules-preset"
+                    aria-pressed={state.rules.goalLimit === goalLimit}
+                    disabled={!canEditRules}
+                    onClick={() => onSetMatchRules({ ...state.rules, goalLimit })}
+                  >
+                    {goalLimit === 0 ? "No limit" : `${goalLimit} goals`}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {!canEditRules ? (
+              <p className="lobby-rules-help">Host controls rules</p>
+            ) : null}
+          </section>
 
           {editingSlot ? (
             <CharacterSelect

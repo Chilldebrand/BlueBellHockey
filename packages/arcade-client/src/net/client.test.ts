@@ -272,6 +272,16 @@ describe("arcade room connection", () => {
     expect(room.send).toHaveBeenCalledWith("client.setReady", { ready: true });
   });
 
+  it("sends exact match rules messages", () => {
+    const room = fakeRoom();
+    const session = new ArcadeRoomSession(room);
+    const rules = { timeLimitMs: 420_000, goalLimit: 7 } as const;
+
+    session.setMatchRules(rules);
+
+    expect(room.send).toHaveBeenCalledWith("client.setMatchRules", rules);
+  });
+
   it("saves and reuses a short-lived reconnect ticket", async () => {
     const storage = memoryStorage();
     const room = fakeRoom();
