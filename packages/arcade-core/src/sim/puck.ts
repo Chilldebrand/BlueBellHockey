@@ -100,8 +100,9 @@ export const PUCK_CONFIG: PuckConfig = {
   // catchable well above the loose-puck deflection gate, so passes stick
   // instead of sailing through the receiver. Interceptions keep the strict
   // gate. Tuning 2026-07-07: +20% pass pace and slap-shot pace; catch assist
-  // raised to keep a full-charge pass (1815 + 766 = 2581) receivable.
-  passSpeed: 1815,
+  // raised to keep a full-charge pass receivable. 2026-07-21: pass pace -10%
+  // (full charge now 1634 + 689 = 2323, still under the 2850 catch gate).
+  passSpeed: 1634,
   passCatchRadius: 90,
   passCatchMaxRelativeSpeed: 2850,
   wristShotSpeed: 1040,
@@ -118,7 +119,7 @@ export const PUCK_CONFIG: PuckConfig = {
   shotPlacementMargin: 30,
   releasePickupCooldownMs: 220,
   passChargeMaxMs: 600,
-  passChargeSpeedBonus: 766
+  passChargeSpeedBonus: 689
 };
 
 /** Height of the goal frame — a puck at or above this hits the crossbar. */

@@ -125,10 +125,10 @@ describe("puck actions", () => {
     expect(world.puck.velocity.y).toBeGreaterThan(150);
   });
 
-  it("uses the 40 percent faster quick and charged pass speeds", () => {
+  it("uses the tuned quick and charged pass speeds", () => {
     const tap = givePuckToFirstSkater();
     tapPass(tap, { moveX: 1 });
-    expect(PUCK_CONFIG.passSpeed).toBe(1815);
+    expect(PUCK_CONFIG.passSpeed).toBe(1634);
     expect(magnitude(tap.puck.velocity)).toBeCloseTo(
       PUCK_CONFIG.passSpeed +
         PUCK_CONFIG.passChargeSpeedBonus * (16 / PUCK_CONFIG.passChargeMaxMs)
@@ -144,8 +144,8 @@ describe("puck actions", () => {
     }
     stepWorld(charged, [inputFrame("home-skater-1", 39, { pass: false })], 16);
 
-    expect(PUCK_CONFIG.passChargeSpeedBonus).toBe(766);
-    expect(magnitude(charged.puck.velocity)).toBeCloseTo(2581, 0);
+    expect(PUCK_CONFIG.passChargeSpeedBonus).toBe(689);
+    expect(magnitude(charged.puck.velocity)).toBeCloseTo(2323, 0);
   });
 
   it("keeps a fully charged pass catchable by its intended teammate", () => {

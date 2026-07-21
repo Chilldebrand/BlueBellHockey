@@ -44,11 +44,11 @@ function playingWorld(): WorldState {
 describe("puck simulation", () => {
   it("exposes the tuned pickup, passing, and charged-maximum values", () => {
     expect(PUCK_CONFIG.pickupRadius).toBe(75);
-    expect(PUCK_CONFIG.passSpeed).toBe(1815);
-    expect(PUCK_CONFIG.passChargeSpeedBonus).toBe(766);
+    expect(PUCK_CONFIG.passSpeed).toBe(1634);
+    expect(PUCK_CONFIG.passChargeSpeedBonus).toBe(689);
     expect(PUCK_CONFIG.passCatchRadius).toBe(90);
     expect(PUCK_CONFIG.passCatchMaxRelativeSpeed).toBe(2850);
-    expect(PUCK_CONFIG.passSpeed + PUCK_CONFIG.passChargeSpeedBonus).toBe(2581);
+    expect(PUCK_CONFIG.passSpeed + PUCK_CONFIG.passChargeSpeedBonus).toBe(2323);
   });
 
   it("allows a skater to gather a loose puck near the blade", () => {
