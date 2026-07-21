@@ -1,29 +1,129 @@
-import { scheduleTone } from "./synth.js";
+import type { WorldState } from "@bbh/arcade-core";
 
-interface Chord {
-  readonly bass: number;
-  readonly arp: readonly number[];
+export type MusicRoute = "off" | "menu" | "regular" | "high";
+
+export interface MusicTrack {
+  readonly id: string;
+  readonly title: string;
+  readonly path: string;
 }
 
-const PROGRESSION: readonly Chord[] = [
-  { bass: 110, arp: [220, 261.63, 329.63] },
-  { bass: 87.31, arp: [174.61, 220, 261.63] },
-  { bass: 130.81, arp: [261.63, 329.63, 392] },
-  { bass: 98, arp: [196, 246.94, 293.66] }
+const musicTrack = (
+  id: string,
+  title: string
+): MusicTrack => ({
+  id,
+  title,
+  path: `/audio/music/${id}.mp3`
+});
+
+export const REGULAR_MATCH_MUSIC: readonly MusicTrack[] = [
+  musicTrack("steel-grit", "Steel Grit (Sports Rock Background)"),
+  musicTrack("342-maxed-out", "342 Maxed Out (The Action Rock)"),
+  musicTrack("full-blast", "Full Blast (Energetic Sport Rock)"),
+  musicTrack("motivation-sport-rock-trailer", "Motivation Sport Rock Trailer"),
+  musicTrack("action-rock", "Action Rock"),
+  musicTrack("on-my-way", "On My Way (Cool Rock Background)"),
+  musicTrack("shout-it", "Shout It (Sports Rock)"),
+  musicTrack("motivation-epic-rock", "Motivation Epic Rock")
 ];
 
-const STEP_DURATION_SECONDS = 60 / 84 / 2;
-const STEPS_PER_CHORD = 4;
-const LOOKAHEAD_MS = 25;
-const LOOKAHEAD_SECONDS = 0.1;
+export const HIGH_INTENSITY_MUSIC: readonly MusicTrack[] = [
+  musicTrack("power-drive-extreme-sports", "Power Drive Extreme Sports"),
+  musicTrack("bringing-thunder", "Bringing Thunder (The Cool Rock Background)"),
+  musicTrack("sports-energetic-metalcore", "Sports Energetic Metalcore")
+];
+
+export const MENU_MUSIC: readonly MusicTrack[] = [
+  musicTrack("cool-old-school", "Cool Old School — Classic Boom Bap Hip-Hop"),
+  musicTrack(
+    "delinquente",
+    "Delinquente Hip Hop Old School Instrumental"
+  ),
+  musicTrack("positive-hip-hop", "Positive Hip Hop"),
+  musicTrack("hip-hop-old-school", "Hip Hop Old School")
+];
+
+const LATE_CLOSE_REMAINING_MS = 60_000;
+
+export function musicRouteForWorld(world: Pick<
+  WorldState,
+  "phase" | "isOvertime" | "remainingMs" | "score"
+>): Exclude<MusicRoute, "off" | "menu"> {
+  if (
+    world.isOvertime ||
+    (world.remainingMs <= LATE_CLOSE_REMAINING_MS &&
+      Math.abs(world.score.home - world.score.away) <= 1)
+  ) {
+    return "high";
+  }
+
+  return "regular";
+}
+
+export function createMusicShuffle<T extends MusicTrack>(
+  tracks: readonly T[],
+  random: () => number = Math.random
+): () => T {
+  let remaining: T[] = [];
+  let lastTrackId: string | null = null;
+
+  const refill = (): void => {
+    remaining = [...tracks];
+    for (let index = remaining.length - 1; index > 0; index -= 1) {
+      const raw = random();
+      const normalized = Number.isFinite(raw) ? Math.max(0, Math.min(0.999999, raw)) : 0;
+      const swapIndex = Math.floor(normalized * (index + 1));
+      const current = remaining[index]!;
+      remaining[index] = remaining[swapIndex]!;
+      remaining[swapIndex] = current;
+    }
+
+    if (remaining.length > 1 && remaining[0]?.id === lastTrackId) {
+      const swapIndex = remaining.findIndex((track) => track.id !== lastTrackId);
+      if (swapIndex > 0) {
+        const first = remaining[0]!;
+        remaining[0] = remaining[swapIndex]!;
+        remaining[swapIndex] = first;
+      }
+    }
+  };
+
+  return () => {
+    if (remaining.length === 0) {
+      refill();
+    }
+
+    const next = remaining.shift();
+    if (!next) {
+      throw new Error("Music rotation cannot be empty");
+    }
+
+    lastTrackId = next.id;
+    return next;
+  };
+}
+
+const TRACKS_BY_ROUTE: Record<Exclude<MusicRoute, "off">, readonly MusicTrack[]> = {
+  menu: MENU_MUSIC,
+  regular: REGULAR_MATCH_MUSIC,
+  high: HIGH_INTENSITY_MUSIC
+};
+
 const SILENT_GAIN = 0.0001;
 
 export class MenuMusic {
-  private readonly output: GainNode;
-  private enabled = false;
-  private timer: ReturnType<typeof setInterval> | null = null;
-  private nextTime = 0;
-  private step = 0;
+  readonly output: GainNode;
+  route: MusicRoute = "off";
+  currentTrackId: string | null = null;
+
+  private readonly shuffles = new Map<
+    Exclude<MusicRoute, "off">,
+    () => MusicTrack
+  >();
+  private readonly buffers = new Map<string, AudioBuffer>();
+  private currentSource: AudioBufferSourceNode | null = null;
+  private generation = 0;
 
   constructor(
     private readonly context: AudioContext,
@@ -34,78 +134,113 @@ export class MenuMusic {
     this.output.connect(destination);
   }
 
+  setBuffers(buffers: ReadonlyMap<string, AudioBuffer>): void {
+    this.buffers.clear();
+    for (const [trackId, buffer] of buffers) {
+      this.buffers.set(trackId, buffer);
+    }
+
+    this.startCurrentRouteIfNeeded();
+  }
+
   setEnabled(enabled: boolean): void {
-    if (enabled === this.enabled) {
+    this.setRoute(enabled ? "menu" : "off");
+  }
+
+  setRoute(route: MusicRoute): void {
+    if (route === this.route) {
+      this.startCurrentRouteIfNeeded();
       return;
     }
 
-    this.enabled = enabled;
+    this.route = route;
+    this.generation += 1;
+    this.stopCurrentSource();
+    this.currentTrackId = null;
     this.output.gain.setTargetAtTime(
-      enabled ? 1 : SILENT_GAIN,
+      route === "off" ? SILENT_GAIN : 1,
       this.context.currentTime,
       0.4
     );
 
-    if (enabled) {
-      this.step = 0;
-      this.nextTime = this.context.currentTime + 0.08;
-
-      if (!this.timer) {
-        this.timer = setInterval(() => this.schedule(), LOOKAHEAD_MS);
-      }
-
-      return;
-    }
-
-    this.clearTimer();
+    this.startCurrentRouteIfNeeded();
   }
 
   dispose(): void {
-    this.enabled = false;
-    this.clearTimer();
+    this.route = "off";
+    this.generation += 1;
+    this.stopCurrentSource();
+    this.currentTrackId = null;
   }
 
-  private schedule(): void {
-    if (!this.enabled) {
+  private startCurrentRouteIfNeeded(): void {
+    if (this.route === "off" || this.currentSource) {
       return;
     }
 
-    while (this.nextTime < this.context.currentTime + LOOKAHEAD_SECONDS) {
-      const chord =
-        PROGRESSION[Math.floor(this.step / STEPS_PER_CHORD) % PROGRESSION.length]!;
-      const inChord = this.step % STEPS_PER_CHORD;
-
-      if (inChord === 0) {
-        scheduleTone(this.context, {
-          destination: this.output,
-          frequency: chord.bass,
-          startTime: this.nextTime,
-          duration: STEP_DURATION_SECONDS * 3.4,
-          gain: 0.07
-        });
-      }
-
-      if (this.step % 2 === 0) {
-        const arp = chord.arp[Math.floor(this.step / 2) % chord.arp.length]!;
-        scheduleTone(this.context, {
-          destination: this.output,
-          frequency: arp,
-          startTime: this.nextTime,
-          duration: STEP_DURATION_SECONDS * 1.6,
-          gain: 0.06,
-          type: "triangle"
-        });
-      }
-
-      this.nextTime += STEP_DURATION_SECONDS;
-      this.step = (this.step + 1) % (STEPS_PER_CHORD * PROGRESSION.length);
+    const pool = TRACKS_BY_ROUTE[this.route];
+    if (!pool || pool.length === 0) {
+      return;
     }
+
+    let nextTrack: MusicTrack | null = null;
+    const next = this.getShuffle(this.route);
+    for (let attempt = 0; attempt < pool.length; attempt += 1) {
+      const candidate = next();
+      if (this.buffers.has(candidate.id)) {
+        nextTrack = candidate;
+        break;
+      }
+    }
+
+    if (!nextTrack) {
+      return;
+    }
+
+    const buffer = this.buffers.get(nextTrack.id);
+    if (!buffer) {
+      return;
+    }
+
+    const generation = this.generation;
+    const source = this.context.createBufferSource();
+    source.buffer = buffer;
+    source.connect(this.output);
+    source.onended = () => {
+      if (generation !== this.generation || this.currentSource !== source) {
+        return;
+      }
+
+      this.currentSource = null;
+      this.currentTrackId = null;
+      this.startCurrentRouteIfNeeded();
+    };
+    this.currentSource = source;
+    this.currentTrackId = nextTrack.id;
+    source.start(this.context.currentTime + 0.05);
   }
 
-  private clearTimer(): void {
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = null;
+  private getShuffle(route: Exclude<MusicRoute, "off">): () => MusicTrack {
+    let shuffle = this.shuffles.get(route);
+    if (!shuffle) {
+      shuffle = createMusicShuffle(TRACKS_BY_ROUTE[route]);
+      this.shuffles.set(route, shuffle);
     }
+
+    return shuffle;
+  }
+
+  private stopCurrentSource(): void {
+    if (!this.currentSource) {
+      return;
+    }
+
+    try {
+      this.currentSource.stop();
+    } catch {
+      // A source that already ended is safe to discard.
+    }
+
+    this.currentSource = null;
   }
 }

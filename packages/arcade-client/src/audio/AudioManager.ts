@@ -1,5 +1,11 @@
 import { createWorld, type WorldState } from "@bbh/arcade-core";
-import { MenuMusic } from "./music.js";
+import {
+  HIGH_INTENSITY_MUSIC,
+  MENU_MUSIC,
+  REGULAR_MATCH_MUSIC,
+  MenuMusic,
+  musicRouteForWorld
+} from "./music.js";
 import {
   AnnouncerQueue,
   announcerCueForEvent,
@@ -76,6 +82,7 @@ export class AudioManager implements AudioManagerApi {
   private started = false;
   private menuMusicAllowed = false;
   private menuMusic: MenuMusic | null = null;
+  private musicAssetLoadPromise: Promise<void> | null = null;
   private resumeListener: (() => void) | null = null;
 
   private masterGain: GainNode | null = null;
@@ -86,6 +93,7 @@ export class AudioManager implements AudioManagerApi {
   private skatingFilter: BiquadFilterNode | null = null;
   private skatingSource: AudioBufferSourceNode | null = null;
   private readonly announcerBuffers = new Map<string, AudioBuffer>();
+  private readonly musicBuffers = new Map<string, AudioBuffer>();
   private readonly announcerSources = new Set<AudioBufferSourceNode>();
   private announcerAssetLoadPromise: Promise<void> | null = null;
   private consumedEventIds = new Set<string>();
@@ -136,6 +144,10 @@ export class AudioManager implements AudioManagerApi {
 
     this.applyPreferences(this.preferences);
     this.menuMusic = new MenuMusic(this.context, musicGain);
+    this.musicAssetLoadPromise = this.loadMusicAssets();
+    void this.musicAssetLoadPromise.then(() => {
+      this.menuMusic?.setBuffers(this.musicBuffers);
+    });
     void safeResume(this.context);
 
     if (typeof window !== "undefined") {
@@ -166,7 +178,7 @@ export class AudioManager implements AudioManagerApi {
 
   setMenuMusicAllowed(allowed: boolean): void {
     this.menuMusicAllowed = allowed;
-    this.menuMusic?.setEnabled(allowed);
+    this.menuMusic?.setRoute(allowed ? "menu" : "off");
   }
 
   consumeWorld(world: WorldState, localEntityId: string | null): void {
@@ -174,6 +186,13 @@ export class AudioManager implements AudioManagerApi {
       return;
     }
 
+    this.menuMusic?.setRoute(
+      world.phase === "playing"
+        ? musicRouteForWorld(world)
+        : this.menuMusicAllowed
+          ? "menu"
+          : "off"
+    );
     this.ensureSkatingSource();
     this.consumeEvents(world);
     this.updateSkatingMix(world, localEntityId);
@@ -218,6 +237,9 @@ export class AudioManager implements AudioManagerApi {
     this.skatingGain = null;
     this.skatingFilter = null;
     this.skatingSource = null;
+    this.musicAssetLoadPromise = null;
+    this.announcerBuffers.clear();
+    this.musicBuffers.clear();
     this.announcerQueue.clear();
     this.stopAnnouncerSources();
     this.clearAnnouncerTimer();
@@ -351,7 +373,7 @@ export class AudioManager implements AudioManagerApi {
       getPreferences: () => manager.getPreferences(),
       getMenuMusicState: () => ({
         allowed: manager.menuMusicAllowed,
-        active: manager.menuMusicAllowed && manager.menuMusic !== null
+        active: manager.menuMusic?.route !== "off"
       }),
       getBusLevels: () => manager.getBusLevels(),
       getDiagnostics: () => manager.getDiagnostics(),
@@ -593,6 +615,20 @@ export class AudioManager implements AudioManagerApi {
     }
   }
 
+  private async loadMusicAssets(): Promise<void> {
+    const tracks = [
+      ...MENU_MUSIC,
+      ...REGULAR_MATCH_MUSIC,
+      ...HIGH_INTENSITY_MUSIC
+    ];
+
+    await Promise.all(
+      tracks.map(async (track) => {
+        await this.loadAudioCandidates(`music.${track.id}`, [track.path]);
+      })
+    );
+  }
+
   private async loadAudioCandidates(
     clipId: string,
     candidates: readonly string[]
@@ -607,10 +643,14 @@ export class AudioManager implements AudioManagerApi {
           continue;
         }
 
-        if (clipId.startsWith("announcer.") && this.context) {
+        if (this.context && (clipId.startsWith("announcer.") || clipId.startsWith("music."))) {
           const encoded = await response.arrayBuffer();
           const decoded = await this.context.decodeAudioData(encoded);
-          this.announcerBuffers.set(clipId, decoded);
+          if (clipId.startsWith("announcer.")) {
+            this.announcerBuffers.set(clipId, decoded);
+          } else {
+            this.musicBuffers.set(clipId.slice("music.".length), decoded);
+          }
         }
 
         return { available: true, error: null };

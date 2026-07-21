@@ -127,6 +127,7 @@ class FakeAudioContext {
     buffer: FakeAudioBuffer | null;
     loop: boolean;
     playbackRate: FakeAudioParam;
+    onended: (() => void) | null;
     connect: ReturnType<typeof vi.fn>;
     start: ReturnType<typeof vi.fn>;
     stop: ReturnType<typeof vi.fn>;
@@ -173,6 +174,7 @@ class FakeAudioContext {
       buffer: null,
       loop: false,
       playbackRate: new FakeAudioParam(),
+      onended: null,
       connect: vi.fn((target: unknown) => target),
       start: vi.fn(),
       stop: vi.fn()
@@ -239,6 +241,22 @@ function installAudioWindow(storage?: Storage) {
         Reflect.deleteProperty(globalThis, "window");
       }
     }
+  };
+}
+
+function managerInspection(manager: AudioManager): {
+  readonly route: string;
+  readonly trackId: string | null;
+} {
+  const menuMusic = (
+    manager as unknown as {
+      menuMusic: { route: string; currentTrackId: string | null } | null;
+    }
+  ).menuMusic;
+
+  return {
+    route: menuMusic?.route ?? "off",
+    trackId: menuMusic?.currentTrackId ?? null
   };
 }
 
@@ -554,24 +572,39 @@ describe("AudioManager", () => {
     }
   });
 
-  it("starts menu music only after start and fades it out when disabled", () => {
-    vi.useFakeTimers();
+  it("starts authored menu music after start and fades it out when disabled", async () => {
     const { restore } = installAudioWindow();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === "/audio/manifest.json") {
+        return {
+          ok: true,
+          headers: { get: (_name: string): string => "application/json" },
+          json: async () => ({ clips: {} })
+        };
+      }
+
+      return {
+        ok: true,
+        headers: { get: (_name: string): string => "audio/mpeg" },
+        arrayBuffer: async () => new ArrayBuffer(8)
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
     FakeAudioContext.instances.length = 0;
 
     try {
       const manager = new AudioManager();
 
       manager.setMenuMusicAllowed(true);
-      expect(vi.getTimerCount()).toBe(0);
-
       manager.start();
-      expect(vi.getTimerCount()).toBe(1);
 
       const context = FakeAudioContext.instances[0]!;
-      context.currentTime = 1;
-      vi.advanceTimersByTime(25);
-      expect(context.oscillators.length).toBeGreaterThan(0);
+      await vi.waitFor(() => {
+        expect(
+          context.bufferSources.some((source) => source.buffer !== null)
+        ).toBe(true);
+      });
 
       const menuMusicOutput = (
         manager as unknown as {
@@ -582,12 +615,56 @@ describe("AudioManager", () => {
 
       expect(menuMusicOutput?.gain.events.at(-1)).toMatchObject({
         type: "setTargetAtTime",
-        value: 0.0001,
-        time: 1
+        value: 0.0001
       });
-      expect(vi.getTimerCount()).toBe(0);
+      expect(context.bufferSources.some((source) => source.stop.mock.calls.length > 0)).toBe(true);
     } finally {
-      vi.useRealTimers();
+      vi.unstubAllGlobals();
+      restore();
+    }
+  });
+
+  it("switches authored music pools for regular, late-close, and overtime play", async () => {
+    const { restore } = installAudioWindow();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === "/audio/manifest.json") {
+        return {
+          ok: true,
+          headers: { get: (_name: string): string => "application/json" },
+          json: async () => ({ clips: {} })
+        };
+      }
+
+      return {
+        ok: true,
+        headers: { get: (_name: string): string => "audio/mpeg" },
+        arrayBuffer: async () => new ArrayBuffer(8)
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      const manager = new AudioManager();
+      manager.start();
+      manager.setMenuMusicAllowed(false);
+
+      const regularWorld = createWorld(3, "arcade3v3");
+      regularWorld.phase = "playing";
+      manager.consumeWorld(regularWorld, "home-skater-1");
+      expect(managerInspection(manager).route).toBe("regular");
+
+      regularWorld.remainingMs = 30_000;
+      regularWorld.score.home = 2;
+      regularWorld.score.away = 1;
+      manager.consumeWorld(regularWorld, "home-skater-1");
+      expect(managerInspection(manager).route).toBe("high");
+
+      regularWorld.isOvertime = true;
+      manager.consumeWorld(regularWorld, "home-skater-1");
+      expect(managerInspection(manager).route).toBe("high");
+    } finally {
+      vi.unstubAllGlobals();
       restore();
     }
   });
@@ -605,7 +682,7 @@ describe("AudioManager", () => {
       manager.start();
       manager.setMenuMusicAllowed(true);
 
-      expect(vi.getTimerCount()).toBe(1);
+      expect(vi.getTimerCount()).toBe(0);
 
       expect(() => manager.dispose()).not.toThrow();
       expect(vi.getTimerCount()).toBe(0);
