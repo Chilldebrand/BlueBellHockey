@@ -617,6 +617,153 @@ describe("AudioManager", () => {
     }
   });
 
+  it("swallows the retained event backlog after a cursor reset instead of replaying it", async () => {
+    const { restore, fakeWindow } = installAudioWindow();
+    FakeAudioContext.instances.length = 0;
+
+    try {
+      const manager = new AudioManager();
+      manager.start();
+      manager.resetEventCursor();
+
+      const world = createWorld(3, "arcade3v3");
+      world.eventQueue = [
+        {
+          id: "backlog-goal-1",
+          type: "goal",
+          atMs: 100,
+          sourceSlotId: "home-skater-1"
+        },
+        {
+          id: "backlog-hit-1",
+          type: "hit",
+          atMs: 200,
+          sourceSlotId: "home-skater-2"
+        }
+      ];
+
+      // First snapshot after the reset carries the backlog: consumed silently.
+      manager.consumeWorld(world, "home-skater-1");
+
+      const handle = (fakeWindow as typeof fakeWindow & {
+        __bbhArcadeAudio?: AudioInspectionHandle;
+      }).__bbhArcadeAudio;
+      expect(handle?.getDiagnostics()).toMatchObject({
+        processedEventCount: 0,
+        suppressedEventCount: 2,
+        announcerGoalCount: 0
+      });
+      expect(fakeWindow.speechSynthesis.speak).not.toHaveBeenCalled();
+
+      // A genuinely new event on the next snapshot plays normally.
+      world.eventQueue = [
+        ...world.eventQueue,
+        {
+          id: "backlog-goal-2",
+          type: "goal",
+          atMs: 300,
+          sourceSlotId: "home-skater-1"
+        }
+      ];
+      manager.consumeWorld(world, "home-skater-1");
+
+      await vi.waitFor(() => {
+        expect(fakeWindow.speechSynthesis.speak).toHaveBeenCalledTimes(1);
+      });
+      expect(handle?.getDiagnostics()).toMatchObject({
+        processedEventCount: 1,
+        suppressedEventCount: 2,
+        announcerGoalCount: 1
+      });
+      manager.dispose();
+    } finally {
+      restore();
+    }
+  });
+
+  it("silences the skating loop when the event cursor resets on screen changes", () => {
+    const { restore } = installAudioWindow();
+    FakeAudioContext.instances.length = 0;
+
+    try {
+      const manager = new AudioManager();
+      manager.start();
+
+      const world = createWorld(3, "arcade3v3");
+      const skater = world.skaters.find((entry) => entry.id === "home-skater-1")!;
+      skater.velocity = { x: 900, y: 0 };
+      manager.consumeWorld(world, "home-skater-1");
+
+      const skatingGain = (
+        manager as unknown as { skatingGain: FakeGainNode | null }
+      ).skatingGain;
+      expect(skatingGain?.gain.value ?? 0).toBeGreaterThan(0);
+
+      manager.resetEventCursor();
+
+      expect(skatingGain?.gain.events.at(-1)).toMatchObject({
+        type: "setTargetAtTime",
+        value: 0
+      });
+    } finally {
+      restore();
+    }
+  });
+
+  it("interrupts an active powerup announcement when a goal arrives", async () => {
+    const { restore, fakeWindow } = installAudioWindow();
+    FakeAudioContext.instances.length = 0;
+
+    try {
+      const manager = new AudioManager();
+      manager.start();
+
+      const world = createWorld(3, "arcade3v3");
+      world.eventQueue = [
+        {
+          id: "interrupt-powerup-1",
+          type: "powerupPickup",
+          atMs: 100,
+          sourceSlotId: "home-skater-1",
+          targetSlotId: "speed-boost"
+        }
+      ];
+      manager.consumeWorld(world, "home-skater-1");
+
+      await vi.waitFor(() => {
+        expect(fakeWindow.speechSynthesis.speak).toHaveBeenCalledTimes(1);
+      });
+      expect(
+        (fakeWindow.speechSynthesis.speak.mock.calls[0]?.[0] as { text: string })
+          .text
+      ).toContain("another gear");
+
+      // The goal must play immediately — no waiting out the powerup's window.
+      world.eventQueue = [
+        ...world.eventQueue,
+        {
+          id: "interrupt-goal-1",
+          type: "goal",
+          atMs: 200,
+          sourceSlotId: "home-skater-1"
+        }
+      ];
+      manager.consumeWorld(world, "home-skater-1");
+
+      await vi.waitFor(() => {
+        expect(fakeWindow.speechSynthesis.speak).toHaveBeenCalledTimes(2);
+      });
+      expect(fakeWindow.speechSynthesis.cancel).toHaveBeenCalled();
+      expect(
+        (fakeWindow.speechSynthesis.speak.mock.calls[1]?.[0] as { text: string })
+          .text
+      ).toMatch(/^Rook Rocket /);
+      manager.dispose();
+    } finally {
+      restore();
+    }
+  });
+
   it("stays safe when Web Audio is unavailable", () => {
     const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
 

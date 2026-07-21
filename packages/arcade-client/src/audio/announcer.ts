@@ -52,8 +52,7 @@ const expectedAnnouncerClipIds = [
   ...Array.from({ length: GOAL_LINES.length }, (_, index) => `announcer.goal.${index}`),
   ...Object.keys(POWERUP_LINES).map(
     (powerupType) => `announcer.powerup.${powerupType}`
-  ),
-  "music.menu.0"
+  )
 ] as const;
 
 export interface AnnouncerManifestValidation {

@@ -47,9 +47,8 @@ Powerup quip clips:
 - `announcer.powerup.mini-goalie` — “made the goalie tiny!”
 - `announcer.powerup.giant-goalie` — “built a goalie wall!”
 
-Music:
-
-- `music.menu.0`
+Menu music is generated procedurally at runtime (`src/audio/music.ts`); it has no
+manifest entry or asset files.
 
 ## Public path layout
 
@@ -58,4 +57,3 @@ The manifest maps stable logical IDs to public `/audio/` paths under these slots
 - `/audio/announcer/names/<character-id>.{ogg,mp3}`
 - `/audio/announcer/goals/goal-<0-7>.{ogg,mp3}`
 - `/audio/announcer/powerups/<powerup-type>.{ogg,mp3}`
-- `/audio/music/menu-0.{ogg,mp3}`

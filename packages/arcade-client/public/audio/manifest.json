@@ -99,10 +99,6 @@
     "announcer.powerup.giant-goalie": [
       "/audio/announcer/powerups/giant-goalie.ogg",
       "/audio/announcer/powerups/giant-goalie.mp3"
-    ],
-    "music.menu.0": [
-      "/audio/music/menu-0.ogg",
-      "/audio/music/menu-0.mp3"
     ]
   }
 }

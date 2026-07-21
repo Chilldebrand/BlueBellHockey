@@ -15,7 +15,6 @@ import {
 } from "./preferences.js";
 import {
   createAudioContext,
-  createNoiseBuffer,
   createSkatingBuffer,
   safeResume,
   scheduleNoiseBurst,
@@ -60,6 +59,7 @@ export interface AudioDiagnostics {
   readonly assetErrors: readonly string[];
   readonly processedEventCount: number;
   readonly duplicateEventCount: number;
+  readonly suppressedEventCount: number;
   readonly announcerGoalCount: number;
   readonly announcerPowerupCount: number;
 }
@@ -89,8 +89,11 @@ export class AudioManager implements AudioManagerApi {
   private readonly announcerSources = new Set<AudioBufferSourceNode>();
   private announcerAssetLoadPromise: Promise<void> | null = null;
   private consumedEventIds = new Set<string>();
+  private suppressBacklogOnNextConsume = false;
   private readonly announcerQueue = new AnnouncerQueue();
   private announcerTimer: ReturnType<typeof setTimeout> | null = null;
+  private announcerBusy = false;
+  private announcerEpoch = 0;
   private diagnostics: AudioDiagnostics = createInitialDiagnostics();
 
   constructor() {
@@ -178,10 +181,17 @@ export class AudioManager implements AudioManagerApi {
 
   resetEventCursor(): void {
     this.consumedEventIds.clear();
+    // The next snapshot may carry the sim's retained event backlog (e.g. the
+    // ~5s window replayed to a reconnecting client); swallow it silently so
+    // rejoining never fires a burst of stale sounds.
+    this.suppressBacklogOnNextConsume = true;
+    this.announcerEpoch += 1;
+    this.announcerBusy = false;
     this.announcerQueue.clear();
     this.stopAnnouncerSources();
     this.clearAnnouncerTimer();
     this.cancelSpeech();
+    this.silenceSkating();
   }
 
   dispose(): void {
@@ -212,6 +222,8 @@ export class AudioManager implements AudioManagerApi {
     this.stopAnnouncerSources();
     this.clearAnnouncerTimer();
     this.cancelSpeech();
+    this.announcerEpoch += 1;
+    this.announcerBusy = false;
     this.diagnostics = {
       ...this.diagnostics,
       contextAvailable: false,
@@ -273,6 +285,17 @@ export class AudioManager implements AudioManagerApi {
 
     const liveEventIds = new Set(world.eventQueue.map((event) => event.id));
 
+    if (this.suppressBacklogOnNextConsume) {
+      this.suppressBacklogOnNextConsume = false;
+      this.consumedEventIds = liveEventIds;
+      this.diagnostics = {
+        ...this.diagnostics,
+        suppressedEventCount:
+          this.diagnostics.suppressedEventCount + liveEventIds.size
+      };
+      return;
+    }
+
     for (const event of world.eventQueue) {
       if (this.consumedEventIds.has(event.id)) {
         this.diagnostics = {
@@ -294,7 +317,11 @@ export class AudioManager implements AudioManagerApi {
 
       const announcerCue = announcerCueForEvent(event, world);
       if (announcerCue) {
-        this.announcerQueue.enqueue(announcerCue);
+        if (announcerCue.kind === "goal") {
+          this.interruptAnnouncer(announcerCue);
+        } else {
+          this.announcerQueue.enqueue(announcerCue);
+        }
         this.drainAnnouncerQueue();
         this.diagnostics = {
           ...this.diagnostics,
@@ -359,8 +386,19 @@ export class AudioManager implements AudioManagerApi {
     return this.getDiagnostics();
   }
 
+  private interruptAnnouncer(cue: NonNullable<ReturnType<typeof announcerCueForEvent>>): void {
+    // A goal supersedes whatever is currently talking: cut the active clip or
+    // speech, invalidate any in-flight drain, and put the goal in the active slot.
+    this.announcerEpoch += 1;
+    this.announcerBusy = false;
+    this.clearAnnouncerTimer();
+    this.stopAnnouncerSources();
+    this.cancelSpeech();
+    this.announcerQueue.interruptWith(cue);
+  }
+
   private drainAnnouncerQueue(): void {
-    if (this.announcerTimer) {
+    if (this.announcerTimer || this.announcerBusy) {
       return;
     }
 
@@ -369,43 +407,57 @@ export class AudioManager implements AudioManagerApi {
       return;
     }
 
-    void this.playAnnouncerCue(cue);
-    this.announcerTimer = setTimeout(() => {
-      this.announcerTimer = null;
-      this.drainAnnouncerQueue();
-    }, 1500);
+    this.announcerBusy = true;
+    const epoch = this.announcerEpoch;
+    void this.playAnnouncerCue(cue).then((cueDurationMs) => {
+      if (epoch !== this.announcerEpoch) {
+        return;
+      }
+
+      this.announcerBusy = false;
+      this.announcerTimer = setTimeout(() => {
+        this.announcerTimer = null;
+        this.drainAnnouncerQueue();
+      }, cueDurationMs);
+    });
   }
 
-  private async playAnnouncerCue(cue: ReturnType<typeof announcerCueForEvent>): Promise<void> {
+  private async playAnnouncerCue(
+    cue: ReturnType<typeof announcerCueForEvent>
+  ): Promise<number> {
     if (!cue) {
-      return;
+      return ANNOUNCER_MIN_INTERVAL_MS;
     }
 
     if (this.announcerAssetLoadPromise) {
       await this.announcerAssetLoadPromise;
     }
 
-    if (this.playLoadedAnnouncerCue(cue.clipIds)) {
-      return;
+    const clipDurationMs = this.playLoadedAnnouncerCue(cue.clipIds);
+    if (clipDurationMs !== null) {
+      return Math.max(ANNOUNCER_MIN_INTERVAL_MS, clipDurationMs + ANNOUNCER_GAP_MS);
     }
 
     this.speakAnnouncerCue(cue.text);
+    return ANNOUNCER_MIN_INTERVAL_MS;
   }
 
-  private playLoadedAnnouncerCue(clipIds: readonly string[]): boolean {
+  /** Returns the total clip duration in ms, or null if assets are unavailable. */
+  private playLoadedAnnouncerCue(clipIds: readonly string[]): number | null {
     if (!this.context || !this.announcerGain || clipIds.length === 0) {
-      return false;
+      return null;
     }
 
     const buffers = clipIds.map((clipId) => this.announcerBuffers.get(clipId));
     if (buffers.some((buffer) => !buffer)) {
-      return false;
+      return null;
     }
 
     let startTime = this.context.currentTime + 0.02;
+    let totalDurationSeconds = 0;
     for (const buffer of buffers) {
       if (!buffer) {
-        return false;
+        return null;
       }
 
       const source = this.context.createBufferSource();
@@ -415,9 +467,10 @@ export class AudioManager implements AudioManagerApi {
       source.onended = () => this.announcerSources.delete(source);
       source.start(startTime);
       startTime += Math.max(0, buffer.duration);
+      totalDurationSeconds += Math.max(0, buffer.duration);
     }
 
-    return true;
+    return totalDurationSeconds * 1000;
   }
 
   private stopAnnouncerSources(): void {
@@ -569,6 +622,17 @@ export class AudioManager implements AudioManagerApi {
     return { available: false, error: lastError };
   }
 
+  private silenceSkating(): void {
+    // The skating loop's gain is only driven while consumeWorld runs; when a
+    // screen change stops the world feed the loop would otherwise keep playing
+    // at its last level (e.g. exiting Free Skate at speed).
+    if (!this.context || !this.skatingGain) {
+      return;
+    }
+
+    this.skatingGain.gain.setTargetAtTime(0, this.context.currentTime, 0.05);
+  }
+
   private updateSkatingMix(world: WorldState, localEntityId: string | null): void {
     if (!this.context || !this.skatingGain || !this.skatingSource) {
       return;
@@ -651,6 +715,9 @@ export class AudioManager implements AudioManagerApi {
 
 export const audioManager: AudioManagerApi = new AudioManager();
 
+const ANNOUNCER_MIN_INTERVAL_MS = 1500;
+const ANNOUNCER_GAP_MS = 250;
+
 function createInitialDiagnostics(): AudioDiagnostics {
   return {
     contextAvailable: false,
@@ -661,6 +728,7 @@ function createInitialDiagnostics(): AudioDiagnostics {
     assetErrors: [],
     processedEventCount: 0,
     duplicateEventCount: 0,
+    suppressedEventCount: 0,
     announcerGoalCount: 0,
     announcerPowerupCount: 0
   };
