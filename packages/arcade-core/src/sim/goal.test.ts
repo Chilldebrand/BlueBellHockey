@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  MATCH_CONFIG,
   RINK_CONFIG,
   createWorld,
   goalLineX,
@@ -10,8 +9,10 @@ import {
 } from "../index";
 
 /** Playing world with the away goalie dragged out of the shot lane. */
-function worldWithOpenAwayNet(): WorldState {
-  const world = createWorld(1, "arcade3v3");
+function worldWithOpenAwayNet(
+  rules?: { timeLimitMs: number; goalLimit: number }
+): WorldState {
+  const world = createWorld(1, "arcade3v3", undefined, rules);
   world.phase = "playing";
   const awayGoalie = world.goalies.find((goalie) => goalie.teamId === "away");
 
@@ -146,9 +147,12 @@ describe("goal scoring and match loop", () => {
     expect(world.eventQueue.some((event) => event.type === "goal")).toBe(false);
   });
 
-  it("ends the match when the target score is reached", () => {
-    const world = worldWithOpenAwayNet();
-    world.score.home = MATCH_CONFIG.targetScore - 1;
+  it("ends the match when a non-zero goal cap is reached", () => {
+    const world = worldWithOpenAwayNet({
+      timeLimitMs: 180_000,
+      goalLimit: 3
+    });
+    world.score.home = 2;
     world.puck.position = {
       x: goalLineX("away") - 10,
       y: RINK_CONFIG.height / 2
@@ -159,5 +163,43 @@ describe("goal scoring and match loop", () => {
 
     expect(world.phase).toBe("ended");
     expect(world.winnerTeamId).toBe("home");
+  });
+
+  it("does not end an uncapped match at five goals", () => {
+    const world = worldWithOpenAwayNet({
+      timeLimitMs: 180_000,
+      goalLimit: 0
+    });
+    world.score.home = 4;
+    world.puck.position = {
+      x: goalLineX("away") - 10,
+      y: RINK_CONFIG.height / 2
+    };
+    world.puck.velocity = { x: 1000, y: 0 };
+
+    stepWorld(world, [], 16);
+
+    expect(world.score.home).toBe(5);
+    expect(world.phase).toBe("playing");
+    expect(world.winnerTeamId).toBeNull();
+  });
+
+  it("ends overtime with the first scoring team", () => {
+    const world = worldWithOpenAwayNet({
+      timeLimitMs: 180_000,
+      goalLimit: 0
+    });
+    world.isOvertime = true;
+    world.remainingMs = 0;
+    world.puck.position = {
+      x: goalLineX("away") + 10,
+      y: RINK_CONFIG.height / 2
+    };
+
+    resolveGoals(world);
+
+    expect(world.phase).toBe("ended");
+    expect(world.winnerTeamId).toBe("home");
+    expect(world.remainingMs).toBe(0);
   });
 });

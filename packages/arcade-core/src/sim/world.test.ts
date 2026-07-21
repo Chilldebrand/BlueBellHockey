@@ -64,6 +64,23 @@ describe("world lifecycle", () => {
     expect(playingWorld.time.tick).toBe(1);
   });
 
+  it("enters unlimited overtime when tied regulation reaches zero", () => {
+    const world = createWorld(12345, "arcade3v3", undefined, {
+      timeLimitMs: 180_000,
+      goalLimit: 0
+    });
+    world.phase = "playing";
+    world.remainingMs = 16;
+    world.score = { home: 2, away: 2 };
+
+    stepWorld(world, [], 16);
+
+    expect(world.phase).toBe("playing");
+    expect(world.isOvertime).toBe(true);
+    expect(world.remainingMs).toBe(0);
+    expect(world.winnerTeamId).toBeNull();
+  });
+
   it("creates independent mutable vectors for simulation entities", () => {
     const world = createWorld(12345, "arcade3v3");
 

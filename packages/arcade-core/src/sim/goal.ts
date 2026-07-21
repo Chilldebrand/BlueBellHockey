@@ -1,4 +1,3 @@
-import { MATCH_CONFIG } from "../config/match.js";
 import { RINK_CONFIG } from "../config/rink.js";
 import type { TeamId } from "../config/teams.js";
 import { puckInsideGoal } from "./net.js";
@@ -54,7 +53,11 @@ export function resolveGoals(world: WorldState): void {
 
   resetForFaceoff(world);
 
-  if (world.score[scoringTeam] >= MATCH_CONFIG.targetScore) {
+  if (
+    world.isOvertime ||
+    (world.rules.goalLimit > 0 &&
+      world.score[scoringTeam] >= world.rules.goalLimit)
+  ) {
     world.phase = "ended";
     world.winnerTeamId = scoringTeam;
   }

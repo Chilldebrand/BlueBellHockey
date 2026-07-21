@@ -2,7 +2,12 @@ import {
   defaultCharacterIdForSlot,
   type CharacterId
 } from "../config/characters.js";
-import { MATCH_CONFIG, type MatchMode } from "../config/match.js";
+import {
+  DEFAULT_MATCH_RULES,
+  MATCH_CONFIG,
+  type MatchMode,
+  type MatchRules
+} from "../config/match.js";
 import { RINK_CONFIG } from "../config/rink.js";
 import { GOALIE_SLOTS, SKATER_SLOTS } from "../config/teams.js";
 import { TUNING } from "../config/tuning.js";
@@ -38,7 +43,8 @@ function zeroVector(): Vec2 {
 export function createWorld(
   seed: number,
   mode: MatchMode,
-  charactersBySlotId?: Readonly<Record<string, CharacterId>>
+  charactersBySlotId?: Readonly<Record<string, CharacterId>>,
+  rules: MatchRules = DEFAULT_MATCH_RULES
 ): WorldState {
   const skaters: SkaterEntity[] = SKATER_SLOTS.map((slot) => {
     const teamSide = slot.teamId === "home" ? -1 : 1;
@@ -96,8 +102,10 @@ export function createWorld(
       tick: 0,
       fixedTickMs: MATCH_CONFIG.fixedTickMs
     },
+    rules,
     phase: "waiting",
-    remainingMs: MATCH_CONFIG.periodMs,
+    isOvertime: false,
+    remainingMs: rules.timeLimitMs,
     winnerTeamId: null,
     score: {
       home: 0,
@@ -188,16 +196,15 @@ export function stepWorld(
     nowMs: world.time.nowMs + dtMs,
     tick: world.time.tick + 1
   };
-  if ((world.phase as WorldState["phase"]) !== "ended") {
+  if ((world.phase as WorldState["phase"]) !== "ended" && !world.isOvertime) {
     world.remainingMs = Math.max(0, world.remainingMs - dtMs);
     if (world.remainingMs === 0) {
-      world.phase = "ended";
-      world.winnerTeamId =
-        world.score.home === world.score.away
-          ? null
-          : world.score.home > world.score.away
-            ? "home"
-            : "away";
+      if (world.score.home === world.score.away) {
+        world.isOvertime = true;
+      } else {
+        world.phase = "ended";
+        world.winnerTeamId = world.score.home > world.score.away ? "home" : "away";
+      }
     }
   }
   recoverContactStates(world);

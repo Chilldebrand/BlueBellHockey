@@ -1,5 +1,5 @@
 import type { CharacterId } from "../config/characters.js";
-import type { MatchMode } from "../config/match.js";
+import type { MatchMode, MatchRules } from "../config/match.js";
 import type { PowerupType } from "../config/powerups.js";
 import type { GoalieSlot, SkaterSlot, TeamId } from "../config/teams.js";
 
@@ -240,8 +240,10 @@ export interface WorldEvent {
 export interface WorldState {
   readonly seed: number;
   readonly mode: MatchMode;
+  readonly rules: MatchRules;
   time: SimTime;
   phase: WorldPhase;
+  isOvertime: boolean;
   remainingMs: number;
   winnerTeamId: TeamId | null;
   score: ScoreState;
