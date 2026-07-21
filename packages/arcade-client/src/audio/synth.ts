@@ -140,6 +140,74 @@ interface BurstOptions {
   readonly gain: number;
 }
 
+export interface CrowdCheerHandle {
+  stop(): void;
+}
+
+interface CrowdCheerOptions {
+  readonly destination: AudioNode;
+  readonly kind: "goal" | "majorHit";
+  readonly durationMs: number;
+}
+
+/**
+ * One synthesized crowd cheer: looped noise pushed through a band-pass so it
+ * reads as a distant roar rather than static. A goal gets a two-surge swell;
+ * a major hit gets one short pop. Exactly one source per cheer — callers stop
+ * the previous handle before starting another so cheers never layer.
+ */
+export function scheduleCrowdCheer(
+  context: AudioContext,
+  options: CrowdCheerOptions
+): CrowdCheerHandle {
+  const now = context.currentTime;
+  const duration = options.durationMs / 1000;
+  const peak = options.kind === "goal" ? 0.55 : 0.38;
+
+  const source = context.createBufferSource();
+  source.buffer = createNoiseBuffer(context);
+  source.loop = true;
+
+  const filter = context.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.setValueAtTime(options.kind === "goal" ? 950 : 1150, now);
+  filter.Q.setValueAtTime(0.7, now);
+
+  const envelope = context.createGain();
+  envelope.gain.setValueAtTime(0.0001, now);
+  envelope.gain.exponentialRampToValueAtTime(
+    peak,
+    now + (options.kind === "goal" ? 0.18 : 0.05)
+  );
+  if (options.kind === "goal") {
+    // Dip and resurge — the crowd's second wave as the celebration rolls.
+    envelope.gain.exponentialRampToValueAtTime(peak * 0.6, now + duration * 0.5);
+    envelope.gain.exponentialRampToValueAtTime(peak * 0.85, now + duration * 0.68);
+  }
+  envelope.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+  source.connect(filter);
+  filter.connect(envelope);
+  envelope.connect(options.destination);
+  source.start(now);
+  source.stop(now + duration + 0.05);
+
+  let stopped = false;
+  return {
+    stop() {
+      if (stopped) {
+        return;
+      }
+      stopped = true;
+      try {
+        source.stop();
+      } catch {
+        // Ended sources can reject stop(); safe to ignore.
+      }
+    }
+  };
+}
+
 export function scheduleNoiseBurst(
   context: AudioContext,
   options: BurstOptions

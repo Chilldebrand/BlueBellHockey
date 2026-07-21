@@ -397,7 +397,8 @@ describe("AudioManager", () => {
       expect(FakeAudioContext.instances).toHaveLength(1);
 
       const context = FakeAudioContext.instances[0]!;
-      expect(context.gains).toHaveLength(5);
+      // master, announcer, gameplay, music, crowd sub-gain, menu-music output.
+      expect(context.gains).toHaveLength(6);
       expect(manager.getPreferences()).toEqual({
         announcer: 0.2,
         gameplay: 0.4,
@@ -518,6 +519,216 @@ describe("AudioManager", () => {
         announcerGoalCount: 1,
         announcerPowerupCount: 1
       });
+    } finally {
+      restore();
+    }
+  });
+
+  it("plays one crowd cheer per goal event on the gameplay bus", () => {
+    const { restore } = installAudioWindow();
+    FakeAudioContext.instances.length = 0;
+
+    try {
+      const manager = new AudioManager();
+      manager.start();
+      const context = FakeAudioContext.instances[0]!;
+      const world = createWorld(3, "arcade3v3");
+      world.eventQueue = [
+        {
+          id: "crowd-goal-1",
+          type: "goal",
+          atMs: 100,
+          sourceSlotId: "home-skater-1"
+        }
+      ];
+
+      manager.consumeWorld(world, "home-skater-1");
+
+      const internals = manager as unknown as {
+        crowdGain: FakeGainNode | null;
+        gameplayGain: FakeGainNode | null;
+        activeCrowdCheer: { kind: string } | null;
+      };
+      // Skating loop + exactly one cheer source (goals have no gameplay cue).
+      expect(context.bufferSources).toHaveLength(2);
+      expect(internals.activeCrowdCheer?.kind).toBe("goal");
+      expect(internals.crowdGain?.connections).toContain(internals.gameplayGain);
+
+      // The same snapshot again must not schedule a second cheer.
+      manager.consumeWorld(world, "home-skater-1");
+      expect(context.bufferSources).toHaveLength(2);
+      manager.dispose();
+    } finally {
+      restore();
+    }
+  });
+
+  it("refreshes the short knockdown cheer without layering sources", () => {
+    const { restore } = installAudioWindow();
+    FakeAudioContext.instances.length = 0;
+
+    try {
+      const manager = new AudioManager();
+      manager.start();
+      const context = FakeAudioContext.instances[0]!;
+      const world = createWorld(3, "arcade3v3");
+      world.eventQueue = [
+        { id: "crowd-kd-1", type: "knockdown", atMs: 100, sourceSlotId: "home-skater-1" }
+      ];
+
+      manager.consumeWorld(world, "home-skater-1");
+
+      // Looped sources past the skating loop (index 0) are crowd cheers; the
+      // knockdown thump burst is a one-shot.
+      const cheersAfterFirst = context.bufferSources.filter(
+        (source, index) => index > 0 && source.loop
+      );
+      expect(cheersAfterFirst).toHaveLength(1);
+      const firstCheer = cheersAfterFirst[0]!;
+
+      world.eventQueue = [
+        ...world.eventQueue,
+        { id: "crowd-kd-2", type: "knockdown", atMs: 400, sourceSlotId: "away-skater-1" }
+      ];
+      manager.consumeWorld(world, "home-skater-1");
+
+      // The first cheer was cut (scheduled stop + explicit stop) and exactly
+      // one replacement started.
+      expect(firstCheer.stop.mock.calls.length).toBe(2);
+      expect(
+        context.bufferSources.filter((source, index) => index > 0 && source.loop)
+      ).toHaveLength(2);
+      expect(
+        (manager as unknown as { activeCrowdCheer: { kind: string } | null })
+          .activeCrowdCheer?.kind
+      ).toBe("majorHit");
+      manager.dispose();
+    } finally {
+      restore();
+    }
+  });
+
+  it("lets a goal roar replace a knockdown cheer but never the reverse", () => {
+    const { restore } = installAudioWindow();
+    FakeAudioContext.instances.length = 0;
+
+    try {
+      const manager = new AudioManager();
+      manager.start();
+      const context = FakeAudioContext.instances[0]!;
+      const internals = manager as unknown as {
+        activeCrowdCheer: { kind: string } | null;
+      };
+      const world = createWorld(3, "arcade3v3");
+      world.eventQueue = [
+        { id: "crowd-kd-3", type: "knockdown", atMs: 100, sourceSlotId: "home-skater-1" }
+      ];
+      manager.consumeWorld(world, "home-skater-1");
+      const knockdownCheer = context.bufferSources.filter(
+        (source, index) => index > 0 && source.loop
+      )[0]!;
+
+      world.eventQueue = [
+        ...world.eventQueue,
+        { id: "crowd-goal-2", type: "goal", atMs: 200, sourceSlotId: "home-skater-1" }
+      ];
+      manager.consumeWorld(world, "home-skater-1");
+
+      expect(internals.activeCrowdCheer?.kind).toBe("goal");
+      expect(knockdownCheer.stop.mock.calls.length).toBe(2);
+
+      // A knockdown mid-goal-roar is swallowed: no new source, kind unchanged.
+      const sourcesBefore = context.bufferSources.length;
+      world.eventQueue = [
+        ...world.eventQueue,
+        { id: "crowd-kd-4", type: "knockdown", atMs: 300, sourceSlotId: "away-skater-1" }
+      ];
+      manager.consumeWorld(world, "home-skater-1");
+
+      expect(internals.activeCrowdCheer?.kind).toBe("goal");
+      expect(
+        context.bufferSources.slice(sourcesBefore).filter((source) => source.loop)
+      ).toHaveLength(0);
+      manager.dispose();
+    } finally {
+      restore();
+    }
+  });
+
+  it("keeps the crowd silent for routine gameplay events", () => {
+    const { restore } = installAudioWindow();
+    FakeAudioContext.instances.length = 0;
+
+    try {
+      const manager = new AudioManager();
+      manager.start();
+      const world = createWorld(3, "arcade3v3");
+      world.eventQueue = [
+        { id: "crowd-hit-1", type: "hit", atMs: 100, sourceSlotId: "home-skater-1", force: 900 },
+        { id: "crowd-stumble-1", type: "stumble", atMs: 120, sourceSlotId: "home-skater-1" },
+        { id: "crowd-save-1", type: "save", atMs: 140, detail: "pad" },
+        { id: "crowd-shot-1", type: "shot", atMs: 160, sourceSlotId: "home-skater-1" }
+      ];
+
+      manager.consumeWorld(world, "home-skater-1");
+
+      expect(
+        (manager as unknown as { activeCrowdCheer: unknown }).activeCrowdCheer
+      ).toBeNull();
+      manager.dispose();
+    } finally {
+      restore();
+    }
+  });
+
+  it("stops the active crowd cheer on event-cursor reset and dispose", () => {
+    const { restore } = installAudioWindow();
+    FakeAudioContext.instances.length = 0;
+
+    try {
+      const manager = new AudioManager();
+      manager.start();
+      const context = FakeAudioContext.instances[0]!;
+      const internals = manager as unknown as {
+        crowdGain: FakeGainNode | null;
+        activeCrowdCheer: unknown;
+      };
+      const world = createWorld(3, "arcade3v3");
+      world.eventQueue = [
+        { id: "crowd-goal-3", type: "goal", atMs: 100, sourceSlotId: "home-skater-1" }
+      ];
+      manager.consumeWorld(world, "home-skater-1");
+      const cheer = context.bufferSources.filter(
+        (source, index) => index > 0 && source.loop
+      )[0]!;
+
+      manager.resetEventCursor();
+
+      expect(internals.activeCrowdCheer).toBeNull();
+      expect(cheer.stop.mock.calls.length).toBe(2);
+
+      // A fresh cheer after the reset window is cleanly torn down by dispose.
+      world.eventQueue = [
+        ...world.eventQueue,
+        { id: "crowd-goal-4", type: "goal", atMs: 5000, sourceSlotId: "home-skater-1" }
+      ];
+      manager.consumeWorld(world, "home-skater-1"); // swallowed backlog
+      manager.consumeWorld(
+        {
+          ...world,
+          eventQueue: [
+            ...world.eventQueue,
+            { id: "crowd-goal-5", type: "goal", atMs: 6000, sourceSlotId: "home-skater-1" }
+          ]
+        },
+        "home-skater-1"
+      );
+      expect(internals.activeCrowdCheer).not.toBeNull();
+
+      manager.dispose();
+
+      expect(internals.activeCrowdCheer).toBeNull();
+      expect(internals.crowdGain).toBeNull();
     } finally {
       restore();
     }

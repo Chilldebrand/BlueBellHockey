@@ -23,9 +23,15 @@ import {
   createAudioContext,
   createSkatingBuffer,
   safeResume,
+  scheduleCrowdCheer,
   scheduleNoiseBurst,
-  scheduleTone
+  scheduleTone,
+  type CrowdCheerHandle
 } from "./synth.js";
+import {
+  GOAL_REACTION_MS,
+  MAJOR_HIT_REACTION_MS
+} from "../render/crowdReaction.js";
 
 export interface AudioManagerApi {
   start(): void;
@@ -92,6 +98,12 @@ export class AudioManager implements AudioManagerApi {
   private skatingGain: GainNode | null = null;
   private skatingFilter: BiquadFilterNode | null = null;
   private skatingSource: AudioBufferSourceNode | null = null;
+  private crowdGain: GainNode | null = null;
+  private activeCrowdCheer: {
+    readonly kind: "goal" | "majorHit";
+    readonly endTime: number;
+    readonly handle: CrowdCheerHandle;
+  } | null = null;
   private readonly announcerBuffers = new Map<string, AudioBuffer>();
   private readonly musicBuffers = new Map<string, AudioBuffer>();
   private readonly announcerSources = new Set<AudioBufferSourceNode>();
@@ -137,10 +149,16 @@ export class AudioManager implements AudioManagerApi {
     gameplayGain.connect(masterGain);
     musicGain.connect(masterGain);
 
+    // Crowd cheers ride the gameplay bus so the existing Gameplay slider
+    // governs them — no new preference or settings UI.
+    const crowdGain = this.context.createGain();
+    crowdGain.connect(gameplayGain);
+
     this.masterGain = masterGain;
     this.announcerGain = announcerGain;
     this.gameplayGain = gameplayGain;
     this.musicGain = musicGain;
+    this.crowdGain = crowdGain;
 
     this.applyPreferences(this.preferences);
     this.menuMusic = new MenuMusic(this.context, musicGain);
@@ -211,6 +229,7 @@ export class AudioManager implements AudioManagerApi {
     this.clearAnnouncerTimer();
     this.cancelSpeech();
     this.silenceSkating();
+    this.stopCrowdCheer();
   }
 
   dispose(): void {
@@ -229,11 +248,13 @@ export class AudioManager implements AudioManagerApi {
       });
     }
 
+    this.stopCrowdCheer();
     this.context = null;
     this.masterGain = null;
     this.announcerGain = null;
     this.gameplayGain = null;
     this.musicGain = null;
+    this.crowdGain = null;
     this.skatingGain = null;
     this.skatingFilter = null;
     this.skatingSource = null;
@@ -335,6 +356,12 @@ export class AudioManager implements AudioManagerApi {
       const cue = gameplayCueForEvent(event);
       if (cue) {
         this.playGameplayCue(cue.id, cue.intensity);
+      }
+
+      if (event.type === "goal") {
+        this.playCrowdCheer("goal");
+      } else if (event.type === "knockdown") {
+        this.playCrowdCheer("majorHit");
       }
 
       const announcerCue = announcerCueForEvent(event, world);
@@ -694,6 +721,45 @@ export class AudioManager implements AudioManagerApi {
       this.context.currentTime,
       0.04
     );
+  }
+
+  /**
+   * One-shot crowd cheer synchronized with the visual crowd reaction. A goal
+   * roar always replaces whatever is playing; a major hit refreshes the short
+   * cheer but never cuts into an active goal roar. A single active source at
+   * a time — the previous handle is stopped before a new cheer starts.
+   */
+  private playCrowdCheer(kind: "goal" | "majorHit"): void {
+    if (!this.context || !this.crowdGain) {
+      return;
+    }
+
+    const now = this.context.currentTime;
+    if (
+      kind === "majorHit" &&
+      this.activeCrowdCheer?.kind === "goal" &&
+      now < this.activeCrowdCheer.endTime
+    ) {
+      return;
+    }
+
+    this.stopCrowdCheer();
+    const durationMs = kind === "goal" ? GOAL_REACTION_MS : MAJOR_HIT_REACTION_MS;
+    const handle = scheduleCrowdCheer(this.context, {
+      destination: this.crowdGain,
+      kind,
+      durationMs
+    });
+    this.activeCrowdCheer = {
+      kind,
+      endTime: now + durationMs / 1000,
+      handle
+    };
+  }
+
+  private stopCrowdCheer(): void {
+    this.activeCrowdCheer?.handle.stop();
+    this.activeCrowdCheer = null;
   }
 
   private playGameplayCue(id: string, intensity: number): void {
