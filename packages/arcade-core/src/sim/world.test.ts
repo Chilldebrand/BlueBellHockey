@@ -3,7 +3,9 @@ import {
   GOALIE_SLOTS,
   SKATER_SLOTS,
   createWorld,
-  stepWorld
+  stepWorld,
+  type GoalLimit,
+  type TimeLimitMs
 } from "../index";
 
 describe("world lifecycle", () => {
@@ -79,6 +81,20 @@ describe("world lifecycle", () => {
     expect(world.isOvertime).toBe(true);
     expect(world.remainingMs).toBe(0);
     expect(world.winnerTeamId).toBeNull();
+  });
+
+  it("snapshots caller-provided rules when creating a world", () => {
+    const rules: { timeLimitMs: TimeLimitMs; goalLimit: GoalLimit } = {
+      timeLimitMs: 180_000,
+      goalLimit: 3
+    };
+    const world = createWorld(12345, "arcade3v3", undefined, rules);
+
+    rules.timeLimitMs = 600_000;
+    rules.goalLimit = 10;
+
+    expect(world.rules).toEqual({ timeLimitMs: 180_000, goalLimit: 3 });
+    expect(world.remainingMs).toBe(180_000);
   });
 
   it("creates independent mutable vectors for simulation entities", () => {

@@ -46,6 +46,7 @@ export function createWorld(
   charactersBySlotId?: Readonly<Record<string, CharacterId>>,
   rules: MatchRules = DEFAULT_MATCH_RULES
 ): WorldState {
+  const selectedRules: MatchRules = { ...rules };
   const skaters: SkaterEntity[] = SKATER_SLOTS.map((slot) => {
     const teamSide = slot.teamId === "home" ? -1 : 1;
 
@@ -102,10 +103,10 @@ export function createWorld(
       tick: 0,
       fixedTickMs: MATCH_CONFIG.fixedTickMs
     },
-    rules,
+    rules: selectedRules,
     phase: "waiting",
     isOvertime: false,
-    remainingMs: rules.timeLimitMs,
+    remainingMs: selectedRules.timeLimitMs,
     winnerTeamId: null,
     score: {
       home: 0,
