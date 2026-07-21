@@ -42,7 +42,25 @@ Source links (download only from official Pixabay):
 `https://pixabay.com/music/beats-positive-hip-hop-184768/`, and
 `https://pixabay.com/music/beats-hip-hop-old-school-208627/`.
 
-**LATEST SHIPPED FEATURE — host rules + unlimited overtime (2026-07-21, pushed `9330ffa`).**
+**LATEST SHIPPED FEATURE — four-sided arena crowd (2026-07-21).** The rink now sits inside a
+procedural arena bowl: four raked stands, corner concourses, outer floor, dark enclosing wall,
+aluminum rails/aisles, emissive light-bank fixtures (no new scene lights), and ~1,550 deterministic
+seeded fans (instanced; ~18 added draw calls full detail / ~14 reduced). Crowd reacts ONLY to
+goals (2.5s two-pulse celebration + synthesized roar) and knockdowns (0.8s pop + short cheer);
+goal outranks knockdown; first-observed event queues are seeded as seen so mount/reconnect never
+replays cheers. Crowd audio rides a sub-gain under gameplayGain (Gameplay slider governs it).
+Key files: `render/arenaLayout.ts`, `crowdGeneration.ts`, `crowdReaction.ts` (pure + tested),
+`ArenaShell.tsx`, `Crowd.tsx`, `synth.ts scheduleCrowdCheer`, mounted in `Scene.tsx`. Internal
+`detail="reduced"` input exists (no UI). Spec/plan:
+`docs/superpowers/specs/2026-07-21-four-sided-arena-crowd-design.md`,
+`docs/superpowers/plans/2026-07-21-four-sided-arena-crowd.md`. Verified: typecheck, 227 core +
+95 server + 228 client tests, production build, clean Free Skate mount (no console errors).
+**USER EYEBALLS OWED:** stands/wall look at all three camera positions, crowd variety, goal +
+knockdown reactions and cheers, PerfHud before/after (assistant can't render WebGL headlessly).
+Known accepted quirk: the far arena wall may clip at extreme puck positions (Canvas far=3000) —
+user approved; raise `far` in Scene.tsx if it ever bothers.
+
+**PREVIOUSLY SHIPPED — host rules + unlimited overtime (2026-07-21, pushed `9330ffa`).**
 Hosts can open a pre-game **Rules** panel; everyone sees it, but only the creator may choose 3/5/7/10
 minutes and no-limit/3/5/7/10-goal caps. Ready states never change when rules change. Tied clocks
 now enter unlimited next-goal-wins overtime, with the HUD showing `OT` / `NEXT GOAL`; rules persist

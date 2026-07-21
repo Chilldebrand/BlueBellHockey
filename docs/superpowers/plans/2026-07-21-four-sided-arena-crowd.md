@@ -82,7 +82,7 @@ export const STAND_CLEARANCE = 90; // 80–100 per spec; single source of truth
 
 All numbers derive from the passed rink dimensions — the tests pass arbitrary sizes, not just `RINK_CONFIG`.
 
-- [ ] **Step 1: Write failing layout tests**
+- [x] **Step 1: Write failing layout tests**
 
 In `arenaLayout.test.ts`, using both `RINK_CONFIG` from `@bbh/arcade-core` and at least one arbitrary rink (e.g. `{ width: 4000, height: 900 }`), assert:
 
@@ -93,17 +93,17 @@ In `arenaLayout.test.ts`, using both `RINK_CONFIG` from `@bbh/arcade-core` and a
 - the wall's inner extents enclose every stand's outer edge;
 - the function is pure: two calls with the same input are deeply equal.
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `npm.cmd run test --workspace @bbh/arcade-client -- src/render/arenaLayout.test.ts`
 
 Expected: FAIL (module does not exist).
 
-- [ ] **Step 3: Implement `computeArenaLayout`**
+- [x] **Step 3: Implement `computeArenaLayout`**
 
 Straight math, no Three.js imports. Long-side stands run parallel to x centered on `width / 2`; end stands run parallel to z centered on `height / 2`. Corner blocks are simple angled filler footprints between adjacent stand ends. Derive `rowCount`, `rowRise`, and `rowDepth` so the profile lands in the spec's 350–400 back-row band, and clamp everything under `ARENA_MAX_STRUCTURE_HEIGHT`.
 
-- [ ] **Step 4: Run focused tests, then commit**
+- [x] **Step 4: Run focused tests, then commit**
 
 Run: `npm.cmd run test --workspace @bbh/arcade-client -- src/render/arenaLayout.test.ts` — expected PASS.
 
@@ -151,7 +151,7 @@ export function generateCrowd(
 
 Use an integer hash mixer in the style of `mixSpawnHash` in `arcade-core/src/config/powerups.ts` (independent salts per attribute so apparel, tone, and accessory choices are uncorrelated). Never call `Math.random()`.
 
-- [ ] **Step 1: Write failing generation tests**
+- [x] **Step 1: Write failing generation tests**
 
 Assert, for the default layout and seed 1:
 
@@ -163,15 +163,15 @@ Assert, for the default layout and seed 1:
 - every spectator's `position.y` stays under `ARENA_MAX_STRUCTURE_HEIGHT`;
 - the source file contains no `Math.random` usage (assert via reading the module source or simply rely on lint/review — a direct `expect(generateCrowd.toString()).not.toContain("Math.random")` is acceptable).
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `npm.cmd run test --workspace @bbh/arcade-client -- src/render/crowdGeneration.test.ts` — expected FAIL.
 
-- [ ] **Step 3: Implement `generateCrowd`**
+- [x] **Step 3: Implement `generateCrowd`**
 
 Fill each stand row by row using the stand's `rowCount`/`rowDepth`/`rowRise` with deterministic per-seat jitter, skipping seats pseudo-randomly (hash-based) so density looks organic and the count lands under the cap. Reduced detail keeps every other seat and forces `accessory: "none"`.
 
-- [ ] **Step 4: Run focused tests, then commit**
+- [x] **Step 4: Run focused tests, then commit**
 
 ```bash
 git add packages/arcade-client/src/render/crowdGeneration.ts packages/arcade-client/src/render/crowdGeneration.test.ts
@@ -211,7 +211,7 @@ export function advanceCrowdReaction(
 export function reactionProgress(state: CrowdReactionState, nowMs: number): number | null;
 ```
 
-- [ ] **Step 1: Write failing reaction tests**
+- [x] **Step 1: Write failing reaction tests**
 
 Assert:
 
@@ -224,15 +224,15 @@ Assert:
 - re-presenting an already-seen event ID never retriggers;
 - the reducer never mutates its input state (inputs deep-equal before/after).
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `npm.cmd run test --workspace @bbh/arcade-client -- src/render/crowdReaction.test.ts` — expected FAIL.
 
-- [ ] **Step 3: Implement the reducer**
+- [x] **Step 3: Implement the reducer**
 
 Pure functions returning new state objects; the seen-set may be rebuilt structurally (size stays bounded — the sim trims its retained queue, so also drop seen IDs no longer present in the incoming queue to keep the set from growing forever).
 
-- [ ] **Step 4: Run focused tests, then commit**
+- [x] **Step 4: Run focused tests, then commit**
 
 ```bash
 git add packages/arcade-client/src/render/crowdReaction.ts packages/arcade-client/src/render/crowdReaction.test.ts
@@ -250,7 +250,7 @@ git commit -m "feat: add crowd reaction state machine"
 - `synth.ts` adds `scheduleCrowdCheer(context, destination, kind: "goal" | "majorHit"): { stop(): void }` — band-passed noise swell (reuse `createNoiseBuffer`), ~2.5 s envelope for goals, ~0.8 s for major hits.
 - `AudioManager` adds a private `crowdGain` connected to the existing `gameplayGain` (so the Gameplay slider governs it — no new preference), and classifies `goal`/`knockdown` inside its existing `consumeEvents` path.
 
-- [ ] **Step 1: Write failing audio tests**
+- [x] **Step 1: Write failing audio tests**
 
 Follow the existing mock-context patterns in `AudioManager.test.ts`. Assert:
 
@@ -262,15 +262,15 @@ Follow the existing mock-context patterns in `AudioManager.test.ts`. Assert:
 - `dispose()` stops and nulls the crowd source and sub-gain;
 - with no audio context (`createAudioContext` returning null), consuming goal events is a safe no-op.
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `npm.cmd run test --workspace @bbh/arcade-client -- src/audio/AudioManager.test.ts` — expected FAIL.
 
-- [ ] **Step 3: Implement cheer synthesis and wiring**
+- [x] **Step 3: Implement cheer synthesis and wiring**
 
 Create `crowdGain` in `start()` next to the other gains; connect to `gameplayGain`, not `masterGain`. Track a single `activeCrowdSource` handle; starting a new cheer always stops the old one. Hook classification into the existing per-event consumption so ID dedup and backlog suppression are inherited, not reimplemented.
 
-- [ ] **Step 4: Run the audio suite, then commit**
+- [x] **Step 4: Run the audio suite, then commit**
 
 Run: `npm.cmd run test --workspace @bbh/arcade-client -- src/audio` — expected PASS.
 
@@ -298,11 +298,11 @@ export function ArenaShell(props: {
 
 `ArenaShell` computes `computeArenaLayout(RINK_CONFIG)` and `generateCrowd(layout, ARENA_CROWD_SEED, detail)` in `useMemo`, renders the static venue, and mounts `<Crowd />` with the crowd spec, events, and time.
 
-- [ ] **Step 1: Build the static venue in `ArenaShell.tsx`**
+- [x] **Step 1: Build the static venue in `ArenaShell.tsx`**
 
 Stands (merged/instanced box rows for bleacher steps), corner concourse blocks, aluminum rails and stair aisles (instanced), dim outer floor ring, dark enclosing wall, and emissive light-bank meshes (`meshStandardMaterial` with `emissive`, NO new `<pointLight>`/`<spotLight>`/`<directionalLight>` elements anywhere in the arena tree). Budget the static shell at ≤ 8 render calls: one instanced mesh per repeated element type, merged geometry for the wall/floor.
 
-- [ ] **Step 2: Build `Crowd.tsx` with per-stand instanced meshes**
+- [x] **Step 2: Build `Crowd.tsx` with per-stand instanced meshes**
 
 One `<group>` per stand section. Within each: one `InstancedMesh` for heads (per-instance color = skin tone), one per apparel body shape with per-instance apparel color (`instanceColor`), and — full detail only — one or two accessory `InstancedMesh`es. Instance matrices are written ONCE from the generated spec (in an effect/memo), never per frame. Budget: 4 sections × (1 head + up to 4 body shapes + ≤ 1 accessory) ≤ 24 calls full detail; reduced detail drops accessories (≤ 16), keeping the combined arena+crowd increase inside the 32/20 spec caps.
 
@@ -313,7 +313,7 @@ One `<group>` per stand section. Within each: one `InstancedMesh` for heads (per
 
 No per-fan allocation inside `useFrame` — preallocate any scratch objects.
 
-- [ ] **Step 3: Mount in `Scene.tsx`**
+- [x] **Step 3: Mount in `Scene.tsx`**
 
 Add beside `<Rink />`:
 
@@ -323,12 +323,12 @@ Add beside `<Rink />`:
 
 No other `Scene.tsx` changes — except, if and only if manual QA in Task 6 shows the far arena wall clipping, raise the `Canvas` `far` plane (currently 3000) just enough to cover the wall's worst-case camera distance. That is a `Scene.tsx` `Canvas` prop, not a `CameraRig.tsx` change, so it stays inside the spec's constraints; note the measured distance in the commit message if changed.
 
-- [ ] **Step 4: Typecheck and full client suite**
+- [x] **Step 4: Typecheck and full client suite**
 
 Run: `npm.cmd run typecheck` — expected PASS.
 Run: `npm.cmd run test --workspace @bbh/arcade-client` — expected PASS (pure-module tests carry the logic; components stay thin and untested-by-unit per the existing render-component convention).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/arcade-client/src/render/ArenaShell.tsx packages/arcade-client/src/render/Crowd.tsx packages/arcade-client/src/render/Scene.tsx
@@ -341,7 +341,7 @@ git commit -m "feat: mount procedural arena bowl and instanced crowd"
 - Modify: `docs/superpowers/plans/2026-07-21-four-sided-arena-crowd.md`
 - Modify: `HANDOFF.md`
 
-- [ ] **Step 1: Automated verification**
+- [x] **Step 1: Automated verification**
 
 Run each; all must PASS:
 
@@ -370,7 +370,7 @@ At home-goal, center-ice, and away-goal camera clamp positions, in a match AND F
 7. Temporarily flip the internal detail input to `"reduced"` (code-level) and confirm the full stadium remains with a sparser, stiller crowd; flip back to `"full"` before commit.
 8. PerfHud render-call increase ≤ 32 (full) / ≤ 20 (reduced) vs the pre-feature baseline.
 
-- [ ] **Step 4: Check boxes, update HANDOFF, commit and push**
+- [ ] **Step 4: Check boxes, update HANDOFF, commit and push** *(implementation boxes checked and HANDOFF updated 2026-07-21; final check-off waits on the manual QA above)*
 
 Mark this plan's checkboxes, add the shipped-feature entry to `HANDOFF.md`, then:
 
