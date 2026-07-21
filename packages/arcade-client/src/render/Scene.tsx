@@ -10,6 +10,7 @@ import {
 import { interpolateSkaters } from "../game/interpolation.js";
 import { selectGoalieAnimation } from "./animation/goalieAnimation.js";
 import { selectSkaterAnimation } from "./animation/skaterAnimation.js";
+import { ArenaShell } from "./ArenaShell.js";
 import { CameraRig } from "./CameraRig.js";
 import { GoalieModel } from "./GoalieModel.js";
 import { Puck, pocketCarriedPuck, predictedCarriedPuck } from "./Puck.js";
@@ -97,6 +98,10 @@ export function Scene({
         <ambientLight intensity={0.95} />
         <directionalLight position={[320, 900, 460]} intensity={1.25} castShadow />
         <Rink />
+        <ArenaShell
+          events={currentWorld.eventQueue}
+          nowMs={currentWorld.time.nowMs}
+        />
         <Powerups pickups={currentWorld.powerupPickups} />
         <BananaPeels peels={currentWorld.bananaPeels} />
         {skaters.map((skater) => {
