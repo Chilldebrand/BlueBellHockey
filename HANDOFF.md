@@ -190,7 +190,9 @@ shared sim.
 being actively expanded (see the powerups section) — the earlier "grounded, NO powerups" framing is
 superseded, though the underlying skating/checking sim stays grounded.
 
-- **Repo:** `https://github.com/richey1406-prog/BBellHockey.git`
+- **Repo:** `https://github.com/Chilldebrand/BlueBellHockey.git` (remote `origin` — THE
+  destination for all pushes as of 2026-07-17; the old
+  `richey1406-prog/BBellHockey.git` remains as remote `legacy-origin`, frozen)
 - **Working dir:** `C:\Users\hilde\OneDrive\Desktop\3V3 Hockey Files\BBellHockey`
 - **Active branch:** `main`
 - **Game lives in `packages/arcade-core` (sim), `arcade-server` (Colyseus), `arcade-client` (React/Three).**
