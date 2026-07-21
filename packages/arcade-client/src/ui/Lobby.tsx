@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from "react";
-import type { CharacterId, TeamId } from "@bbh/arcade-core";
+import { TEAM_PALETTES, type CharacterId, type TeamId } from "@bbh/arcade-core";
 import type { ArcadeClientState, ClientRosterSlot } from "../store.js";
 import { CharacterSelect } from "./CharacterSelect.js";
 import { canEditSlot } from "./lobbyPermissions.js";
@@ -82,98 +82,87 @@ export function Lobby({
       ? requestedSlot
       : localSlot;
 
+  const clockSeconds = Math.max(
+    0,
+    Math.ceil((state.currentWorld?.remainingMs ?? 0) / 1000)
+  );
+
   return (
     <main className="arcade-shell">
-      <section className="connection-panel" aria-label="Room connection">
-        <div>
-          <h1>BBH Arcade</h1>
-          <p>{state.roomCode ? `Room ${roomLabel}` : roomLabel}</p>
-        </div>
-        <div className="connection-actions">
-          <button type="button" onClick={onQuickMatch} disabled={isConnecting}>
-            Quick Match
-          </button>
-          <button
-            type="button"
-            onClick={onCreatePrivateRoom}
-            disabled={isConnecting}
-          >
-            Create Private
-          </button>
-          <label htmlFor={joinInputId}>Code</label>
-          <input
-            id={joinInputId}
-            value={joinCode}
-            onChange={(event) => setJoinCode(event.currentTarget.value)}
-            disabled={isConnecting}
-            maxLength={8}
-          />
-          <button
-            type="button"
-            onClick={() => onJoinPrivateRoom(joinCode)}
-            disabled={isConnecting || !joinCode.trim()}
-          >
-            Join Private
-          </button>
-        </div>
-        {state.error ? <p role="alert">{state.error}</p> : null}
-      </section>
+      <div className="lobby-backdrop" aria-hidden="true" />
 
-      <section className="lobby-panel" aria-label="Lobby roster">
-        <header>
-          <div>
-            <p>Phase {state.phase}</p>
-            {localSlot ? (
-              <div className="lobby-player-controls">
-                <label>
-                  Your name
-                  <input
-                    name="player-name"
-                    value={playerName}
-                    onChange={(event) => {
-                      const nextPlayerName = event.currentTarget.value;
-                      setPlayerName(nextPlayerName);
-                      onSetPlayerName(nextPlayerName);
-                    }}
-                    disabled={!isConnected}
-                    maxLength={24}
-                  />
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={localSlot.ready}
-                    onChange={(event) => onSetReady(event.currentTarget.checked)}
-                    disabled={!isConnected || !canSetReady}
-                  />
-                  Ready
-                </label>
-              </div>
-            ) : null}
+      <div className="lobby-content">
+        <header className="lobby-scoreboard" aria-label="Score">
+          <div className="lobby-scoreboard-side">
+            <span className="lobby-scoreboard-team lobby-scoreboard-team--home">
+              {TEAM_PALETTES.home.shortName}
+            </span>
+            <span className="lobby-scoreboard-digits">{state.score.home}</span>
           </div>
-          <div className="lobby-panel-actions">
-            {onOpenSettings ? (
-              <button type="button" onClick={onOpenSettings}>
-                Settings
-              </button>
-            ) : null}
-            {isCreator ? (
-              <button
-                type="button"
-                onClick={onRequestStart}
-                disabled={!canStart}
-              >
-                Start Match
-              </button>
-            ) : null}
+          <div className="lobby-scoreboard-center">
+            <span className="lobby-scoreboard-clock">
+              {formatClock(clockSeconds)}
+            </span>
+            <span className="lobby-scoreboard-phase">{state.phase}</span>
+          </div>
+          <div className="lobby-scoreboard-side">
+            <span className="lobby-scoreboard-digits">{state.score.away}</span>
+            <span className="lobby-scoreboard-team lobby-scoreboard-team--away">
+              {TEAM_PALETTES.away.shortName}
+            </span>
           </div>
         </header>
-        <div className="lobby-teams">
-          {(["home", "away"] as const).map((teamId) => (
+
+        <section className="connection-panel" aria-label="Room connection">
+          <div className="connection-actions">
+            <button
+              type="button"
+              className="connection-button connection-button--primary"
+              onClick={onQuickMatch}
+              disabled={isConnecting}
+            >
+              Quick Match
+            </button>
+            <button
+              type="button"
+              className="connection-button"
+              onClick={onCreatePrivateRoom}
+              disabled={isConnecting}
+            >
+              Create Private
+            </button>
+            <label className="visually-hidden" htmlFor={joinInputId}>
+              Code
+            </label>
+            <input
+              id={joinInputId}
+              className="connection-code-input"
+              placeholder="CODE"
+              value={joinCode}
+              onChange={(event) => setJoinCode(event.currentTarget.value)}
+              disabled={isConnecting}
+              maxLength={8}
+            />
+            <button
+              type="button"
+              className="connection-button"
+              onClick={() => onJoinPrivateRoom(joinCode)}
+              disabled={isConnecting || !joinCode.trim()}
+            >
+              Join
+            </button>
+          </div>
+          <p className="lobby-room-label">
+            {state.roomCode ? `Room ${roomLabel}` : roomLabel}
+          </p>
+          {state.error ? <p role="alert">{state.error}</p> : null}
+        </section>
+
+        <section className="lobby-panel" aria-label="Lobby roster">
+          <div className="lobby-teams">
             <TeamColumn
-              key={teamId}
-              teamId={teamId}
-              slots={slotsForTeam(state, teamId)}
+              teamId="home"
+              slots={slotsForTeam(state, "home")}
               roster={state.roster}
               localSessionId={state.playerSessionId}
               editingSlotId={editingSlot?.slotId ?? null}
@@ -181,22 +170,98 @@ export function Lobby({
               onJoinTeam={onChooseTeam}
               onEditSlot={setEditingSlotId}
             />
-          ))}
-        </div>
-        {editingSlot ? (
-          <CharacterSelect
-            selectedCharacterId={editingSlot.characterId}
-            headline={`Pick for ${slotLabel(editingSlot)}`}
-            disabled={!isConnected}
-            onChooseCharacter={(characterId) =>
-              onChooseCharacterFor(editingSlot.slotId, characterId)
-            }
-            onClose={() => setEditingSlotId(localSlot?.slotId ?? null)}
-          />
-        ) : null}
-      </section>
+            <div className="lobby-faceoff" aria-hidden="true">
+              <div className="lobby-faceoff-medallion">
+                <span>VS</span>
+              </div>
+              <div className="lobby-faceoff-caption">
+                Faceoff
+                <br />
+                pending
+              </div>
+            </div>
+            <TeamColumn
+              teamId="away"
+              slots={slotsForTeam(state, "away")}
+              roster={state.roster}
+              localSessionId={state.playerSessionId}
+              editingSlotId={editingSlot?.slotId ?? null}
+              disabled={!isConnected}
+              onJoinTeam={onChooseTeam}
+              onEditSlot={setEditingSlotId}
+            />
+          </div>
+
+          <div className="lobby-player-controls">
+            {localSlot ? (
+              <>
+                <input
+                  name="player-name"
+                  className="lobby-name-input"
+                  aria-label="Your name"
+                  value={playerName}
+                  onChange={(event) => {
+                    const nextPlayerName = event.currentTarget.value;
+                    setPlayerName(nextPlayerName);
+                    onSetPlayerName(nextPlayerName);
+                  }}
+                  disabled={!isConnected}
+                  maxLength={24}
+                />
+                <button
+                  type="button"
+                  className="lobby-ready-button"
+                  aria-pressed={localSlot.ready}
+                  onClick={() => onSetReady(!localSlot.ready)}
+                  disabled={!isConnected || !canSetReady}
+                >
+                  {localSlot.ready ? "Unready" : "Ready Up"}
+                </button>
+              </>
+            ) : null}
+            {onOpenSettings ? (
+              <button
+                type="button"
+                className="lobby-settings-button"
+                onClick={onOpenSettings}
+              >
+                Settings
+              </button>
+            ) : null}
+            {isCreator ? (
+              <button
+                type="button"
+                className="lobby-start-button"
+                onClick={onRequestStart}
+                disabled={!canStart}
+              >
+                Start Match
+              </button>
+            ) : null}
+          </div>
+
+          {editingSlot ? (
+            <CharacterSelect
+              selectedCharacterId={editingSlot.characterId}
+              headline={`Pick for ${slotLabel(editingSlot)}`}
+              disabled={!isConnected}
+              onChooseCharacter={(characterId) =>
+                onChooseCharacterFor(editingSlot.slotId, characterId)
+              }
+              onClose={() => setEditingSlotId(localSlot?.slotId ?? null)}
+            />
+          ) : null}
+        </section>
+      </div>
     </main>
   );
+}
+
+function formatClock(totalSeconds: number): string {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
 function slotsForTeam(

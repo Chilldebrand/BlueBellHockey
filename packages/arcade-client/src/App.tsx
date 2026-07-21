@@ -572,7 +572,11 @@ export function App({
   return (
     <>
       <PerfHud />
-      <HUD state={state} onOpenSettings={handleOpenSettings} />
+      {/* The redesigned lobby is a full screen with its own scoreboard; the
+          floating match HUD only belongs over live play. */}
+      {state.phase === "playing" ? (
+        <HUD state={state} onOpenSettings={handleOpenSettings} />
+      ) : null}
       <FaceoffIntro phase={state.phase} />
       <Scene
         currentWorld={state.currentWorld}

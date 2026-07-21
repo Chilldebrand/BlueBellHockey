@@ -31,19 +31,15 @@ export function TeamColumn({
 
   return (
     <section
-      className="team-column"
+      className={`team-column team-column--${teamId}`}
       aria-label={`${palette.displayName} team`}
-      style={{ borderTopColor: palette.iconColor }}
     >
       <header className="team-column-header">
-        <span
-          className="team-swatch"
-          style={{ background: palette.iconColor }}
-        />
         <h2>{palette.displayName}</h2>
         {localIsOnTeam ? null : (
           <button
             type="button"
+            className="team-join-button"
             onClick={() => onJoinTeam(teamId)}
             disabled={disabled}
           >
@@ -51,15 +47,17 @@ export function TeamColumn({
           </button>
         )}
       </header>
-      {slots.map((slot) => (
-        <SlotCard
-          key={slot.slotId}
-          slot={slot}
-          editable={!disabled && canEditSlot(slot, roster, localSessionId)}
-          isEditing={slot.slotId === editingSlotId}
-          onEdit={onEditSlot}
-        />
-      ))}
+      <div className="team-column-slots">
+        {slots.map((slot) => (
+          <SlotCard
+            key={slot.slotId}
+            slot={slot}
+            editable={!disabled && canEditSlot(slot, roster, localSessionId)}
+            isEditing={slot.slotId === editingSlotId}
+            onEdit={onEditSlot}
+          />
+        ))}
+      </div>
     </section>
   );
 }

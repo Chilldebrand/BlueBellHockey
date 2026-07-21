@@ -52,14 +52,35 @@ export function CharacterSelect({
               onClick={() => onChooseCharacter(character.id)}
               disabled={disabled}
             >
-              <strong>{character.displayName}</strong>
-              <span>{special?.name ?? character.specialId}</span>
+              <div className="character-card-head">
+                <strong>{character.displayName}</strong>
+                <span className="character-card-number" aria-hidden="true">
+                  {character.jerseyNumber}
+                </span>
+              </div>
+              <span className="character-card-special">
+                {special?.name ?? character.specialId}
+              </span>
               <small>{character.silhouette}</small>
               <div className="stat-grid" aria-label={`${character.displayName} stats`}>
                 {CHARACTER_STAT_KEYS.map((key) => (
                   <span key={key}>
                     {key}
-                    <meter min={0} max={5} value={character.stats[key]} />
+                    <span
+                      className="stat-bar"
+                      role="meter"
+                      aria-valuemin={0}
+                      aria-valuemax={5}
+                      aria-valuenow={character.stats[key]}
+                      aria-label={key}
+                    >
+                      <span
+                        className="stat-bar-fill"
+                        style={{
+                          width: `${(character.stats[key] / 5) * 100}%`
+                        }}
+                      />
+                    </span>
                   </span>
                 ))}
               </div>

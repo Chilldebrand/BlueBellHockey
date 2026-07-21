@@ -33,38 +33,49 @@ export function SlotCard({
 
   const body = (
     <>
-      <div className="slot-card-head">
-        <strong>{slotLabel(slot)}</strong>
-        {slot.isCaptain ? (
-          <span className="captain-badge" aria-label="Team captain">
-            C
+      <div className="slot-card-info">
+        <div className="slot-card-head">
+          <strong>{slotLabel(slot)}</strong>
+          {slot.isCaptain ? (
+            <span className="captain-badge" aria-label="Team captain">
+              C
+            </span>
+          ) : null}
+          {slot.isOwnedByLocalPlayer ? (
+            <span className="you-badge">You</span>
+          ) : null}
+        </div>
+        {!slot.isBot ? (
+          <span
+            className="slot-card-ready-status"
+            data-ready={slot.ready ? "true" : "false"}
+          >
+            {slot.ready ? "Ready" : "Not ready"}
           </span>
         ) : null}
-        {slot.isOwnedByLocalPlayer ? (
-          <span className="you-badge">You</span>
-        ) : null}
-      </div>
-      {!slot.isBot ? (
-        <span className="slot-card-ready-status">
-          {slot.ready ? "Ready" : "Not ready"}
+        <span className="slot-card-character">
+          {character?.displayName ?? slot.characterId}
+          {character ? <small> · {character.silhouette}</small> : null}
         </span>
-      ) : null}
-      <span className="slot-card-character">
-        {character?.displayName ?? slot.characterId}
-        {character ? <small> · {character.silhouette}</small> : null}
+      </div>
+      <span className="slot-card-number" aria-hidden="true">
+        {character?.jerseyNumber ?? ""}
       </span>
     </>
   );
 
+  const highlightClass = slot.isOwnedByLocalPlayer ? " slot-card--local" : "";
+
   if (!editable) {
-    return <div className="slot-card">{body}</div>;
+    return <div className={`slot-card${highlightClass}`}>{body}</div>;
   }
 
   return (
     <button
       type="button"
       className={
-        isEditing ? "slot-card editable editing" : "slot-card editable"
+        (isEditing ? "slot-card editable editing" : "slot-card editable") +
+        highlightClass
       }
       onClick={() => onEdit(slot.slotId)}
     >

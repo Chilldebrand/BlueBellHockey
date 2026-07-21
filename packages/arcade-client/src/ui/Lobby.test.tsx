@@ -104,7 +104,7 @@ describe("Lobby", () => {
     expect(html.match(/captain-badge/g)).toHaveLength(1);
     expect(html.match(/you-badge/g)).toHaveLength(1);
     // Local player is on home: away column offers Join, home does not.
-    expect(html.match(/>Join</g)).toHaveLength(1);
+    expect(html.match(/team-join-button/g)).toHaveLength(1);
   });
 
   it("defaults the character picker to the local player's own slot", () => {
