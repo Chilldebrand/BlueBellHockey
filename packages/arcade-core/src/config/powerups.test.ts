@@ -3,6 +3,7 @@ import {
   BANANA_SPAWN_EVERY,
   POWERUP_DEFINITIONS,
   POWERUP_SPAWN_POINTS,
+  POWERUP_SPAWN_WEIGHTS,
   POWERUP_TYPES,
   isBananaSpawn,
   powerupTypeForSpawn
@@ -51,6 +52,28 @@ describe("powerup config", () => {
       }
       expect([...seen].sort()).toEqual([...POWERUP_TYPES].sort());
     }
+  });
+
+  it("weights goalie resizes rarer and freeze/speed more frequent", () => {
+    const counts: Record<string, number> = {};
+    const total = 4000;
+    for (let index = 0; index < total; index += 1) {
+      const type = powerupTypeForSpawn(9, index);
+      counts[type] = (counts[type] ?? 0) + 1;
+    }
+
+    const weightTotal = POWERUP_TYPES.reduce(
+      (sum, type) => sum + POWERUP_SPAWN_WEIGHTS[type],
+      0
+    );
+    for (const type of POWERUP_TYPES) {
+      const expected = (POWERUP_SPAWN_WEIGHTS[type] / weightTotal) * total;
+      // Hash output is uniform, so each bucket lands near its weight share.
+      expect(counts[type]).toBeGreaterThan(expected * 0.7);
+      expect(counts[type]).toBeLessThan(expected * 1.3);
+    }
+    expect(counts["freeze"]).toBeGreaterThan(counts["mini-goalie"]);
+    expect(counts["speed-boost"]).toBeGreaterThan(counts["giant-goalie"]);
   });
 
   it("spreads banana peels across spawn points at a bounded rate", () => {

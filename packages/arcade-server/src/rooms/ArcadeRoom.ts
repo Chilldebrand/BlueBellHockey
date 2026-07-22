@@ -1,4 +1,5 @@
 import {
+  beginPlay,
   createBotInputFrame,
   createWorld,
   DEFAULT_MATCH_RULES,
@@ -664,7 +665,7 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     // Lobby character picks only mutate the roster — stamp them into the
     // waiting world before play begins.
     applyRosterCharactersToWorld(this.world, this.roster);
-    this.world.phase = "playing";
+    beginPlay(this.world);
     this.syncStateFromWorld();
   }
 
@@ -689,7 +690,7 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     }
 
     this.world = this.createFreshWorld();
-    this.world.phase = "playing";
+    beginPlay(this.world);
     this.botInputSequence = 0;
     this.clearAllGoalieGrants();
     this.syncStateFromWorld();

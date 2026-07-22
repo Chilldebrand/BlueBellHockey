@@ -157,12 +157,42 @@ input {
 }
 
 .faceoff-intro {
-  font-size: 30px;
+  align-items: center;
+  display: grid;
   font-weight: 800;
+  justify-items: center;
   left: 50%;
-  padding: 10px 22px;
+  padding: 10px 26px;
   top: 88px;
   transform: translateX(-50%);
+}
+
+.faceoff-intro-label {
+  color: #9fc4e0;
+  font-size: 13px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+
+.faceoff-intro-digit {
+  animation: faceoff-digit-pop 1s ease-out;
+  color: #ffdf6e;
+  font-size: 64px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+  text-shadow: 0 0 22px rgba(255, 223, 110, 0.7);
+}
+
+@keyframes faceoff-digit-pop {
+  0% {
+    opacity: 0.4;
+    transform: scale(1.35);
+  }
+
+  30% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 /* Center-screen announcements: GOAL!!! huge, powerup activations medium. */

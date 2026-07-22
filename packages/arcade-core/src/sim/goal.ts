@@ -5,6 +5,39 @@ import { goalieSpawn, skaterSpawn, spawnFacing } from "./spawns.js";
 import { playerStatLine } from "./stats.js";
 import type { WorldState } from "./types.js";
 
+/** Countdown held before the opening faceoff of a match. */
+export const MATCH_START_COUNTDOWN_MS = 5000;
+/** Countdown held at center ice after each goal before play resumes. */
+export const GOAL_FACEOFF_COUNTDOWN_MS = 3000;
+
+/** Flip a waiting world into play behind the pre-match countdown. */
+export function beginPlay(
+  world: WorldState,
+  countdownMs = MATCH_START_COUNTDOWN_MS
+): void {
+  world.phase = "playing";
+  startFaceoffCountdown(world, countdownMs);
+}
+
+/**
+ * Hold play at the faceoff for durationMs of sim time. Time keeps flowing
+ * during the hold (so the countdown can expire deterministically on every
+ * peer), so duration windows that must survive into live play are shifted.
+ */
+export function startFaceoffCountdown(
+  world: WorldState,
+  durationMs: number
+): void {
+  world.faceoffUntilMs = world.time.nowMs + durationMs;
+  for (const powerup of world.activePowerups) {
+    powerup.expiresAtMs += durationMs;
+  }
+  world.bananaPeels = world.bananaPeels.map((peel) => ({
+    ...peel,
+    spawnedAtMs: peel.spawnedAtMs + durationMs
+  }));
+}
+
 export function resolveGoals(world: WorldState): void {
   if (world.puck.carrierSlotId || world.puck.goalieCarrierId) {
     return;
@@ -60,6 +93,9 @@ export function resolveGoals(world: WorldState): void {
   ) {
     world.phase = "ended";
     world.winnerTeamId = scoringTeam;
+  } else {
+    // Play resumes behind a short center-ice countdown, not instantly.
+    startFaceoffCountdown(world, GOAL_FACEOFF_COUNTDOWN_MS);
   }
 }
 

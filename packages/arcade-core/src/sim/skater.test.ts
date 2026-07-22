@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  ARCADE_CHARACTERS,
   RINK_CONFIG,
   SKATER_MOVEMENT_CONFIG,
+  SPEED_STAT_SPREAD,
   createWorld,
   stepWorld,
   type InputFrame,
@@ -60,6 +62,41 @@ describe("skater movement", () => {
     expect(skater.velocity.x).toBeGreaterThan(0);
     expect(speedOf(world, skater.id)).toBeLessThanOrEqual(
       SKATER_MOVEMENT_CONFIG.maxSpeed + 1e-6
+    );
+  });
+
+  it("gives higher speed stats a real but small edge on the ice", () => {
+    const bySpeed = [...ARCADE_CHARACTERS].sort(
+      (a, b) => a.stats.speed - b.stats.speed
+    );
+    const slowest = bySpeed[0];
+    const fastest = bySpeed[bySpeed.length - 1];
+    expect(fastest.stats.speed).toBeGreaterThan(slowest.stats.speed);
+
+    const world = playingWorld();
+    const fastSkater = world.skaters[0];
+    const slowSkater = world.skaters[2];
+    fastSkater.characterId = fastest.id;
+    slowSkater.characterId = slowest.id;
+
+    // 3s of parallel full-throttle skating.
+    for (let tick = 0; tick < 30; tick += 1) {
+      stepWorld(
+        world,
+        [
+          inputFrame(fastSkater.id, tick + 1, { moveX: 1 }),
+          inputFrame(slowSkater.id, tick + 1, { moveX: 1 })
+        ],
+        100
+      );
+    }
+
+    const fastSpeed = speedOf(world, fastSkater.id);
+    const slowSpeed = speedOf(world, slowSkater.id);
+    expect(fastSpeed).toBeGreaterThan(slowSpeed);
+    // The whole roster spread stays within the tight stat band (~6%).
+    expect(fastSpeed / slowSpeed).toBeLessThanOrEqual(
+      1 + SPEED_STAT_SPREAD + 0.01
     );
   });
 

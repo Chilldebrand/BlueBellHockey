@@ -86,6 +86,13 @@ export interface BotDecision {
 
 const SLOT_SHOT_RANGE = 430;
 const SLOT_Y_RANGE = 190;
+/**
+ * Jammed-in-tight fallback: inside this range the carrier shoots even into a
+ * blocked lane. Without it a bot pressed against the net (goalie always on
+ * the shot line) never shoots OR passes and just grinds on the crease forever.
+ * Traffic shots make rebounds — play keeps moving.
+ */
+const SLOT_JAM_SHOT_RANGE = 220;
 
 // Positional-play constants. Code-level for now (the Feel Lab tuning panel
 // doesn't cover AI); TODO: fold into TUNING if AI feel iteration starts.
@@ -500,9 +507,18 @@ export function shouldShoot(
 
   const goal = attackingGoal(bot.teamId);
   const shotRange = SLOT_SHOT_RANGE * difficulty.shotAggression;
+  const goalDistance = distance(bot.position, goal);
+
+  if (
+    goalDistance > shotRange ||
+    Math.abs(bot.position.y - goal.y) > SLOT_Y_RANGE
+  ) {
+    return false;
+  }
+
+  // In tight, fire regardless of traffic (see SLOT_JAM_SHOT_RANGE).
   return (
-    distance(bot.position, goal) <= shotRange &&
-    Math.abs(bot.position.y - goal.y) <= SLOT_Y_RANGE &&
+    goalDistance <= SLOT_JAM_SHOT_RANGE ||
     isLaneOpen(bot.teamId, bot.position, goal, world)
   );
 }

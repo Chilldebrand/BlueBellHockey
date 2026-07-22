@@ -1,4 +1,9 @@
-import { MATCH_CONFIG, RINK_CONFIG, SKATER_SLOTS } from "@bbh/arcade-core";
+import {
+  MATCH_CONFIG,
+  MATCH_START_COUNTDOWN_MS,
+  RINK_CONFIG,
+  SKATER_SLOTS
+} from "@bbh/arcade-core";
 import { describe, expect, it, vi } from "vitest";
 import {
   ArcadeRoom,
@@ -681,6 +686,10 @@ describe("ArcadeRoom", () => {
     handler?.(clientA as never, undefined);
 
     expect(room.state.phase).toBe("playing");
+    // Starting opens the 5s pre-match faceoff hold in the sim.
+    expect(room["world"]!.faceoffUntilMs).toBe(
+      room["world"]!.time.nowMs + MATCH_START_COUNTDOWN_MS
+    );
     expect(room.state.roomCreatorSessionId).toBe("session-a");
     expect(
       [...room.state.teams.home.slots, ...room.state.teams.away.slots].find(
@@ -928,6 +937,8 @@ describe("ArcadeRoom", () => {
 
     setReady?.(clientA as never, { ready: true });
     startHandler?.(clientA as never, undefined);
+    // These plumbing tests are about input flow, not the pre-match hold.
+    room["world"]!.faceoffUntilMs = 0;
     inputHandler?.(clientA as never, {
       type: "client.input",
       frame: {
@@ -980,6 +991,8 @@ describe("ArcadeRoom", () => {
 
     setReady?.(clientA as never, { ready: true });
     startHandler?.(clientA as never, undefined);
+    // Bot-injection test, not a countdown test — skip the pre-match hold.
+    room["world"]!.faceoffUntilMs = 0;
     room.tick(MATCH_CONFIG.fixedTickMs * 3);
 
     const snapshot = broadcast.mock.calls
@@ -1081,6 +1094,8 @@ describe("ArcadeRoom", () => {
 
     setReady?.(clientA as never, { ready: true });
     startHandler?.(clientA as never, undefined);
+    // Fixed-tick plumbing test — skip the pre-match hold.
+    room["world"]!.faceoffUntilMs = 0;
     inputHandler?.(clientA as never, inputMessage(1, { moveX: 1 }));
     room.tick(MATCH_CONFIG.fixedTickMs * 2 + 1);
 

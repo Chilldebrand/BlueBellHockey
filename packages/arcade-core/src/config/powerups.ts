@@ -62,11 +62,39 @@ function mixSpawnHash(seed: number, index: number, salt: number): number {
   return h >>> 0;
 }
 
+/**
+ * Weighted spawn odds (playtest 2026-07-21: goalie resizes were flooding the
+ * ice). Deterministic integer cumulative-weight walk over the same hash/salt
+ * the uniform pick used — replay-safe, no floats.
+ *   speed-boost / freeze: 5/22 ≈ 22.7% each
+ *   hard-shot / bulldozer: 4/22 ≈ 18.2% each
+ *   mini-goalie / giant-goalie: 2/22 ≈ 9.1% each
+ */
+export const POWERUP_SPAWN_WEIGHTS: Readonly<Record<PowerupType, number>> = {
+  "speed-boost": 5,
+  freeze: 5,
+  "hard-shot": 4,
+  bulldozer: 4,
+  "mini-goalie": 2,
+  "giant-goalie": 2
+};
+
+const TOTAL_SPAWN_WEIGHT = POWERUP_TYPES.reduce(
+  (total, type) => total + POWERUP_SPAWN_WEIGHTS[type],
+  0
+);
+
 export function powerupTypeForSpawn(seed: number, index: number): PowerupType {
-  return (
-    POWERUP_TYPES[mixSpawnHash(seed, index, 2) % POWERUP_TYPES.length] ??
-    "speed-boost"
-  );
+  let roll = mixSpawnHash(seed, index, 2) % TOTAL_SPAWN_WEIGHT;
+
+  for (const type of POWERUP_TYPES) {
+    roll -= POWERUP_SPAWN_WEIGHTS[type];
+    if (roll < 0) {
+      return type;
+    }
+  }
+
+  return "speed-boost";
 }
 
 // Banana peel hazard: spawns on the same cadence/points as powerups, but every

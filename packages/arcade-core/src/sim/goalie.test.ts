@@ -64,6 +64,29 @@ describe("goalie simulation", () => {
     );
   });
 
+  it("stops a friendly pass drifting into its own net without crediting a save", () => {
+    const world = playingWorld();
+    const goalie = homeGoalieOf(world);
+    // A home skater's errant backward pass heading at the home net.
+    world.puck.position = {
+      x: goalie.position.x + 24,
+      y: goalie.position.y
+    };
+    world.puck.velocity = { x: -900, y: 0 };
+    world.puck.lastTouchSlotId = "home-skater-1";
+
+    stepWorld(world, [], 16);
+
+    // Not an own goal, the goalie touched it away...
+    expect(world.score.away).toBe(0);
+    expect(world.puck.velocity.x).toBeGreaterThan(0);
+    expect(world.puck.lastTouchSlotId).toBe("home-goalie");
+    // ...but no save stat, save event, or shot credited for smothering it.
+    expect(world.stats.saves.home).toBe(0);
+    expect(world.stats.shots.away).toBe(0);
+    expect(lastSave(world)).toBeUndefined();
+  });
+
   it("kicks out an up-ice rebound with save stats for hot shots", () => {
     const world = playingWorld();
     shotAtHomeGoalie(world, { speed: 900 });

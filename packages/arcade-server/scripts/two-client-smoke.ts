@@ -8,7 +8,7 @@
  */
 import { Client, type Room } from "colyseus.js";
 import { createArcadeServer } from "../src/index.js";
-import { RINK_CONFIG } from "@bbh/arcade-core";
+import { MATCH_START_COUNTDOWN_MS, RINK_CONFIG } from "@bbh/arcade-core";
 import type { InputFrame, ServerWorldSnapshotMessage, WorldState } from "@bbh/arcade-core";
 
 const PORT = 2599;
@@ -138,7 +138,8 @@ async function main(): Promise<void> {
   }
 
   roomA.send("client.requestStart");
-  await wait(300);
+  // Play is held behind the pre-match faceoff countdown — wait it out.
+  await wait(MATCH_START_COUNTDOWN_MS + 400);
 
   // A skates forward with turbo for ~1s...
   let sequence = 0;

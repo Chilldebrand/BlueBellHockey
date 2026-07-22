@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   PUCK_CONFIG,
+  PASS_STAT_SPREAD,
+  characterStatMultiplier,
   createWorld,
   magnitude,
   stepWorld,
@@ -125,13 +127,20 @@ describe("puck actions", () => {
     expect(world.puck.velocity.y).toBeGreaterThan(150);
   });
 
-  it("uses the tuned quick and charged pass speeds", () => {
+  it("uses the tuned quick and charged pass speeds scaled by the pass stat", () => {
     const tap = givePuckToFirstSkater();
+    // Pass releases scale with the carrier's pass stat (statScaling.ts).
+    const passScale = characterStatMultiplier(
+      tap.skaters[0].characterId,
+      "pass",
+      PASS_STAT_SPREAD
+    );
     tapPass(tap, { moveX: 1 });
     expect(PUCK_CONFIG.passSpeed).toBe(1634);
     expect(magnitude(tap.puck.velocity)).toBeCloseTo(
-      PUCK_CONFIG.passSpeed +
-        PUCK_CONFIG.passChargeSpeedBonus * (16 / PUCK_CONFIG.passChargeMaxMs)
+      (PUCK_CONFIG.passSpeed +
+        PUCK_CONFIG.passChargeSpeedBonus * (16 / PUCK_CONFIG.passChargeMaxMs)) *
+        passScale
     );
 
     const charged = givePuckToFirstSkater();
@@ -145,7 +154,7 @@ describe("puck actions", () => {
     stepWorld(charged, [inputFrame("home-skater-1", 39, { pass: false })], 16);
 
     expect(PUCK_CONFIG.passChargeSpeedBonus).toBe(689);
-    expect(magnitude(charged.puck.velocity)).toBeCloseTo(2323, 0);
+    expect(magnitude(charged.puck.velocity)).toBeCloseTo(2323 * passScale, 0);
   });
 
   it("keeps a fully charged pass catchable by its intended teammate", () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  GOAL_FACEOFF_COUNTDOWN_MS,
   RINK_CONFIG,
   createWorld,
   goalLineX,
@@ -45,6 +46,50 @@ describe("goal scoring and match loop", () => {
     expect(world.eventQueue).toContainEqual(
       expect.objectContaining({ type: "goal", sourceSlotId: "home-skater-1" })
     );
+  });
+
+  it("starts a 3s faceoff countdown after a mid-match goal", () => {
+    const world = worldWithOpenAwayNet();
+    world.puck.position = {
+      x: goalLineX("away") - 10,
+      y: RINK_CONFIG.height / 2
+    };
+    world.puck.velocity = { x: 1000, y: 0 };
+    world.puck.lastTouchSlotId = "home-skater-1";
+
+    stepWorld(world, [], 16);
+
+    expect(world.score.home).toBe(1);
+    expect(world.phase).toBe("playing");
+    expect(world.faceoffUntilMs).toBe(
+      world.time.nowMs + GOAL_FACEOFF_COUNTDOWN_MS - 16
+    );
+  });
+
+  it("ends immediately with no countdown on an overtime or cap-reaching goal", () => {
+    const overtime = worldWithOpenAwayNet();
+    overtime.isOvertime = true;
+    overtime.puck.position = {
+      x: goalLineX("away") - 10,
+      y: RINK_CONFIG.height / 2
+    };
+    overtime.puck.velocity = { x: 1000, y: 0 };
+    overtime.puck.lastTouchSlotId = "home-skater-1";
+    stepWorld(overtime, [], 16);
+    expect(overtime.phase).toBe("ended");
+    expect(overtime.faceoffUntilMs).toBe(0);
+
+    const capped = worldWithOpenAwayNet({ timeLimitMs: 180_000, goalLimit: 3 });
+    capped.score.home = 2;
+    capped.puck.position = {
+      x: goalLineX("away") - 10,
+      y: RINK_CONFIG.height / 2
+    };
+    capped.puck.velocity = { x: 1000, y: 0 };
+    capped.puck.lastTouchSlotId = "home-skater-1";
+    stepWorld(capped, [], 16);
+    expect(capped.phase).toBe("ended");
+    expect(capped.faceoffUntilMs).toBe(0);
   });
 
   it("credits the shooter with a goal in player stats", () => {

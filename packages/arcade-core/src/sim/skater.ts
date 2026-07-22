@@ -1,5 +1,6 @@
 import type { InputFrame, SkaterEntity, Vec2 } from "./types.js";
 import { containCircleInRink } from "./boards.js";
+import { characterStatMultiplier, SPEED_STAT_SPREAD } from "./statScaling.js";
 import {
   angleDifference,
   angleOf,
@@ -55,10 +56,12 @@ export interface SkaterMovementConfig {
 export const SPEED_BOOST_MULTIPLIER = 1.25;
 
 // Feel pass 2026-07-03: normal skating slowed so turbo reads as a real burst
-// (cruise 560, turbo 840 — a full 50% jump instead of the old 38%).
+// (cruise/turbo keep a full 50% jump). Playtest 2026-07-21: top pace cut 10%
+// (560 → 504, turbo 840 → 756); the speed STAT now scales this per character
+// (±3%, see statScaling.ts) so the roster genuinely varies.
 export const SKATER_MOVEMENT_CONFIG: SkaterMovementConfig = {
   acceleration: 1450,
-  maxSpeed: 560,
+  maxSpeed: 504,
   radius: 38,
   glideDrag: 0.55,
   releaseDrag: 1.15,
@@ -115,7 +118,9 @@ export function stepSkater(
     return;
   }
 
-  const boost = speedBoosted ? SPEED_BOOST_MULTIPLIER : 1;
+  const boost =
+    (speedBoosted ? SPEED_BOOST_MULTIPLIER : 1) *
+    characterStatMultiplier(skater.characterId, "speed", SPEED_STAT_SPREAD);
 
   const move = normalizedMovement(input);
   const hasInput = magnitude(move) > 0;

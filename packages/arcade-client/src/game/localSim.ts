@@ -180,6 +180,7 @@ export function createLocalSim({
         }
 
         world.remainingMs = MATCH_CONFIG.periodMs; // endless session
+        world.faceoffUntilMs = 0; // feel lab stays instant — no countdown holds
         accumulatorMs -= MATCH_CONFIG.fixedTickMs;
         ticksAdvanced += 1;
       }

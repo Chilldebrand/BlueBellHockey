@@ -122,6 +122,19 @@ export function stepGesture(
   gesture.prevStickY = stickY;
 }
 
+/**
+ * Track raw stick samples without gesture detection (faceoff-countdown hold).
+ * Keeps prevStickX/Y current so the first live tick after the hold doesn't
+ * read a huge stale delta as a phantom flick.
+ */
+export function sampleGestureBaseline(
+  gesture: GestureState,
+  input: InputFrame | undefined
+): void {
+  gesture.prevStickX = clamp(input?.stickX ?? 0, -1, 1);
+  gesture.prevStickY = clamp(input?.stickY ?? 0, -1, 1);
+}
+
 /** Clear a pending release after the puck step consumed (or ignored) it. */
 export function clearPendingRelease(gesture: GestureState): void {
   gesture.pendingReleaseType = "none";

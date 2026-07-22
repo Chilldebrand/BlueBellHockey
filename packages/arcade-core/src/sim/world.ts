@@ -25,7 +25,12 @@ import {
   resolveChecks,
   resolveDefensiveActions
 } from "./actions.js";
-import { clearPendingRelease, createGestureState, stepGesture } from "./gestures.js";
+import {
+  clearPendingRelease,
+  createGestureState,
+  sampleGestureBaseline,
+  stepGesture
+} from "./gestures.js";
 import { resolveSkaterCollisions } from "./collision.js";
 import { createStickState, updateStick } from "./stick.js";
 import { hasActivePowerup, stepPowerups } from "./powerups.js";
@@ -107,6 +112,7 @@ export function createWorld(
     phase: "waiting",
     isOvertime: false,
     remainingMs: selectedRules.timeLimitMs,
+    faceoffUntilMs: 0,
     winnerTeamId: null,
     score: {
       home: 0,
@@ -138,6 +144,23 @@ export function stepWorld(
 
   const latestInputBySlot = latestInputsForSlots(inputs);
   const dtSeconds = dtMs / 1000;
+
+  if (world.faceoffUntilMs > world.time.nowMs) {
+    // Faceoff hold: sim time flows, nothing else moves. Skips physics,
+    // gestures, AI actions, powerups, puck, goalies, goals, AND the match
+    // clock. Gesture baselines still track the raw stick so the first live
+    // tick can't read a stale sample as a phantom shot flick.
+    for (const skater of world.skaters) {
+      sampleGestureBaseline(skater.gesture, latestInputBySlot.get(skater.id));
+    }
+    trimEventQueue(world);
+    world.time = {
+      ...world.time,
+      nowMs: world.time.nowMs + dtMs,
+      tick: world.time.tick + 1
+    };
+    return world;
+  }
 
   for (const skater of world.skaters) {
     const input = latestInputBySlot.get(skater.id);
@@ -198,7 +221,20 @@ export function stepWorld(
     tick: world.time.tick + 1
   };
   if ((world.phase as WorldState["phase"]) !== "ended" && !world.isOvertime) {
+    const previousSecond = Math.ceil(world.remainingMs / 1000);
     world.remainingMs = Math.max(0, world.remainingMs - dtMs);
+    const nextSecond = Math.ceil(world.remainingMs / 1000);
+    // Final-10-seconds tick: one event per second boundary, consumed by the
+    // client for the countdown beep. Never fires in OT (clock pinned) or
+    // during a faceoff hold (this block doesn't run).
+    if (nextSecond < previousSecond && nextSecond >= 1 && nextSecond <= 10) {
+      world.eventQueue.push({
+        id: `clock-countdown-${world.time.tick}-${nextSecond}`,
+        type: "clockCountdown",
+        atMs: world.time.nowMs,
+        detail: String(nextSecond)
+      });
+    }
     if (world.remainingMs === 0) {
       if (world.score.home === world.score.away) {
         world.isOvertime = true;

@@ -40,6 +40,7 @@ export * from "./sim/passTargeting.js";
 export * from "./sim/puck.js";
 export * from "./sim/powerups.js";
 export * from "./sim/skater.js";
+export * from "./sim/statScaling.js";
 export * from "./sim/specials.js";
 export * from "./sim/stats.js";
 export * from "./sim/types.js";

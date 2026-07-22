@@ -582,7 +582,11 @@ export function App({
       {state.phase === "playing" ? (
         <HUD state={state} onOpenSettings={handleOpenSettings} />
       ) : null}
-      <FaceoffIntro phase={state.phase} />
+      <FaceoffIntro
+        phase={state.phase}
+        faceoffUntilMs={state.currentWorld?.faceoffUntilMs ?? 0}
+        nowMs={state.currentWorld?.time.nowMs ?? 0}
+      />
       <Scene
         currentWorld={state.currentWorld}
         previousWorld={state.previousWorld}

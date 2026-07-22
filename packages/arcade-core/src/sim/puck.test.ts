@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   GOAL_HEIGHT,
+  ONE_TIMER_MAX_PASS_AGE_MS,
   PUCK_CONFIG,
   RINK_CONFIG,
   bladeWorldPosition,
@@ -124,6 +125,42 @@ describe("puck simulation", () => {
 
     expect(world.puck.carrierSlotId).toBe(receiver.id);
     expect(world.puck.assistCandidateSlotId).toBe("home-skater-1");
+  });
+
+  it("arms a one-timer from reception even on a long pass", () => {
+    const world = playingWorld();
+    const receiver = world.skaters.find((s) => s.id === "home-skater-2")!;
+    receiver.velocity = { x: 0, y: 0 };
+    world.puck.position = { ...bladeWorldPosition(receiver) };
+    world.puck.velocity = { x: 300, y: 0 };
+    world.puck.passedFromSlotId = "home-skater-1";
+    // Pass has been in flight LONGER than the firing window — before the
+    // reception-based arming, long feeds could never be one-timed.
+    world.time = { ...world.time, nowMs: 1000, tick: 62 };
+    world.puck.passedAtMs = 1000 - PUCK_CONFIG.oneTimerWindowMs - 200;
+
+    stepWorld(world, [inputFrame(receiver.id, 1)], 16);
+
+    expect(world.puck.carrierSlotId).toBe(receiver.id);
+    expect(receiver.oneTimerUntilMs).toBe(
+      1000 + PUCK_CONFIG.oneTimerWindowMs
+    );
+  });
+
+  it("does not arm a one-timer from a stale pass", () => {
+    const world = playingWorld();
+    const receiver = world.skaters.find((s) => s.id === "home-skater-2")!;
+    receiver.velocity = { x: 0, y: 0 };
+    world.puck.position = { ...bladeWorldPosition(receiver) };
+    world.puck.velocity = { x: 300, y: 0 };
+    world.puck.passedFromSlotId = "home-skater-1";
+    world.time = { ...world.time, nowMs: 3000, tick: 188 };
+    world.puck.passedAtMs = 3000 - ONE_TIMER_MAX_PASS_AGE_MS - 100;
+
+    stepWorld(world, [inputFrame(receiver.id, 1)], 16);
+
+    expect(world.puck.carrierSlotId).toBe(receiver.id);
+    expect(receiver.oneTimerUntilMs).toBe(0);
   });
 
   it("does not extend the catch assist to opponents intercepting a pass", () => {

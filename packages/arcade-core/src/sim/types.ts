@@ -245,6 +245,12 @@ export interface WorldState {
   phase: WorldPhase;
   isOvertime: boolean;
   remainingMs: number;
+  /**
+   * Sim time before which play is held at the faceoff (5s match start, 3s
+   * after each goal). While nowMs < faceoffUntilMs, stepWorld advances time
+   * only — no physics, no clock. 0 = no hold.
+   */
+  faceoffUntilMs: number;
   winnerTeamId: TeamId | null;
   score: ScoreState;
   stats: MatchStats;

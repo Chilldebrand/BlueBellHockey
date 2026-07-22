@@ -7,6 +7,12 @@ import { passAimDirection, passDirectionWithAssist } from "./actions.js";
 import { clearPendingRelease } from "./gestures.js";
 import { bladeWorldPosition, bladeWorldVelocity } from "./stick.js";
 import { hasActivePowerup } from "./powerups.js";
+import {
+  characterStatMultiplier,
+  HANDLING_STAT_SPREAD,
+  PASS_STAT_SPREAD,
+  SHOT_STAT_SPREAD
+} from "./statScaling.js";
 
 /** Shot-speed multiplier while the hard-shot powerup is active. */
 export const HARD_SHOT_MULTIPLIER = 1.35;
@@ -125,6 +131,13 @@ export const PUCK_CONFIG: PuckConfig = {
 /** Height of the goal frame — a puck at or above this hits the crossbar. */
 export const GOAL_HEIGHT = 95;
 
+/**
+ * A pass older than this can't arm a one-timer on reception (the puck has
+ * been loose too long to be a "fresh feed"). The shooter's firing window
+ * itself is oneTimerWindowMs, measured from the moment of reception.
+ */
+export const ONE_TIMER_MAX_PASS_AGE_MS = 1500;
+
 export function createInitialPuckState(position: Vec2): PuckState {
   return {
     position,
@@ -201,7 +214,9 @@ function stepCarriedPuck(
   } else if (carrier.passChargeMs > 0) {
     const charge = Math.min(carrier.passChargeMs / config.passChargeMaxMs, 1);
     const aim = passAimDirection(input, carrier);
-    const speed = config.passSpeed + config.passChargeSpeedBonus * charge;
+    const speed =
+      (config.passSpeed + config.passChargeSpeedBonus * charge) *
+      characterStatMultiplier(carrier.characterId, "pass", PASS_STAT_SPREAD);
     const releasePosition = bladeWorldPosition(carrier, undefined, world.time.nowMs);
     releasePuck(
       world,
@@ -264,8 +279,13 @@ function stepCarriedPuck(
   const toBladeX = blade.x - puck.position.x;
   const toBladeY = blade.y - puck.position.y;
   const separation = Math.hypot(toBladeX, toBladeY);
+  // Handling stat = puck security: soft hands keep the puck on the blade
+  // through harder dangles before it slips loose.
+  const carryTolerance =
+    config.carryBreakDistance *
+    characterStatMultiplier(carrier.characterId, "handling", HANDLING_STAT_SPREAD);
 
-  if (separation > config.carryBreakDistance) {
+  if (separation > carryTolerance) {
     // Over-dangled: the puck slips off the blade and rolls loose.
     puck.carrierSlotId = null;
     puck.pickupDisabledForSlotId = carrier.id;
@@ -326,7 +346,10 @@ function releaseGestureShot(
         (config.maxChargedShotSpeed - config.wristShotSpeed) * power
       : config.wristShotSpeed * (0.78 + 0.22 * power)) *
     oneTimerBoost *
-    hardShot;
+    hardShot *
+    // Shot stat scales release velocity only — lift is untouched so the
+    // crossbar/scoring-ceiling calibration holds for every character.
+    characterStatMultiplier(carrier.characterId, "shot", SHOT_STAT_SPREAD);
 
   // Placement from the left stick at release (world space, clamped).
   const lateralAim = Math.max(-1, Math.min(1, input?.moveY ?? 0));
@@ -635,9 +658,11 @@ function tryPickupLoosePuck(
       passer !== null &&
       passer.id !== skater.id &&
       passer.teamId === skater.teamId;
-    const catchRadius = isPassReception
-      ? config.passCatchRadius
-      : config.pickupRadius;
+    // Handling stat widens/narrows the gather assist for loose pucks AND
+    // receptions — soft hands corral pucks that clank off a low-handling blade.
+    const catchRadius =
+      (isPassReception ? config.passCatchRadius : config.pickupRadius) *
+      characterStatMultiplier(skater.characterId, "handling", HANDLING_STAT_SPREAD);
     const maxRelativeSpeed = isPassReception
       ? config.passCatchMaxRelativeSpeed
       : config.pickupMaxRelativeSpeed;
@@ -688,11 +713,14 @@ function tryPickupLoosePuck(
     // a previous carry that ended in a strip rather than a pass).
     skater.passChargeMs = 0;
 
-    // Catch-and-release: taking a teammate's fresh pass arms a one-timer.
+    // Catch-and-release: taking a teammate's pass arms a one-timer. The
+    // window is measured from RECEPTION (the shooter always gets the full
+    // oneTimerWindowMs to fire); the pass-age cap only rejects stale pucks
+    // that have been rattling around, so long feeds can still be one-timed.
     if (
       puck.passedFromSlotId &&
       puck.passedFromSlotId !== skater.id &&
-      world.time.nowMs - puck.passedAtMs <= config.oneTimerWindowMs &&
+      world.time.nowMs - puck.passedAtMs <= ONE_TIMER_MAX_PASS_AGE_MS &&
       world.skaters.find((mate) => mate.id === puck.passedFromSlotId)?.teamId ===
         skater.teamId
     ) {

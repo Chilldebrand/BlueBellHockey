@@ -10,7 +10,8 @@ import { GOAL_HEIGHT } from "./puck.js";
 // the visual always matches the hitbox. Shared by the client via
 // goalieSizeMultiplier so there's one source of truth.
 export const GIANT_GOALIE_SIZE = 2.2;
-export const MINI_GOALIE_SIZE = 0.45;
+export // Playtest 2026-07-21: 0.45 read as unfairly tiny — nudged up.
+const MINI_GOALIE_SIZE = 0.55;
 
 /**
  * Effective size multiplier for a goalie right now, from active goalie-resize
@@ -227,38 +228,40 @@ function resolveGoalieSave(
     return;
   }
 
-  // A goalie smothering his own team's dump-in isn't a save.
+  // A goalie still stops his own team's errant pass drifting into the net
+  // (before this, friendly pucks sailed straight through for own goals) —
+  // but smothering your own dump-in is NOT a save: no stat, no announcer
+  // event, no shot credited.
   const shooter = puck.lastTouchSlotId;
   const shooterTeam = shooter
     ? world.skaters.find((skater) => skater.id === shooter)?.teamId
     : undefined;
-
-  if (shooterTeam === goalie.teamId) {
-    return;
-  }
+  const friendlyPuck = shooterTeam === goalie.teamId;
 
   const speed = Math.hypot(puck.velocity.x, puck.velocity.y);
   const lateral = puck.position.y - goalie.position.y;
   const saveType = goalieSaveType(puck.height, lateral, speed, config);
   const attackingTeam: TeamId = goalie.teamId === "home" ? "away" : "home";
 
-  world.stats[goalie.teamId].saves += 1;
-  world.stats.saves[goalie.teamId] += 1;
+  if (!friendlyPuck) {
+    world.stats[goalie.teamId].saves += 1;
+    world.stats.saves[goalie.teamId] += 1;
 
-  if (puck.shotBySlotId) {
-    world.stats[attackingTeam].shots += 1;
-    world.stats.shots[attackingTeam] += 1;
+    if (puck.shotBySlotId) {
+      world.stats[attackingTeam].shots += 1;
+      world.stats.shots[attackingTeam] += 1;
+    }
+
+    world.eventQueue.push({
+      id: `save-${world.time.tick}-${goalie.id}`,
+      type: "save",
+      atMs: world.time.nowMs,
+      sourceSlotId: puck.shotBySlotId ?? shooter ?? undefined,
+      targetSlotId: goalie.id,
+      force: speed,
+      detail: saveType
+    });
   }
-
-  world.eventQueue.push({
-    id: `save-${world.time.tick}-${goalie.id}`,
-    type: "save",
-    atMs: world.time.nowMs,
-    sourceSlotId: puck.shotBySlotId ?? shooter ?? undefined,
-    targetSlotId: goalie.id,
-    force: speed,
-    detail: saveType
-  });
   puck.assistCandidateSlotId = null;
 
   if (saveType === "cover") {

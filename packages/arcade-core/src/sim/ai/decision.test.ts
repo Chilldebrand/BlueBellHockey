@@ -130,6 +130,19 @@ describe("bot decision helpers", () => {
     expect(shouldShoot(carrier, world, alwaysAct)).toBe(false);
   });
 
+  it("shoots through traffic when jammed in tight on the net", () => {
+    const world = createWorld(1, "arcade3v3");
+    const carrier = skater(world, "home-skater-1");
+    const blocker = skater(world, "away-skater-1");
+    // Pressed against the crease with a defender square on the shot line:
+    // the jam fallback fires anyway instead of grinding forever.
+    carrier.position = { x: goalLineX("away") - 180, y: RINK_CONFIG.height / 2 };
+    blocker.position = { x: goalLineX("away") - 90, y: RINK_CONFIG.height / 2 };
+    world.puck.carrierSlotId = carrier.id;
+
+    expect(shouldShoot(carrier, world, alwaysAct)).toBe(true);
+  });
+
   it("sends only the lane-aligned teammate toward a fresh pass intercept", () => {
     const world = createWorld(1, "arcade3v3");
     const receiver = skater(world, "home-skater-2");
