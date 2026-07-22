@@ -4,6 +4,7 @@ import {
   createWorld,
   DEFAULT_MATCH_RULES,
   isMatchRules,
+  KICKED_CLOSE_CODE,
   MATCH_CONFIG,
   resolveManualSwitchTarget,
   resolveReceptionSwitch,
@@ -174,6 +175,8 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     string,
     { tokens: number; lastRefillMs: number }
   >();
+  /** Sessions removed by the creator: their onLeave skips the reconnect seat. */
+  private readonly kickedSessionIds = new Set<string>();
   /** When the creator's start was first blocked on readiness; null once clear. */
   private startBlockedFirstAtMs: number | null = null;
 
@@ -232,6 +235,9 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     this.onMessage("client.chooseCharacterFor", (client, message: unknown) => {
       this.handleChooseCharacterFor(client, message);
     });
+    this.onMessage("client.kickPlayer", (client, message: unknown) => {
+      this.handleKickPlayer(client, message);
+    });
     this.onMessage("client.requestStart", (client) => {
       this.handleRequestStart(client);
     });
@@ -285,10 +291,12 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     this.lastPassBySession.delete(client.sessionId);
     this.pendingManualSwitchBySession.delete(client.sessionId);
     this.lobbyMutationBuckets.delete(client.sessionId);
+    // A kicked player gets no reconnection seat — the kick must stick.
+    const wasKicked = this.kickedSessionIds.delete(client.sessionId);
     fillRosterWithBots(this.roster);
     this.syncRosterState();
 
-    if (consented || !previousSlotId) {
+    if (consented || wasKicked || !previousSlotId) {
       if (isCreator) {
         this.transferRoomCreator();
       }
@@ -544,6 +552,54 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     this.world = this.createFreshWorld();
     this.syncMatchRulesState();
     this.syncStateFromWorld();
+  }
+
+  /**
+   * Creator-only lobby kick. The target's slot becomes a bot through the
+   * normal onLeave path; the kicked flag makes that path skip the 30s
+   * reconnection seat so the kick actually sticks. Rejoining through
+   * matchmaking afterwards is allowed by design (no ban list).
+   */
+  private handleKickPlayer(client: Client, message: unknown): void {
+    if (!this.allowLobbyMutation(client.sessionId)) {
+      return;
+    }
+
+    if (this.world?.phase !== "waiting") {
+      this.send(client, "server.error", {
+        message: "Can't kick players mid-match."
+      });
+      return;
+    }
+
+    if (this.roomCreatorSessionId !== client.sessionId) {
+      this.send(client, "server.error", {
+        message: "Only the room creator can kick players."
+      });
+      return;
+    }
+
+    const targetSessionId = getRequestedKickSessionId(message);
+
+    if (!targetSessionId || targetSessionId === client.sessionId) {
+      this.send(client, "server.error", { message: "Invalid kick target." });
+      return;
+    }
+
+    const targetSlot = this.roster.find(
+      (slot) => slot.kind === "human" && slot.sessionId === targetSessionId
+    );
+    const targetClient = this.clients.find(
+      (candidate) => candidate.sessionId === targetSessionId
+    );
+
+    if (!targetSlot || !targetClient) {
+      this.send(client, "server.error", { message: "Player already left." });
+      return;
+    }
+
+    this.kickedSessionIds.add(targetSessionId);
+    void targetClient.leave(KICKED_CLOSE_CODE);
   }
 
   private handleChooseTeam(client: Client, message: unknown): void {
@@ -1040,6 +1096,17 @@ function getRequestedPlayerName(
   }
 
   return (message as SetPlayerNameMessage).playerName;
+}
+
+function getRequestedKickSessionId(message: unknown): string | null {
+  if (!message || typeof message !== "object" || !("sessionId" in message)) {
+    return null;
+  }
+
+  const sessionId = (message as { sessionId?: unknown }).sessionId;
+  return typeof sessionId === "string" && sessionId.length > 0
+    ? sessionId
+    : null;
 }
 
 function getRequestedReady(message: unknown): SetReadyMessage["ready"] {

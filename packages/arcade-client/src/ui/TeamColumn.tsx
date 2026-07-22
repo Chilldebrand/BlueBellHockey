@@ -11,8 +11,11 @@ export interface TeamColumnProps {
   readonly localSessionId: string | null;
   readonly editingSlotId: string | null;
   readonly disabled: boolean;
+  /** Whether the local player (room creator) may kick humans from slots. */
+  readonly canKick?: boolean;
   readonly onJoinTeam: (teamId: TeamId) => void;
   readonly onEditSlot: (slotId: string) => void;
+  readonly onKickPlayer?: (sessionId: string) => void;
 }
 
 /** One team's panel: header (name + join) over its three slot cards. */
@@ -23,8 +26,10 @@ export function TeamColumn({
   localSessionId,
   editingSlotId,
   disabled,
+  canKick = false,
   onJoinTeam,
-  onEditSlot
+  onEditSlot,
+  onKickPlayer
 }: TeamColumnProps): JSX.Element {
   const palette = TEAM_PALETTES[teamId];
   const localIsOnTeam = slots.some((slot) => slot.isOwnedByLocalPlayer);
@@ -54,7 +59,14 @@ export function TeamColumn({
             slot={slot}
             editable={!disabled && canEditSlot(slot, roster, localSessionId)}
             isEditing={slot.slotId === editingSlotId}
+            canKick={
+              canKick &&
+              slot.kind === "human" &&
+              !slot.isOwnedByLocalPlayer &&
+              slot.sessionId !== null
+            }
             onEdit={onEditSlot}
+            onKick={onKickPlayer}
           />
         ))}
       </div>

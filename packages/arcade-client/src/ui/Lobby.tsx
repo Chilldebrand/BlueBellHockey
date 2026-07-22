@@ -27,6 +27,7 @@ export interface LobbyProps {
   readonly onSetReady: (ready: boolean) => void;
   readonly onSetMatchRules: (rules: MatchRules) => void;
   readonly onRequestStart: () => void;
+  readonly onKickPlayer?: (sessionId: string) => void;
   readonly onOpenSettings?: () => void;
 }
 
@@ -41,6 +42,7 @@ export function Lobby({
   onSetReady,
   onSetMatchRules,
   onRequestStart,
+  onKickPlayer,
   onOpenSettings
 }: LobbyProps): JSX.Element {
   const [joinCode, setJoinCode] = useState("");
@@ -226,8 +228,10 @@ export function Lobby({
               localSessionId={state.playerSessionId}
               editingSlotId={editingSlot?.slotId ?? null}
               disabled={!isConnected}
+              canKick={isCreator && isConnected}
               onJoinTeam={onChooseTeam}
               onEditSlot={setEditingSlotId}
+              onKickPlayer={onKickPlayer}
             />
             <div className="lobby-faceoff" aria-hidden="true">
               <div className="lobby-faceoff-medallion">
@@ -246,8 +250,10 @@ export function Lobby({
               localSessionId={state.playerSessionId}
               editingSlotId={editingSlot?.slotId ?? null}
               disabled={!isConnected}
+              canKick={isCreator && isConnected}
               onJoinTeam={onChooseTeam}
               onEditSlot={setEditingSlotId}
+              onKickPlayer={onKickPlayer}
             />
           </div>
 

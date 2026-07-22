@@ -19,3 +19,10 @@ export interface ServerWorldSnapshotMessage {
 export type ArcadeClientMessage = ClientInputMessage;
 
 export type ArcadeServerMessage = ServerWorldSnapshotMessage;
+
+/**
+ * Websocket close code the server uses when the room creator kicks a player.
+ * Shared so the client can distinguish "removed by host" from a generic drop
+ * (and clear its reconnect ticket instead of trying to rejoin).
+ */
+export const KICKED_CLOSE_CODE = 4102;

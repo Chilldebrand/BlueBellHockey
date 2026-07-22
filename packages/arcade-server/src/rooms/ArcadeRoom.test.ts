@@ -1,4 +1,5 @@
 import {
+  KICKED_CLOSE_CODE,
   MATCH_CONFIG,
   MATCH_START_COUNTDOWN_MS,
   RINK_CONFIG,
@@ -810,6 +811,84 @@ describe("ArcadeRoom", () => {
     nowMs += FORCE_START_GRACE_MS + 1;
     requestStart?.(clientA as never, undefined);
     expect(room.state.phase).toBe("playing");
+  });
+
+  it("lets the creator kick a player, whose slot becomes a bot with no reconnect seat", async () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    vi.spyOn(room, "send").mockImplementation(() => room as never);
+    const clientA = client("session-a");
+    const clientB = client("session-b");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(clientA as never, { playerName: "Ada" });
+    room.onJoin(clientB as never, { playerName: "Bo" });
+    const kick = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.kickPlayer"
+    )?.[1];
+
+    const targetLeave = vi.fn();
+    (room.clients as unknown as Array<{ sessionId: string; leave: unknown }>).push(
+      { sessionId: "session-b", leave: targetLeave }
+    );
+    const allowReconnection = vi.fn(() => new Promise(() => undefined));
+    room["allowReconnection"] = allowReconnection as never;
+
+    kick?.(clientA as never, { sessionId: "session-b" });
+    expect(targetLeave).toHaveBeenCalledWith(KICKED_CLOSE_CODE);
+
+    // The transport closing invokes onLeave (unclean code, consented=false):
+    // a kicked player must NOT get the 30s reconnection seat.
+    await room.onLeave(clientB as never, false);
+    expect(allowReconnection).not.toHaveBeenCalled();
+    const slots = [
+      ...room.state.teams.home.slots,
+      ...room.state.teams.away.slots
+    ];
+    expect(slots.find((slot) => slot.sessionId === "session-b")).toBeUndefined();
+    expect(slots.every((slot) => slot.kind !== "open")).toBe(true);
+  });
+
+  it("rejects kicks from non-creators, mid-match, and against self or ghosts", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    const sender = vi
+      .spyOn(room, "send")
+      .mockImplementation(() => room as never);
+    const clientA = client("session-a");
+    const clientB = client("session-b");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(clientA as never, { playerName: "Ada" });
+    room.onJoin(clientB as never, { playerName: "Bo" });
+    const kick = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.kickPlayer"
+    )?.[1];
+
+    kick?.(clientB as never, { sessionId: "session-a" });
+    expect(sender).toHaveBeenCalledWith(clientB, "server.error", {
+      message: "Only the room creator can kick players."
+    });
+
+    kick?.(clientA as never, { sessionId: "session-a" });
+    expect(sender).toHaveBeenCalledWith(clientA, "server.error", {
+      message: "Invalid kick target."
+    });
+
+    kick?.(clientA as never, { sessionId: "session-ghost" });
+    expect(sender).toHaveBeenCalledWith(clientA, "server.error", {
+      message: "Player already left."
+    });
+
+    room["world"]!.phase = "playing";
+    kick?.(clientA as never, { sessionId: "session-b" });
+    expect(sender).toHaveBeenCalledWith(clientA, "server.error", {
+      message: "Can't kick players mid-match."
+    });
+
+    const slots = [
+      ...room.state.teams.home.slots,
+      ...room.state.teams.away.slots
+    ];
+    expect(slots.find((slot) => slot.sessionId === "session-b")).toBeTruthy();
   });
 
   it("rate-limits lobby mutation floods from a single session", () => {

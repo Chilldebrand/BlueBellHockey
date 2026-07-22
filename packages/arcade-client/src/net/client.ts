@@ -93,6 +93,11 @@ export class ArcadeRoomSession {
     this.room.send("client.setReady", { ready });
   }
 
+  /** Creator-only: remove a player from the lobby (server enforces). */
+  kickPlayer(sessionId: string): void {
+    this.room.send("client.kickPlayer", { sessionId });
+  }
+
   setMatchRules(rules: MatchRules): void {
     this.room.send("client.setMatchRules", rules);
   }

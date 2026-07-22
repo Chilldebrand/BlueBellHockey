@@ -84,6 +84,7 @@ function renderLobby(state: ArcadeClientState): string {
       onSetPlayerName={vi.fn()}
       onSetReady={vi.fn()}
       onSetMatchRules={vi.fn()}
+      onKickPlayer={vi.fn()}
     />
   );
 }
@@ -117,6 +118,39 @@ describe("Lobby", () => {
 
     expect(html).toContain("Pick for Ada");
     expect(html).toContain("Rook Rocket");
+  });
+
+  it("shows kick controls only to the room creator, and never on their own slot", () => {
+    const base = lobbyState();
+    const teammate = {
+      ...base.roster[0],
+      slotId: "home-skater-2",
+      index: 1,
+      sessionId: "session-b",
+      playerName: "Bo",
+      displayName: "Bo",
+      isCaptain: false,
+      isOwnedByLocalPlayer: false,
+      teamJoinOrder: 2
+    };
+
+    const creatorHtml = renderLobby(
+      lobbyState({
+        roomCreatorSessionId: "session-a",
+        roster: [base.roster[0], teammate, base.roster[2]]
+      })
+    );
+    // One kick button: Bo's slot, never Ada's own, never bot slots.
+    expect(creatorHtml.match(/slot-card-kick/g)).toHaveLength(1);
+    expect(creatorHtml).toContain("Kick Bo");
+
+    const nonCreatorHtml = renderLobby(
+      lobbyState({
+        roomCreatorSessionId: "session-b",
+        roster: [base.roster[0], teammate, base.roster[2]]
+      })
+    );
+    expect(nonCreatorHtml).not.toContain("slot-card-kick");
   });
 
   it("shows connection errors and disables connection actions while connecting", () => {

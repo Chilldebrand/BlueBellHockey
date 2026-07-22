@@ -12,7 +12,10 @@ export interface SlotCardProps {
   readonly editable: boolean;
   /** Whether the character picker is currently targeting this slot. */
   readonly isEditing: boolean;
+  /** Creator-only: show a kick control for this (human, non-local) slot. */
+  readonly canKick?: boolean;
   readonly onEdit: (slotId: string) => void;
+  readonly onKick?: (sessionId: string) => void;
 }
 
 /**
@@ -25,7 +28,9 @@ export function SlotCard({
   slot,
   editable,
   isEditing,
-  onEdit
+  canKick = false,
+  onEdit,
+  onKick
 }: SlotCardProps): JSX.Element {
   const character = ARCADE_CHARACTERS.find(
     (candidate) => candidate.id === slot.characterId
@@ -66,11 +71,24 @@ export function SlotCard({
 
   const highlightClass = slot.isOwnedByLocalPlayer ? " slot-card--local" : "";
 
-  if (!editable) {
-    return <div className={`slot-card${highlightClass}`}>{body}</div>;
-  }
+  // The editable card is itself a <button>, so the creator's kick control is
+  // an overlay sibling, never a nested button.
+  const kickButton =
+    canKick && onKick && slot.sessionId ? (
+      <button
+        type="button"
+        className="slot-card-kick"
+        aria-label={`Kick ${slotLabel(slot)}`}
+        title={`Kick ${slotLabel(slot)}`}
+        onClick={() => onKick(slot.sessionId!)}
+      >
+        ✕
+      </button>
+    ) : null;
 
-  return (
+  const card = !editable ? (
+    <div className={`slot-card${highlightClass}`}>{body}</div>
+  ) : (
     <button
       type="button"
       className={
@@ -81,5 +99,16 @@ export function SlotCard({
     >
       {body}
     </button>
+  );
+
+  if (!kickButton) {
+    return card;
+  }
+
+  return (
+    <div className="slot-card-wrap">
+      {card}
+      {kickButton}
+    </div>
   );
 }

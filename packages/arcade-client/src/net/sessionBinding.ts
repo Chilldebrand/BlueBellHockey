@@ -1,5 +1,5 @@
-import type { ServerWorldSnapshotMessage, WorldState } from "@bbh/arcade-core";
-import type { ArcadeConnectionResult, ArcadeRoomSession } from "./client.js";
+import { KICKED_CLOSE_CODE, type ServerWorldSnapshotMessage, type WorldState } from "@bbh/arcade-core";
+import { clearReconnectTicket, type ArcadeConnectionResult, type ArcadeRoomSession } from "./client.js";
 
 export interface ActiveRoomSubscription {
   readonly token: symbol;
@@ -122,9 +122,18 @@ export function attachArcadeRoom(
       }
     }
   );
-  result.room.onLeave(() => {
-    if (isCurrentRoom()) {
-      handlers.onLeave("Disconnected from room");
+  result.room.onLeave((code?: number) => {
+    if (!isCurrentRoom()) {
+      return;
     }
+
+    if (code === KICKED_CLOSE_CODE) {
+      // A kick must not auto-rejoin on the next reload.
+      clearReconnectTicket();
+      handlers.onLeave("Removed by host.");
+      return;
+    }
+
+    handlers.onLeave("Disconnected from room");
   });
 }

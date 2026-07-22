@@ -303,6 +303,10 @@ export function App({
     activeRoomRef.current?.session.setReady(ready);
   }, []);
 
+  const handleKickPlayer = useCallback((sessionId: string) => {
+    activeRoomRef.current?.session.kickPlayer(sessionId);
+  }, []);
+
   const handleSetMatchRules = useCallback((rules: MatchRules) => {
     activeRoomRef.current?.session.setMatchRules(rules);
   }, []);
@@ -609,6 +613,7 @@ export function App({
             onSetReady={handleSetReady}
             onSetMatchRules={handleSetMatchRules}
             onRequestStart={handleRequestStart}
+            onKickPlayer={handleKickPlayer}
             onOpenSettings={handleOpenSettings}
           />
           <ControllerPrompt />
