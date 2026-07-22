@@ -348,7 +348,60 @@ input {
 .arcade-rink-shell {
   height: 100vh;
   min-height: 560px;
+  position: relative;
   width: 100%;
+}
+
+/* Off-screen player indicators: chevrons pinned to the rink-shell edges,
+   positioned imperatively per frame by OffscreenArrowTracker. */
+.offscreen-arrow-layer {
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  z-index: 4;
+}
+
+.offscreen-arrow {
+  filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.65));
+  height: 26px;
+  left: 0;
+  position: absolute;
+  top: 0;
+  visibility: hidden;
+  width: 26px;
+  will-change: transform;
+}
+
+/* Final ten seconds of regulation: big urgent digits, low center so they
+   never collide with the goal banner (42%) or faceoff countdown (top 88px). */
+.final-countdown {
+  animation: final-countdown-pop 0.95s ease-out;
+  color: #ffffff;
+  font-size: 96px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+  left: 50%;
+  pointer-events: none;
+  position: fixed;
+  text-shadow:
+    0 0 26px #ff5d5d,
+    0 4px 0 rgba(3, 9, 17, 0.85);
+  top: 66%;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+}
+
+@keyframes final-countdown-pop {
+  0% {
+    opacity: 0.35;
+    transform: translate(-50%, -50%) scale(1.3);
+  }
+
+  35% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
 }
 
 [aria-label="Arcade character model preview"] {

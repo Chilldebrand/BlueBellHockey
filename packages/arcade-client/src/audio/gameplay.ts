@@ -14,7 +14,8 @@ export type GameplayCueId =
   | "block"
   | "poke"
   | "jostle"
-  | "bounce-back";
+  | "bounce-back"
+  | "clock-tick";
 
 const HIT_FORCE_CAP = 1200;
 const SKATING_SPEED_FLOOR = 30;
@@ -51,6 +52,9 @@ export function gameplayCueForEvent(event: WorldEvent): {
       return { id: "bounce-back", intensity: 1 };
     case "save":
       return saveCue(event.detail);
+    case "clockCountdown":
+      // Final-10s pip; the last second pips higher (intensity 1).
+      return { id: "clock-tick", intensity: event.detail === "1" ? 1 : 0 };
     default:
       return null;
   }

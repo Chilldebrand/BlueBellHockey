@@ -22,6 +22,8 @@ export interface SkaterDebugProps {
   readonly facing?: number;
   /** Blade offset in body space (x forward, y lateral) for the stick overlay. */
   readonly bladeOffset?: Vec2;
+  /** Slap windup depth 0..1 (chargeShot only): draws the stick up and back. */
+  readonly windupDepth?: number;
   readonly showVectors?: boolean;
 }
 
@@ -73,6 +75,7 @@ export function SkaterDebug({
   velocity,
   facing,
   bladeOffset,
+  windupDepth = 0,
   showVectors = false
 }: SkaterDebugProps): JSX.Element {
   return (
@@ -98,6 +101,7 @@ export function SkaterDebug({
             isLocal={isLocal}
             animationState={animationState}
             bladeOffset={bladeOffset}
+            windupDepth={windupDepth}
             speed={velocity ? Math.hypot(velocity.x, velocity.y) : 0}
           />
         </group>

@@ -13,6 +13,8 @@ import { selectSkaterAnimation } from "./animation/skaterAnimation.js";
 import { ArenaShell } from "./ArenaShell.js";
 import { CameraRig } from "./CameraRig.js";
 import { GoalieModel } from "./GoalieModel.js";
+import { OffscreenArrowLayer } from "./OffscreenArrowLayer.js";
+import { OffscreenArrowTracker } from "./OffscreenArrowTracker.js";
 import { Puck, pocketCarriedPuck, predictedCarriedPuck } from "./Puck.js";
 import { BananaPeels, Powerups } from "./Powerups.js";
 import { Rink } from "./Rink.js";
@@ -83,6 +85,18 @@ export function Scene({
     puckCarrier
   );
 
+  // Edge arrows track the same positions the bodies render at.
+  const trackedSkaters = skaters.map((skater) => ({
+    id: skater.id,
+    position: (skater.id === localSlotId && predictedLocalSkater
+      ? predictedLocalSkater
+      : skater
+    ).position
+  }));
+  const arrowsEnabled =
+    currentWorld.phase === "playing" &&
+    currentWorld.faceoffUntilMs <= currentWorld.time.nowMs;
+
   return (
     <section className="arcade-rink-shell" aria-label="Arcade rink debug view">
       <Canvas
@@ -95,6 +109,7 @@ export function Scene({
         }}
       >
         <CameraRig puck={renderedPuck.position} />
+        <OffscreenArrowTracker skaters={trackedSkaters} enabled={arrowsEnabled} />
         <ambientLight intensity={0.95} />
         <directionalLight position={[320, 900, 460]} intensity={1.25} castShadow />
         <Rink />
@@ -112,6 +127,11 @@ export function Scene({
           const sourceSkater =
             currentWorld.skaters.find((candidate) => candidate.id === skater.id) ??
             currentWorld.skaters[0];
+          // The local player's windup reads from prediction (~1 RTT fresher).
+          const gestureSkater =
+            skater.id === localSlotId && predictedLocalSkater
+              ? predictedLocalSkater
+              : sourceSkater;
 
           return (
             <SkaterDebug
@@ -136,6 +156,11 @@ export function Scene({
                 events: currentWorld.eventQueue,
                 nowMs: currentWorld.time.nowMs
               })}
+              windupDepth={
+                gestureSkater.gesture.phase === "windup"
+                  ? Math.min(1, gestureSkater.gesture.windupDepth)
+                  : 0
+              }
             />
           );
         })}
@@ -178,6 +203,10 @@ export function Scene({
         <Puck puck={renderedPuck} />
         <Vfx events={currentWorld.eventQueue} />
       </Canvas>
+      <OffscreenArrowLayer
+        skaters={currentWorld.skaters}
+        highlightColorByEntityId={highlightColorByEntityId}
+      />
     </section>
   );
 }

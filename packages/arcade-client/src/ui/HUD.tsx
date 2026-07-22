@@ -1,6 +1,7 @@
 import type { ArcadeClientState } from "../store.js";
 import { AnnouncementBanner } from "./AnnouncementBanner.js";
 import { Callouts } from "./Callouts.js";
+import { FinalCountdown } from "./FinalCountdown.js";
 import { ScoreHud } from "./ScoreHud.js";
 import { TurboMeter } from "./TurboMeter.js";
 
@@ -27,6 +28,7 @@ export function HUD({ state, onOpenSettings }: HUDProps): JSX.Element {
         events={state.currentWorld?.eventQueue ?? []}
         nowMs={state.currentWorld?.time.nowMs ?? 0}
       />
+      <FinalCountdown world={state.currentWorld} />
       {onOpenSettings ? (
         <button
           type="button"

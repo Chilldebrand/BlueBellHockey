@@ -800,6 +800,16 @@ export class AudioManager implements AudioManagerApi {
           gain: 0.16
         });
         break;
+      case "clock-tick":
+        scheduleTone(this.context, {
+          destination: this.gameplayGain,
+          frequency: intensity > 0.5 ? 1320 : 880,
+          startTime,
+          duration: 0.09,
+          gain: 0.12,
+          type: "triangle"
+        });
+        break;
       case "save-glove":
       case "save-blocker":
       case "one-timer":

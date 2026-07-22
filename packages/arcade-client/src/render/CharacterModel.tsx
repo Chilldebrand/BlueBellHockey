@@ -56,6 +56,11 @@ export interface CharacterModelProps {
    * previews — the legs hold the glide stance.
    */
   readonly speed?: number;
+  /**
+   * Slap windup depth 0..1 (meaningful while animationState is "chargeShot"):
+   * draws the stick up and back so the windup reads as a slap, not a wrist.
+   */
+  readonly windupDepth?: number;
 }
 
 export function CharacterModel({
@@ -66,7 +71,8 @@ export function CharacterModel({
   manifest = FIRST_SKATER_MODEL_MANIFEST,
   gltfSource = ACTIVE_SKATER_GLTF_SOURCE,
   bladeOffset,
-  speed = 0
+  speed = 0,
+  windupDepth = 0
 }: CharacterModelProps): JSX.Element {
   const validation = validateModelManifest(manifest, "skater");
 
@@ -88,6 +94,7 @@ export function CharacterModel({
       animationState={animationState}
       bladeOffset={bladeOffset}
       speed={speed}
+      windupDepth={windupDepth}
     />
   );
 
@@ -128,6 +135,7 @@ interface BlockoutBodyProps {
   readonly animationState: SkaterAnimationState;
   readonly bladeOffset?: Vec2;
   readonly speed: number;
+  readonly windupDepth?: number;
 }
 
 // The capsule body was authored facing +Z; skaters travel along local +X, so an
@@ -151,6 +159,20 @@ const BLADE_LOCAL_Y = 6;
 // which live outside the pose group.
 const HIP_PIVOT_Y = 22;
 
+/**
+ * Stick-assembly transform for a slap windup at eased depth 0..1:
+ * [yawRad, rollRad, liftUnits] in the root (+X forward, +Y up) frame. Yaw
+ * carries the blade toward the shot side, roll swings it up and back, lift
+ * raises the whole assembly off the ice. Pure for tests.
+ */
+export function windupStickTransform(
+  depth: number
+): readonly [number, number, number] {
+  const clamped = Math.min(1, Math.max(0, depth));
+  // `+ 0` normalizes the -0 that falls out of `-0.25 * 0`.
+  return [-0.25 * clamped + 0, 0.55 * clamped, 2 * clamped];
+}
+
 // Blockout leg-stride cycle. Speed is in sim units/s; everything else is
 // root-frame local units / radians. All eyeball-tunable.
 const STRIDE_LENGTH = 7; // forward/back scissor per leg
@@ -170,7 +192,8 @@ function BlockoutBody({
   manifestId,
   animationState,
   bladeOffset,
-  speed
+  speed,
+  windupDepth = 0
 }: BlockoutBodyProps): JSX.Element {
   const palette = TEAM_PALETTES[teamId].uniform;
   const pose = skaterPose(animationState);
@@ -178,6 +201,8 @@ function BlockoutBody({
 
   const legLeftRef = useRef<Group>(null);
   const legRightRef = useRef<Group>(null);
+  const stickWindupRef = useRef<Group>(null);
+  const windupEase = useRef(0);
   // Random start phase so the whole rink doesn't stride in lockstep.
   // Render-only randomness — the sim never sees it.
   const stride = useRef({ phase: Math.random() * Math.PI * 2, weight: 0 });
@@ -197,6 +222,20 @@ function BlockoutBody({
     s.phase += delta * cadence * s.weight;
     applyStride(legLeftRef.current, s.phase, s.weight);
     applyStride(legRightRef.current, s.phase + Math.PI, s.weight);
+
+    // Slap windup: ease the whole stick assembly up and back with depth so
+    // the backswing reads as a slap; the snap to 0 on release plays as the
+    // downswing. (The sim's windupDepth ratchets instantly — the ease is
+    // what makes it an animation.)
+    const windupTarget = animationState === "chargeShot" ? windupDepth : 0;
+    windupEase.current +=
+      (windupTarget - windupEase.current) * (1 - Math.exp(-delta * 10));
+    const stick = stickWindupRef.current;
+    if (stick) {
+      const [yaw, roll, lift] = windupStickTransform(windupEase.current);
+      stick.rotation.set(0, yaw, roll);
+      stick.position.y = lift;
+    }
   });
 
   // Blade in root-frame local coords (x forward, z lateral-right), tracking the
@@ -326,8 +365,12 @@ function BlockoutBody({
       </group>
       </group>
       {/* Stick lives in the root (+X forward) frame so its flat head can sit on
-          the sim-driven puck without fighting the body's pose transforms. */}
-      <StickAssembly bladeLocal={bladeLocal} torsoPitch={pose.pitch} />
+          the sim-driven puck without fighting the body's pose transforms. The
+          windup wrapper swings the whole assembly (arms/shaft/blade stay
+          coherent) up and back during a slap charge. */}
+      <group ref={stickWindupRef}>
+        <StickAssembly bladeLocal={bladeLocal} torsoPitch={pose.pitch} />
+      </group>
       {animationState === "frozen" ? <IceBlock /> : null}
     </group>
   );
@@ -343,16 +386,19 @@ function IceBlock(): JSX.Element {
     <group name="ice-block">
       <mesh position={[0, 34, 0]}>
         <boxGeometry args={[34, 74, 34]} />
-        <meshPhysicalMaterial
+        {/* Plain translucent slab — deliberately NOT meshPhysicalMaterial
+            with transmission: that forced three.js to re-render the whole
+            scene (arena crowd included) into a transmission buffer every
+            frame of the 5s freeze, tanking every client's frame rate at
+            once (playtest: "freeze lags the server"). */}
+        <meshStandardMaterial
           color="#bfe9ff"
           transparent
-          opacity={0.42}
-          roughness={0.08}
-          metalness={0}
-          transmission={0.6}
-          thickness={12}
-          clearcoat={1}
-          clearcoatRoughness={0.05}
+          opacity={0.45}
+          roughness={0.12}
+          metalness={0.1}
+          emissive="#4ea3ff"
+          emissiveIntensity={0.12}
           depthWrite={false}
         />
       </mesh>
@@ -729,8 +775,12 @@ function skaterPose(state: SkaterAnimationState): {
     case "pass":
       return pose(0.14, 0.22, 0, 1, 1, 1);
     case "wristShot":
-    case "chargeShot":
       return pose(0.22, -0.16, 0, 1.02, 1, 1);
+    case "chargeShot":
+      // Coiled slap windup: shallower forward lean, torso wound hard toward
+      // the stick side, a touch of roll into the back leg — visibly distinct
+      // from the wrist release while the stick wrapper draws the blade back.
+      return pose(0.1, -0.55, 0.1, 1.02, 1, 1);
     case "check":
       return pose(0.2, 0, 0.34, 1.08, 0.96, 1);
     case "stumble":

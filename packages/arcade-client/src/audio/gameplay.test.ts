@@ -240,7 +240,8 @@ describe("gameplayCueForEvent", () => {
       [event("save", { detail: "body" }), "save-body"],
       [event("save", { detail: "glove" }), "save-glove"],
       [event("save", { detail: "blocker" }), "save-blocker"],
-      [event("save", { detail: "cover" }), "save-cover"]
+      [event("save", { detail: "cover" }), "save-cover"],
+      [event("clockCountdown", { detail: "7" }), "clock-tick"]
     ];
 
     expect(
@@ -259,6 +260,17 @@ describe("gameplayCueForEvent", () => {
     });
     expect(gameplayCueForEvent(event("hit", { force: 2400 }))).toEqual({
       id: "hit",
+      intensity: 1
+    });
+  });
+
+  it("pips the final second of the clock countdown higher", () => {
+    expect(gameplayCueForEvent(event("clockCountdown", { detail: "5" }))).toEqual({
+      id: "clock-tick",
+      intensity: 0
+    });
+    expect(gameplayCueForEvent(event("clockCountdown", { detail: "1" }))).toEqual({
+      id: "clock-tick",
       intensity: 1
     });
   });
