@@ -1,5 +1,6 @@
-import type { CharacterId, TeamId, Vec2 } from "@bbh/arcade-core";
+import type { CharacterId, PowerupType, TeamId, Vec2 } from "@bbh/arcade-core";
 import { CharacterModel } from "./CharacterModel.js";
+import { PowerupIcon } from "./Powerups.js";
 import type { SkaterAnimationState } from "./animation/clipMap.js";
 
 export interface SkaterDebugProps {
@@ -24,6 +25,12 @@ export interface SkaterDebugProps {
   readonly bladeOffset?: Vec2;
   /** Slap windup depth 0..1 (chargeShot only): draws the stick up and back. */
   readonly windupDepth?: number;
+  /**
+   * Sustained boosts this skater holds (speed-boost / hard-shot / bulldozer):
+   * badged on the identity disc so everyone can see who is powered up.
+   * Only rendered when the disc itself renders (human-controlled skaters).
+   */
+  readonly activeBoosts?: readonly PowerupType[];
   readonly showVectors?: boolean;
 }
 
@@ -76,6 +83,7 @@ export function SkaterDebug({
   facing,
   bladeOffset,
   windupDepth = 0,
+  activeBoosts = [],
   showVectors = false
 }: SkaterDebugProps): JSX.Element {
   return (
@@ -93,6 +101,25 @@ export function SkaterDebug({
           />
         </mesh>
       ) : null}
+      {/* Active-boost badges on the disc's camera-side edge (the camera sits
+          at -X looking up-ice): the same procedural icons as the pickups,
+          shrunk, so the effect is instantly recognizable on whoever holds it. */}
+      {highlightColor
+        ? activeBoosts.map((type, index) => (
+            <group
+              key={type}
+              name={`boost-badge:${type}`}
+              position={[
+                -((isLocal ? 56 : 50) - 16),
+                6,
+                (index - (activeBoosts.length - 1) / 2) * 26
+              ]}
+              scale={0.95}
+            >
+              <PowerupIcon type={type} />
+            </group>
+          ))
+        : null}
       <group rotation={[0, facing === undefined ? 0 : -facing, 0]}>
         <group scale={SKATER_MODEL_SCALE}>
           <CharacterModel

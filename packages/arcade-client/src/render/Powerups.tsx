@@ -112,7 +112,8 @@ function FloatingIcon({
   );
 }
 
-function PowerupIcon({ type }: { readonly type: string }): JSX.Element {
+/** Themed procedural icon for a powerup type (shared: pickups + disc badges). */
+export function PowerupIcon({ type }: { readonly type: string }): JSX.Element {
   switch (type) {
     case "speed-boost":
       return <RocketIcon />;

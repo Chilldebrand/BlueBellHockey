@@ -8,6 +8,7 @@ import {
   type WorldState
 } from "@bbh/arcade-core";
 import { interpolateSkaters } from "../game/interpolation.js";
+import { activeBoostTypesForSlot } from "./activeBoosts.js";
 import { selectGoalieAnimation } from "./animation/goalieAnimation.js";
 import { selectSkaterAnimation } from "./animation/skaterAnimation.js";
 import { ArenaShell } from "./ArenaShell.js";
@@ -161,6 +162,7 @@ export function Scene({
                   ? Math.min(1, gestureSkater.gesture.windupDepth)
                   : 0
               }
+              activeBoosts={activeBoostTypesForSlot(currentWorld, skater.id)}
             />
           );
         })}
