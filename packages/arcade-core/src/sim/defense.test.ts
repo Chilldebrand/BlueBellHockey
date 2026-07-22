@@ -83,13 +83,13 @@ describe("poke check", () => {
     expect(world.stats.away.takeaways).toBe(1);
   });
 
-  it("treats off-puck pass presses as a stick lift (NHL A-button)", () => {
+  it("never arms a poke from the pass button — poke is its own button only", () => {
     const world = playingWorld();
     const defender = world.skaters[3];
 
     stepWorld(world, [frame(defender.id, 1, { pass: true })], 16);
 
-    expect(defender.pokeUntilMs).toBeGreaterThan(0);
+    expect(defender.pokeUntilMs).toBe(0);
   });
 });
 

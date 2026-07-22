@@ -13,7 +13,7 @@ export interface GamepadLike {
  * IS the puck — sweep to stickhandle, flick up = wrist shot, pull back then
  * flick up = slap shot. Controller up maps to stick-forward in body space.
  *
- *   A / RT (R2) = pass (offense) / stick lift (defense); hold to charge
+ *   A / RT (R2) = pass (offense) / switch skater (defense); hold to charge
  *   B  = shoulder check      X = hip check   (both body checks here)
  *   LB = block shot (dive)   RB = poke check
  *   L3 = skate/hustle (turbo)

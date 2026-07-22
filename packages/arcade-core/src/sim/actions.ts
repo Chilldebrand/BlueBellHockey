@@ -121,7 +121,9 @@ export function resolveDefensiveActions(
     }
 
     const isCarrier = world.puck.carrierSlotId === skater.id;
-    const wantsPoke = input.poke === true || (!isCarrier && input.pass);
+    // Poke lives on exactly one button (RB / R). The pass button never pokes:
+    // on defense it is purely switch-player (playtest 2026-07-22).
+    const wantsPoke = input.poke === true;
 
     if (wantsPoke && !isCarrier && now >= skater.pokeCooldownUntilMs) {
       skater.pokeUntilMs = now + config.pokeDurationMs;

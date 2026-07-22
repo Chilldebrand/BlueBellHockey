@@ -286,6 +286,8 @@ function resolveGoalieSave(
     puck.passedAtMs = 0;
     puck.pickupDisabledForSlotId = null;
     puck.pickupDisabledUntilMs = 0;
+    puck.pokeGatherDisabledForSlotId = null;
+    puck.pokeGatherDisabledUntilMs = 0;
     resetGoalieOutletState(goalie, world.time.nowMs);
     return;
   }

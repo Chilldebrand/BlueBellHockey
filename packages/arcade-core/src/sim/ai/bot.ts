@@ -1,4 +1,6 @@
+import { facingDirection } from "../actions.js";
 import { normalizeOrZero } from "../physics.js";
+import { PUCK_CONFIG } from "../puck.js";
 import type { InputFrame, SkaterEntity, WorldState } from "../types.js";
 import {
   ARRIVAL_RADIUS,
@@ -7,6 +9,15 @@ import {
   type BotDifficulty,
   type BotIntent
 } from "./decision.js";
+
+/**
+ * Bots attempt a poke when an opponent carries the puck this close while the
+ * bot faces it. Pokes now require an ACTIVE, aligned lunge to connect (the
+ * old passive proximity strip is gone), so without this trigger bot defense
+ * would never dispossess anyone with the stick. The sim's own poke cooldown
+ * gates the frequency — no randomness, replay-safe.
+ */
+const BOT_POKE_RANGE = 80;
 
 /** Roles that hold a station — ease in and settle rather than orbiting it. */
 const SETTLING_INTENTS: ReadonlySet<BotIntent> = new Set([
@@ -47,6 +58,27 @@ export function createBotInputFrame(
   const movement = { x: direction.x * throttle, y: direction.y * throttle };
   const shootFlick = decision.shoot && world.puck.carrierSlotId === bot.id;
 
+  const carrierId = world.puck.carrierSlotId;
+  const opponentCarries =
+    carrierId !== null &&
+    carrierId !== bot.id &&
+    world.skaters.some(
+      (skater) => skater.id === carrierId && skater.teamId !== bot.teamId
+    );
+  const toPuck = normalizeOrZero({
+    x: world.puck.position.x - bot.position.x,
+    y: world.puck.position.y - bot.position.y
+  });
+  const facing = facingDirection(bot);
+  const poke =
+    opponentCarries &&
+    Math.hypot(
+      world.puck.position.x - bot.position.x,
+      world.puck.position.y - bot.position.y
+    ) <= BOT_POKE_RANGE &&
+    facing.x * toPuck.x + facing.y * toPuck.y >=
+      PUCK_CONFIG.pokeAlignmentMin;
+
   return {
     playerId: `bot:${bot.id}`,
     slotId: bot.id,
@@ -57,6 +89,7 @@ export function createBotInputFrame(
     stickY: shootFlick ? 1 : 0,
     pass: decision.pass,
     check: decision.check,
+    poke,
     turbo: decision.turbo
   };
 }

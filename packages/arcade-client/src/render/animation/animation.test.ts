@@ -53,7 +53,9 @@ const puck: PuckState = {
   passedFromSlotId: null,
   passedAtMs: 0,
   pickupDisabledForSlotId: null,
-  pickupDisabledUntilMs: 0
+  pickupDisabledUntilMs: 0,
+  pokeGatherDisabledForSlotId: null,
+  pokeGatherDisabledUntilMs: 0
 };
 
 describe("gameplay animation adapters", () => {

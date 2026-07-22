@@ -8,6 +8,14 @@ import type { GoalieEntity, InputFrame, SkaterEntity, Vec2, WorldState } from ".
 /** Maximum deterministic goalie hold before a safe outlet is forced. */
 export const GOALIE_OUTLET_TIMEOUT_MS = 2500;
 
+/**
+ * Outlet passes travel at this fraction of the skater pass formula (playtest
+ * 2026-07-22: full-speed goalie rockets were uncatchable and overpowered).
+ * Scales the whole range so holding to charge still matters: quick release
+ * ~980, full charge ~1394 — exactly 60% of a player's charged max.
+ */
+export const GOALIE_OUTLET_PASS_FACTOR = 0.6;
+
 // Matches the pass-aim deadzone used by skater passing in actions.ts.
 const OUTLET_AIM_DEADZONE = 0.3;
 
@@ -82,7 +90,8 @@ function releaseGoalieOutlet(world: WorldState, goalie: GoalieEntity, direction:
   );
   const releasePosition = goalieHoldPosition(goalie);
   const speed =
-    TUNING.puck.passSpeed + TUNING.puck.passChargeSpeedBonus * charge;
+    (TUNING.puck.passSpeed + TUNING.puck.passChargeSpeedBonus * charge) *
+    GOALIE_OUTLET_PASS_FACTOR;
   const target = passTargetWithAssist(
     world,
     { id: goalie.id, teamId: goalie.teamId, position: releasePosition },
@@ -103,8 +112,11 @@ function releaseGoalieOutlet(world: WorldState, goalie: GoalieEntity, direction:
   world.puck.shotBySlotId = null;
   world.puck.shotPower = 0;
   world.puck.isChargedShot = false;
-  world.puck.passedFromSlotId = null;
-  world.puck.passedAtMs = 0;
+  // The outlet IS a pass: marking the goalie as passer gives teammates the
+  // wide reception-assist gates (otherwise the strict loose-puck speed gate
+  // made outlets bounce off every blade until drag slowed them).
+  world.puck.passedFromSlotId = goalie.id;
+  world.puck.passedAtMs = world.time.nowMs;
   world.puck.pickupDisabledForSlotId = goalie.id;
   world.puck.pickupDisabledUntilMs =
     world.time.nowMs + TUNING.puck.releasePickupCooldownMs;

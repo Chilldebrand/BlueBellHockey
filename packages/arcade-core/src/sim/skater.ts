@@ -65,11 +65,14 @@ export const SKATER_MOVEMENT_CONFIG: SkaterMovementConfig = {
   radius: 38,
   glideDrag: 0.55,
   releaseDrag: 1.15,
-  lateralGrip: 7.5,
-  brakeDrag: 5.5,
-  // NHL-25 fluidity pass: livelier turning, especially at speed.
-  turnRate: 10.5,
-  highSpeedTurnRetention: 0.5,
+  // Playtest 2026-07-22: direction changes carve harder (grip 7.5→9), stops
+  // on a reversal bite faster (brake 5.5→7), and turning keeps more of its
+  // rate at speed (retention 0.5→0.62, base rate 10.5→11.5). Forward/back
+  // accel and caps untouched — those already felt right.
+  lateralGrip: 9,
+  brakeDrag: 7,
+  turnRate: 11.5,
+  highSpeedTurnRetention: 0.62,
   overSpeedDrag: 2.4,
   boardRestitution: 0.35,
   boardTangentRetention: 0.86,

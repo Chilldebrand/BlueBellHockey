@@ -3,7 +3,11 @@ import type { InputFrame, PuckState, SkaterEntity, Vec2, WorldState } from "./ty
 import { containCircleInRink } from "./boards.js";
 import { collidePuckWithNets, NET_BOXES } from "./net.js";
 import { expDecay, magnitude, normalizeOrZero } from "./physics.js";
-import { passAimDirection, passDirectionWithAssist } from "./actions.js";
+import {
+  facingDirection,
+  passAimDirection,
+  passDirectionWithAssist
+} from "./actions.js";
 import { clearPendingRelease } from "./gestures.js";
 import { bladeWorldPosition, bladeWorldVelocity } from "./stick.js";
 import { hasActivePowerup } from "./powerups.js";
@@ -52,6 +56,17 @@ export interface PuckConfig {
   readonly carryBreakDistance: number;
   /** Opponent blade within this of a carried puck pokes it loose. */
   readonly pokeRadius: number;
+  /**
+   * Precision gate: an ACTIVE poke lunge only connects when the blade is
+   * within this of the puck (tighter than pokeRadius) AND the poker is
+   * facing the puck. Playtest 2026-07-22: pokes must be earned.
+   */
+  readonly pokePrecisionRadius: number;
+  /** Facing-toward-puck dot product a poke needs to connect (side-swipes whiff). */
+  readonly pokeAlignmentMin: number;
+  /** After a successful poke the POKER can't gather for this long — the puck
+   *  comes genuinely loose instead of gluing to the poking blade. */
+  readonly pokeGatherDelayMs: number;
   /** Speed given to a poked-loose puck along the poking blade's motion. */
   readonly pokeImpulse: number;
   readonly passSpeed: number;
@@ -101,6 +116,9 @@ export const PUCK_CONFIG: PuckConfig = {
   carryMaxAccel: 34000,
   carryBreakDistance: 96,
   pokeRadius: 34,
+  pokePrecisionRadius: 22,
+  pokeAlignmentMin: 0.55,
+  pokeGatherDelayMs: 150,
   pokeImpulse: 480,
   // Snappy passing: receptions are assisted — a fresh teammate pass is
   // catchable well above the loose-puck deflection gate, so passes stick
@@ -154,7 +172,9 @@ export function createInitialPuckState(position: Vec2): PuckState {
     passedFromSlotId: null,
     passedAtMs: 0,
     pickupDisabledForSlotId: null,
-    pickupDisabledUntilMs: 0
+    pickupDisabledUntilMs: 0,
+    pokeGatherDisabledForSlotId: null,
+    pokeGatherDisabledUntilMs: 0
   };
 }
 
@@ -256,6 +276,11 @@ function stepCarriedPuck(
     puck.assistCandidateSlotId = null;
     puck.pickupDisabledForSlotId = carrier.id;
     puck.pickupDisabledUntilMs = world.time.nowMs + 250;
+    // The poker earned a loose puck, not possession: they sit out a brief
+    // gather delay so the strip becomes a genuine scramble.
+    puck.pokeGatherDisabledForSlotId = poker.id;
+    puck.pokeGatherDisabledUntilMs =
+      world.time.nowMs + config.pokeGatherDelayMs;
     puck.velocity = {
       x: carrier.velocity.x * 0.35 + direction.x * config.pokeImpulse,
       y: carrier.velocity.y * 0.35 + direction.y * config.pokeImpulse
@@ -407,6 +432,14 @@ function releaseGestureShot(
   clearPendingRelease(gesture);
 }
 
+/**
+ * A poke connects only when it is EARNED (playtest 2026-07-22 — previously
+ * any idle blade near the puck silently stripped the carrier, which read as
+ * a free instant steal):
+ *   1. an active poke lunge (the 200ms pokeDurationMs window is the timing),
+ *   2. the blade tight on the puck (pokePrecisionRadius, not the wide reach),
+ *   3. the poker actually facing the puck (side-swipes and drive-bys whiff).
+ */
 function findPokingOpponent(
   world: WorldState,
   carrier: SkaterEntity,
@@ -417,6 +450,10 @@ function findPokingOpponent(
       continue;
     }
 
+    if (opponent.pokeUntilMs <= world.time.nowMs) {
+      continue;
+    }
+
     // Poke lunges extend the blade — pass sim time so the reach counts.
     const blade = bladeWorldPosition(opponent, undefined, world.time.nowMs);
     const distance = Math.hypot(
@@ -424,7 +461,18 @@ function findPokingOpponent(
       world.puck.position.y - blade.y
     );
 
-    if (distance <= config.pokeRadius + config.radius) {
+    if (distance > config.pokePrecisionRadius + config.radius) {
+      continue;
+    }
+
+    const toPuck = normalizeOrZero({
+      x: world.puck.position.x - opponent.position.x,
+      y: world.puck.position.y - opponent.position.y
+    });
+    const facing = facingDirection(opponent);
+    const alignment = facing.x * toPuck.x + facing.y * toPuck.y;
+
+    if (alignment >= config.pokeAlignmentMin) {
       return opponent;
     }
   }
@@ -638,11 +686,26 @@ function tryPickupLoosePuck(
     ? world.skaters.find((skater) => skater.id === puck.passedFromSlotId) ??
       null
     : null;
+  // Goalie outlets are passes too: resolve the passer's team through the
+  // goalies so the outlet's own team gets the reception assist.
+  const passerTeamId =
+    passer?.teamId ??
+    (puck.passedFromSlotId
+      ? world.goalies.find((goalie) => goalie.id === puck.passedFromSlotId)
+          ?.teamId ?? null
+      : null);
 
   for (const skater of world.skaters) {
     if (
       puck.pickupDisabledForSlotId === skater.id &&
       world.time.nowMs < puck.pickupDisabledUntilMs
+    ) {
+      continue;
+    }
+
+    if (
+      puck.pokeGatherDisabledForSlotId === skater.id &&
+      world.time.nowMs < puck.pokeGatherDisabledUntilMs
     ) {
       continue;
     }
@@ -655,9 +718,9 @@ function tryPickupLoosePuck(
     // wider radius and a much higher speed tolerance than a loose puck.
     // Opponents trying to intercept keep the strict gates.
     const isPassReception =
-      passer !== null &&
-      passer.id !== skater.id &&
-      passer.teamId === skater.teamId;
+      passerTeamId !== null &&
+      puck.passedFromSlotId !== skater.id &&
+      passerTeamId === skater.teamId;
     // Handling stat widens/narrows the gather assist for loose pucks AND
     // receptions — soft hands corral pucks that clank off a low-handling blade.
     const catchRadius =

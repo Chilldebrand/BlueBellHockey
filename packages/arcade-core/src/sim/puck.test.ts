@@ -485,15 +485,55 @@ describe("puck simulation", () => {
     expect(world.puck.pickupDisabledForSlotId).toBe(skater.id);
   });
 
-  it("lets an opponent's blade poke the carried puck loose", () => {
+  it("knocks the puck loose on an active, aligned poke lunge — into a scramble", () => {
     const world = playingWorld();
     const carrier = world.skaters[0];
     const defender = world.skaters[3]; // away team
     world.puck.carrierSlotId = carrier.id;
-    // Puck riding at the carrier's blade; place the defender so its resting
-    // blade sits right on it (independent of the stick rest tuning).
+    // Puck riding at the carrier's blade; place the defender so its blade
+    // sits right on it (independent of the stick rest tuning), facing it.
     world.puck.position = { ...bladeWorldPosition(carrier) };
     defender.facing = Math.PI; // blade points -x, toward the puck
+    // Place the defender so the LUNGING blade (poke reach extended) lands on
+    // the puck — the precise gate measures the active-lunge blade, and a
+    // parked-blade placement overshoots by the reach bonus.
+    const defenderBladeOffset = bladeWorldPosition({
+      ...defender,
+      position: { x: 0, y: 0 },
+      pokeUntilMs: 1
+    });
+    defender.position = {
+      x: world.puck.position.x - defenderBladeOffset.x,
+      y: world.puck.position.y - defenderBladeOffset.y
+    };
+
+    // The defender must actually PRESS poke — proximity alone never strips.
+    stepWorld(
+      world,
+      [inputFrame(carrier.id, 1), inputFrame(defender.id, 1, { poke: true })],
+      16
+    );
+
+    expect(world.puck.carrierSlotId).toBeNull();
+    expect(world.puck.lastTouchSlotId).toBe(defender.id);
+    expect(world.stats.away.takeaways).toBe(1);
+    expect(
+      world.eventQueue.some((event) => event.type === "poke")
+    ).toBe(true);
+    // Loose, not stolen: the poker sits out a brief gather delay.
+    expect(world.puck.pokeGatherDisabledForSlotId).toBe(defender.id);
+    expect(world.puck.pokeGatherDisabledUntilMs).toBe(
+      world.time.nowMs - 16 + PUCK_CONFIG.pokeGatherDelayMs
+    );
+  });
+
+  it("no longer strips the carrier from an idle blade parked on the puck", () => {
+    const world = playingWorld();
+    const carrier = world.skaters[0];
+    const defender = world.skaters[3];
+    world.puck.carrierSlotId = carrier.id;
+    world.puck.position = { ...bladeWorldPosition(carrier) };
+    defender.facing = Math.PI;
     const defenderBladeOffset = bladeWorldPosition({
       ...defender,
       position: { x: 0, y: 0 }
@@ -503,14 +543,55 @@ describe("puck simulation", () => {
       y: world.puck.position.y - defenderBladeOffset.y
     };
 
+    // Same geometry as a perfect poke — but no poke input: nothing happens.
     stepWorld(world, [inputFrame(carrier.id, 1)], 16);
 
+    expect(world.puck.carrierSlotId).toBe(carrier.id);
+    expect(world.stats.away.takeaways).toBe(0);
+  });
+
+  it("whiffs a poke lunge that is not aimed at the puck", () => {
+    const world = playingWorld();
+    const carrier = world.skaters[0];
+    const defender = world.skaters[3];
+    world.puck.carrierSlotId = carrier.id;
+    world.puck.position = { ...bladeWorldPosition(carrier) };
+    // Body brushing the puck but facing AWAY — the lunge goes the wrong way.
+    defender.facing = 0;
+    defender.position = {
+      x: world.puck.position.x + 10,
+      y: world.puck.position.y
+    };
+
+    stepWorld(
+      world,
+      [inputFrame(carrier.id, 1), inputFrame(defender.id, 1, { poke: true })],
+      16
+    );
+
+    expect(world.puck.carrierSlotId).toBe(carrier.id);
+    expect(world.stats.away.takeaways).toBe(0);
+  });
+
+  it("blocks the poker from gathering during the poke scramble window", () => {
+    const world = playingWorld();
+    const poker = world.skaters.find((s) => s.id === "away-skater-1")!;
+    poker.velocity = { x: 0, y: 0 };
+    world.puck.position = { ...bladeWorldPosition(poker) };
+    world.puck.velocity = { x: 0, y: 0 };
+    world.puck.pokeGatherDisabledForSlotId = poker.id;
+    world.puck.pokeGatherDisabledUntilMs =
+      world.time.nowMs + PUCK_CONFIG.pokeGatherDelayMs;
+
+    stepWorld(world, [inputFrame(poker.id, 1)], 16);
     expect(world.puck.carrierSlotId).toBeNull();
-    expect(world.puck.lastTouchSlotId).toBe(defender.id);
-    expect(world.stats.away.takeaways).toBe(1);
-    expect(
-      world.eventQueue.some((event) => event.type === "poke")
-    ).toBe(true);
+
+    // Once the window passes, the puck is anyone's — including the poker's.
+    world.puck.position = { ...bladeWorldPosition(poker) };
+    world.puck.velocity = { x: 0, y: 0 };
+    world.time = { ...world.time, nowMs: world.time.nowMs + 200, tick: world.time.tick + 12 };
+    stepWorld(world, [inputFrame(poker.id, 2)], 16);
+    expect(world.puck.carrierSlotId).toBe(poker.id);
   });
 
   it("clears the primary-assist candidate when an opponent diving block is the last touch", () => {

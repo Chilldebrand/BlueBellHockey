@@ -117,6 +117,8 @@ export function resetForFaceoff(world: WorldState): void {
   world.puck.passedAtMs = 0;
   world.puck.pickupDisabledForSlotId = null;
   world.puck.pickupDisabledUntilMs = 0;
+  world.puck.pokeGatherDisabledForSlotId = null;
+  world.puck.pokeGatherDisabledUntilMs = 0;
 
   // Reset the players too, not just the puck — otherwise a scorer is left
   // stranded by the net while the camera snaps to the center-ice faceoff,

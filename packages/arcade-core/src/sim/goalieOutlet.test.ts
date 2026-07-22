@@ -10,6 +10,7 @@ import {
   type WorldState
 } from "../index.js";
 import {
+  GOALIE_OUTLET_PASS_FACTOR,
   GOALIE_OUTLET_TIMEOUT_MS,
   selectGoalieOutletTarget,
   stepGoalieOutlet
@@ -165,12 +166,15 @@ describe("goalie outlets", () => {
     );
     stepGoalieOutlet(held, heldGoalie, goalieInput(heldGoalie, 2), 16);
 
+    // Outlets travel at 60% of the skater pass formula; charge still matters.
     expect(magnitude(tap.puck.velocity)).toBeCloseTo(
-      PUCK_CONFIG.passSpeed +
-        PUCK_CONFIG.passChargeSpeedBonus * (16 / PUCK_CONFIG.passChargeMaxMs)
+      (PUCK_CONFIG.passSpeed +
+        PUCK_CONFIG.passChargeSpeedBonus * (16 / PUCK_CONFIG.passChargeMaxMs)) *
+        GOALIE_OUTLET_PASS_FACTOR
     );
     expect(magnitude(held.puck.velocity)).toBeCloseTo(
-      PUCK_CONFIG.passSpeed + PUCK_CONFIG.passChargeSpeedBonus
+      (PUCK_CONFIG.passSpeed + PUCK_CONFIG.passChargeSpeedBonus) *
+        GOALIE_OUTLET_PASS_FACTOR
     );
   });
 
@@ -202,8 +206,23 @@ describe("goalie outlets", () => {
     );
     stepGoalieOutlet(world, goalie, goalieInput(goalie, 2, { moveX: 1 }), 16);
 
-    expect(world.puck.velocity.y).toBeGreaterThan(250);
-    expect(magnitude(world.puck.velocity)).toBeCloseTo(2323, 0);
+    expect(world.puck.velocity.y).toBeGreaterThan(150);
+    expect(magnitude(world.puck.velocity)).toBeCloseTo(
+      2323 * GOALIE_OUTLET_PASS_FACTOR,
+      0
+    );
+  });
+
+  it("marks the outlet as a pass so teammates get the reception assist", () => {
+    const world = playingWorld();
+    const goalie = homeGoalieOf(world);
+    givePuckToGoalie(world, goalie);
+
+    stepGoalieOutlet(world, goalie, goalieInput(goalie, 1, { pass: true }), 16);
+    stepGoalieOutlet(world, goalie, goalieInput(goalie, 2), 16);
+
+    expect(world.puck.passedFromSlotId).toBe(goalie.id);
+    expect(world.puck.passedAtMs).toBe(world.time.nowMs);
   });
 
   it("releases from the goalie-safe hold point, clears possession, and locks out self pickup", () => {

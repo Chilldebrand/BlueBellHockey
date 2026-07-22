@@ -197,6 +197,13 @@ export interface PuckState {
   passedAtMs: number;
   pickupDisabledForSlotId: string | null;
   pickupDisabledUntilMs: number;
+  /**
+   * The POKER's brief gather lockout after a successful poke: the puck comes
+   * genuinely loose (a 50/50 scramble) instead of gluing straight to the
+   * poking blade as an instant steal.
+   */
+  pokeGatherDisabledForSlotId: string | null;
+  pokeGatherDisabledUntilMs: number;
 }
 
 export interface ActivePowerup {
