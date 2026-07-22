@@ -42,7 +42,37 @@ Source links (download only from official Pixabay):
 `https://pixabay.com/music/beats-positive-hip-hop-184768/`, and
 `https://pixabay.com/music/beats-hip-hop-old-school-208627/`.
 
-**LATEST SHIPPED FEATURE — four-sided arena crowd (2026-07-21).** The rink now sits inside a
+**LATEST SHIPPED — 13-item playtest batch (2026-07-21, `aebe2de` + `f157969` + `ac93937`, all
+pushed, user-approved plan).** Three batches, all green (241 core / 97 server / 243 client +
+smoke + prod build):
+- **Faceoff countdowns as sim state** (`WorldState.faceoffUntilMs`, `beginPlay`,
+  `startFaceoffCountdown` in goal.ts): 5s pre-match, 3s post-goal; time flows but nothing steps
+  and the clock freezes; powerup/banana windows shift; gesture baselines sampled (no phantom
+  flick). Free Skate zeroes the hold. FaceoffIntro is now the 3-2-1 digits ONLY during holds —
+  the always-on "Faceoff" overlay bug is dead. Smoke waits out the hold.
+- **ALL character stats are real now** (`sim/statScaling.ts`): speed ±3% on skating (plus a
+  global -10% pace cut, maxSpeed 560→504), shot ±5% release velocity, pass ±5%, handling ±6%
+  (carry tether + gather radius). Power/balance keep the old checking formulas.
+- **Goalies stop friendly passes** heading into their own net (no save stat/event for those);
+  **one-timers arm from reception** (pass age cap 1500ms — long feeds work now); **bots jammed
+  within 220 of the net shoot through traffic**; **powerup spawns weighted** (goalie resizes
+  ~9% each, freeze/speed ~23%, `POWERUP_SPAWN_WEIGHTS`); **mini-goalie 0.45→0.55**.
+- **Creator kick** (`client.kickPlayer`, KICKED_CLOSE_CODE 4102 in arcade-core messages.ts):
+  waiting-phase, rate-limited, no reconnect seat, ticket cleared client-side ("Removed by
+  host"), red ✕ on other human slot cards. Rejoin via matchmaking allowed by design.
+- **Freeze lag fixed**: IceBlock's `transmission` material (forced a second full-scene render
+  incl. the 1200+ fan crowd for the whole 5s freeze) replaced with a plain translucent slab.
+- **Off-screen player arrows** (`render/offscreenArrows.ts` + Tracker/Layer): edge-clamped
+  chevrons, identity/team colored, imperative per-frame DOM writes, hidden during holds.
+- **Slap windup animation**: distinct coiled chargeShot pose + the stick assembly eases up/back
+  with `gesture.windupDepth` (`windupStickTransform` in CharacterModel.tsx).
+- **Final-10-seconds countdown**: sim `clockCountdown` events → big digits (top 66%) + triangle
+  pips (`clock-tick` cue); never in OT/holds/Free Skate.
+**USER EYEBALLS OWED on the whole batch:** countdown look, arrow style, slap windup silhouette,
+new ice-block look, freeze frame-rate before/after (PerfHud), friendly-pass stops, AI crease
+behavior, speed/stat feel, powerup mix, kick flow (two browsers), final-count digits+pips.
+
+**PREVIOUSLY SHIPPED — four-sided arena crowd (2026-07-21).** The rink now sits inside a
 procedural arena bowl: four raked stands, corner concourses, outer floor, dark enclosing wall,
 aluminum rails/aisles, emissive light-bank fixtures (no new scene lights), and ~1,550 deterministic
 seeded fans (instanced; ~18 added draw calls full detail / ~14 reduced). Crowd reacts ONLY to
