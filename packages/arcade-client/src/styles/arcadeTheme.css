@@ -18,25 +18,197 @@ input {
   font: inherit;
 }
 
+/* ---- Home flow: boot splash + main menu ("Game Night" redesign) ----
+   Authored at 1100x660 (5:3). --u converts one authoring px into viewport
+   space, letterboxed to whichever dimension is tighter, so type and panels
+   keep the mock's proportions while the background cover-crops freely. */
 .menu-screen {
-  align-content: center;
-  background:
-    linear-gradient(180deg, rgba(18, 103, 216, 0.16), rgba(7, 17, 29, 0.94)),
-    #07111d;
-  display: grid;
-  gap: 14px;
+  --u: min(100vw / 1100, 100vh / 660);
+  background: #07111d;
   height: 100vh;
+  overflow: hidden;
+  position: relative;
+}
+
+.menu-screen-bg {
+  background-position: center;
+  background-size: cover;
+  inset: 0;
+  position: absolute;
+}
+
+.boot-screen .menu-screen-bg {
+  animation: menu-bg-fade-in 1s ease-in;
+  background-image: url("/backgrounds/center-ice-live-spread-01.png");
+}
+
+.main-menu .menu-screen-bg {
+  background-image: url("/backgrounds/center-ice-live-spread-02.png");
+}
+
+.menu-screen-scrim {
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.boot-screen .menu-screen-scrim {
+  background: linear-gradient(
+    180deg,
+    rgba(4, 10, 18, 0.3) 0%,
+    rgba(4, 10, 18, 0.45) 55%,
+    rgba(4, 10, 18, 0.78) 100%
+  );
+}
+
+.main-menu .menu-screen-scrim {
+  background: linear-gradient(
+    90deg,
+    rgba(4, 10, 18, 0.88) 0%,
+    rgba(4, 10, 18, 0.7) 42%,
+    rgba(4, 10, 18, 0.12) 100%
+  );
+}
+
+.menu-screen-content {
+  align-content: center;
+  display: grid;
+  font-family: Archivo, ui-sans-serif, system-ui, sans-serif;
+  inset: 0;
+  position: absolute;
+}
+
+.boot-screen .menu-screen-content {
+  gap: calc(18 * var(--u));
   justify-items: center;
+}
+
+.main-menu .menu-screen-content {
+  gap: calc(12 * var(--u));
+  justify-items: start;
+  padding-left: calc(90 * var(--u));
 }
 
 .menu-screen h1 {
   color: #eff8ff;
-  font-size: 52px;
+  font-style: italic;
+  font-weight: 900;
+  letter-spacing: -0.02em;
   margin: 0;
-  text-shadow: 0 0 18px rgba(119, 207, 255, 0.7);
+  text-transform: uppercase;
 }
 
-.menu-screen button,
+.boot-screen h1 {
+  font-size: calc(84 * var(--u));
+  text-shadow: 0 0 calc(28 * var(--u)) rgba(119, 207, 255, 0.55);
+}
+
+.main-menu h1 {
+  font-size: calc(58 * var(--u));
+  margin-bottom: calc(6 * var(--u));
+  text-shadow: 0 0 calc(22 * var(--u)) rgba(119, 207, 255, 0.5);
+}
+
+.boot-wordmark {
+  display: grid;
+  gap: calc(4 * var(--u));
+  justify-items: center;
+}
+
+.boot-wordmark-bar {
+  background: #ffdf6e;
+  height: calc(4 * var(--u));
+  width: calc(340 * var(--u));
+}
+
+.boot-tagline {
+  color: #9fc4e0;
+  font-size: calc(17 * var(--u));
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  margin: calc(10 * var(--u)) 0 0;
+  text-transform: uppercase;
+}
+
+.menu-panel-button {
+  background: rgba(5, 13, 24, 0.82);
+  border-radius: 0;
+  color: #eff8ff;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 800;
+  text-transform: uppercase;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+
+.boot-start-button {
+  animation: press-start-pulse 2.4s ease-in-out infinite;
+  border: calc(2 * var(--u)) solid rgba(119, 207, 255, 0.6);
+  border-bottom: calc(3 * var(--u)) solid #ffdf6e;
+  font-size: calc(18 * var(--u));
+  letter-spacing: 0.14em;
+  margin-top: calc(22 * var(--u));
+  min-width: calc(260 * var(--u));
+  padding: calc(16 * var(--u)) calc(28 * var(--u));
+}
+
+.boot-start-button:hover,
+.boot-start-button:focus-visible {
+  background: rgba(18, 103, 216, 0.35);
+  border-color: #77cfff;
+}
+
+.main-menu-item {
+  border: calc(2 * var(--u)) solid rgba(119, 207, 255, 0.35);
+  border-left: calc(5 * var(--u)) solid transparent;
+  font-size: calc(17 * var(--u));
+  letter-spacing: 0.1em;
+  padding: calc(14 * var(--u)) calc(22 * var(--u));
+  text-align: left;
+  width: calc(320 * var(--u));
+}
+
+.main-menu-item.is-muted {
+  color: #9fc4e0;
+}
+
+.main-menu-item:hover:not(.is-focused) {
+  border-color: rgba(119, 207, 255, 0.7);
+  border-left-color: #ffdf6e;
+}
+
+.main-menu-item.is-focused {
+  border-color: rgba(119, 207, 255, 0.6);
+  border-left-color: #ffdf6e;
+}
+
+.main-menu-item.is-focused:hover {
+  background: rgba(18, 103, 216, 0.35);
+}
+
+@keyframes menu-bg-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes press-start-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(119, 207, 255, 0);
+  }
+
+  50% {
+    box-shadow: 0 0 calc(20 * var(--u)) rgba(119, 207, 255, 0.35);
+  }
+}
+
 .postgame-actions button {
   min-width: 180px;
   padding: 10px 16px;

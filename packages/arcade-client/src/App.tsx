@@ -509,6 +509,7 @@ export function App({
             setScreen("freeskate");
           }}
           onOpenSettings={handleOpenSettings}
+          inputLocked={settingsOpen}
         />
         <SettingsOverlay
           open={settingsOpen}
