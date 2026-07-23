@@ -16,6 +16,7 @@ import {
   clampAudioLevel,
   DEFAULT_AUDIO_PREFERENCES,
   loadAudioPreferences,
+  perceptualGainForLevel,
   saveAudioPreferences,
   type AudioPreferences
 } from "./preferences.js";
@@ -282,15 +283,19 @@ export class AudioManager implements AudioManagerApi {
     }
 
     if (this.announcerGain) {
-      this.announcerGain.gain.value = preferences.announcer;
+      this.announcerGain.gain.value = perceptualGainForLevel(
+        preferences.announcer
+      );
     }
 
     if (this.gameplayGain) {
-      this.gameplayGain.gain.value = preferences.gameplay;
+      this.gameplayGain.gain.value = perceptualGainForLevel(
+        preferences.gameplay
+      );
     }
 
     if (this.musicGain) {
-      this.musicGain.gain.value = preferences.music;
+      this.musicGain.gain.value = perceptualGainForLevel(preferences.music);
     }
   }
 
@@ -550,7 +555,8 @@ export class AudioManager implements AudioManagerApi {
     }
 
     const utterance = new Utterance(text);
-    utterance.volume = this.preferences.announcer;
+    // Same taper as the announcer bus so the TTS fallback matches clip volume.
+    utterance.volume = perceptualGainForLevel(this.preferences.announcer);
     utterance.rate = 1.02;
     utterance.pitch = 1;
     speechSynthesis.speak(utterance);

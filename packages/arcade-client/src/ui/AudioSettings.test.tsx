@@ -41,8 +41,8 @@ describe("AudioSettings", () => {
     expect(html).toContain('min="0"');
     expect(html).toContain('max="100"');
     expect(html).toContain('step="1"');
-    expect(html).toContain(">80%<");
-    expect(html).toContain(">55%<");
+    expect(html).toContain(">93%<");
+    expect(html).toContain(">82%<");
   });
 
   it("preserves the other buses when one slider changes", () => {

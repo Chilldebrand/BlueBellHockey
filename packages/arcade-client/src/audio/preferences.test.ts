@@ -4,6 +4,7 @@ import {
   clampAudioLevel,
   DEFAULT_AUDIO_PREFERENCES,
   loadAudioPreferences,
+  perceptualGainForLevel,
   saveAudioPreferences,
   type AudioPreferences
 } from "./preferences.js";
@@ -34,6 +35,27 @@ describe("clampAudioLevel", () => {
   });
 });
 
+describe("perceptualGainForLevel", () => {
+  it("keeps the endpoints and clamps out-of-range input", () => {
+    expect(perceptualGainForLevel(0)).toBe(0);
+    expect(perceptualGainForLevel(1)).toBe(1);
+    expect(perceptualGainForLevel(-0.5)).toBe(0);
+    expect(perceptualGainForLevel(1.5)).toBe(1);
+  });
+
+  it("attenuates mid-slider positions well below linear", () => {
+    // The whole point of the taper: 50% slider must be clearly quieter
+    // than 50% amplitude, and steps must stay strictly monotonic.
+    expect(perceptualGainForLevel(0.5)).toBeCloseTo(0.125, 6);
+    expect(perceptualGainForLevel(0.8)).toBeLessThan(0.6);
+    for (let level = 0.1; level < 1; level += 0.1) {
+      expect(perceptualGainForLevel(level)).toBeGreaterThan(
+        perceptualGainForLevel(level - 0.1)
+      );
+    }
+  });
+});
+
 describe("loadAudioPreferences", () => {
   it("returns defaults when storage is empty", () => {
     expect(loadAudioPreferences(memoryStorage())).toEqual(
@@ -54,7 +76,8 @@ describe("loadAudioPreferences", () => {
       "bbh.audio.preferences": JSON.stringify({
         announcer: 0.35,
         gameplay: Number.NaN,
-        music: 9
+        music: 9,
+        curve: "cubic"
       })
     });
 
@@ -62,6 +85,24 @@ describe("loadAudioPreferences", () => {
       announcer: 0.35,
       gameplay: DEFAULT_AUDIO_PREFERENCES.gameplay,
       music: 1
+    });
+  });
+
+  it("cube-roots pre-taper payloads so their loudness is preserved", () => {
+    // Payloads without the curve marker were written when sliders mapped
+    // straight to gain; their numbers are raw gains, not slider levels.
+    const storage = memoryStorage({
+      "bbh.audio.preferences": JSON.stringify({
+        announcer: 0.8,
+        gameplay: 0.512,
+        music: 0.55
+      })
+    });
+
+    expect(loadAudioPreferences(storage)).toEqual({
+      announcer: Math.cbrt(0.8),
+      gameplay: 0.8,
+      music: Math.cbrt(0.55)
     });
   });
 
@@ -132,7 +173,8 @@ describe("saveAudioPreferences", () => {
       JSON.stringify({
         announcer: 0,
         gameplay: 0.49,
-        music: 1
+        music: 1,
+        curve: "cubic"
       })
     );
   });
@@ -154,7 +196,8 @@ describe("saveAudioPreferences", () => {
       JSON.stringify({
         announcer: DEFAULT_AUDIO_PREFERENCES.announcer,
         gameplay: DEFAULT_AUDIO_PREFERENCES.gameplay,
-        music: DEFAULT_AUDIO_PREFERENCES.music
+        music: DEFAULT_AUDIO_PREFERENCES.music,
+        curve: "cubic"
       })
     );
   });

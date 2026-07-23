@@ -2,7 +2,8 @@ import { createWorld } from "@bbh/arcade-core";
 import { describe, expect, it, vi } from "vitest";
 import {
   AUDIO_PREFERENCES_STORAGE_KEY,
-  DEFAULT_AUDIO_PREFERENCES
+  DEFAULT_AUDIO_PREFERENCES,
+  perceptualGainForLevel
 } from "./preferences.js";
 import {
   AudioManager,
@@ -382,7 +383,8 @@ describe("AudioManager", () => {
       [AUDIO_PREFERENCES_STORAGE_KEY]: JSON.stringify({
         announcer: 0.2,
         gameplay: 0.4,
-        music: 0.6
+        music: 0.6,
+        curve: "cubic"
       })
     });
     const { restore, fakeWindow } = installAudioWindow(storage);
@@ -413,17 +415,17 @@ describe("AudioManager", () => {
           (manager as unknown as { announcerGain: FakeGainNode | null })
             .announcerGain
         )?.gain.value
-      ).toBe(0.2);
+      ).toBe(perceptualGainForLevel(0.2));
       expect(
         (
           (manager as unknown as { gameplayGain: FakeGainNode | null })
             .gameplayGain
         )?.gain.value
-      ).toBe(0.4);
+      ).toBe(perceptualGainForLevel(0.4));
       expect(
         ((manager as unknown as { musicGain: FakeGainNode | null }).musicGain)
           ?.gain.value
-      ).toBe(0.6);
+      ).toBe(perceptualGainForLevel(0.6));
       expect(fakeWindow.addEventListener).toHaveBeenCalledTimes(1);
     } finally {
       restore();
@@ -459,11 +461,12 @@ describe("AudioManager", () => {
         allowed: false,
         active: false
       });
+      // Bus levels are the actual node gains: tapered, not the slider values.
       expect(handle?.getBusLevels()).toEqual({
         master: 1,
-        announcer: DEFAULT_AUDIO_PREFERENCES.announcer,
-        gameplay: DEFAULT_AUDIO_PREFERENCES.gameplay,
-        music: DEFAULT_AUDIO_PREFERENCES.music
+        announcer: perceptualGainForLevel(DEFAULT_AUDIO_PREFERENCES.announcer),
+        gameplay: perceptualGainForLevel(DEFAULT_AUDIO_PREFERENCES.gameplay),
+        music: perceptualGainForLevel(DEFAULT_AUDIO_PREFERENCES.music)
       });
       expect(handle?.getDiagnostics()).toMatchObject({
         contextAvailable: true,
@@ -759,7 +762,8 @@ describe("AudioManager", () => {
         JSON.stringify({
           announcer: DEFAULT_AUDIO_PREFERENCES.announcer,
           gameplay: 1,
-          music: DEFAULT_AUDIO_PREFERENCES.music
+          music: DEFAULT_AUDIO_PREFERENCES.music,
+          curve: "cubic"
         })
       );
       expect(
@@ -767,7 +771,7 @@ describe("AudioManager", () => {
           (manager as unknown as { announcerGain: FakeGainNode | null })
             .announcerGain
         )?.gain.value
-      ).toBe(DEFAULT_AUDIO_PREFERENCES.announcer);
+      ).toBe(perceptualGainForLevel(DEFAULT_AUDIO_PREFERENCES.announcer));
       expect(
         (
           (manager as unknown as { gameplayGain: FakeGainNode | null })
@@ -777,7 +781,7 @@ describe("AudioManager", () => {
       expect(
         ((manager as unknown as { musicGain: FakeGainNode | null }).musicGain)
           ?.gain.value
-      ).toBe(DEFAULT_AUDIO_PREFERENCES.music);
+      ).toBe(perceptualGainForLevel(DEFAULT_AUDIO_PREFERENCES.music));
     } finally {
       restore();
     }
