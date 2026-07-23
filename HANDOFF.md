@@ -42,7 +42,20 @@ Source links (download only from official Pixabay):
 `https://pixabay.com/music/beats-positive-hip-hop-184768/`, and
 `https://pixabay.com/music/beats-hip-hop-old-school-208627/`.
 
-**LATEST SHIPPED — perceptual audio slider taper (2026-07-23, `0dc5ee4`).** User report: music
+**LATEST SHIPPED — slap windup realism + snap shot (2026-07-23, `7d0b59e`, approved plan).**
+Windups are classified at entry by |stickX| (`GESTURE_CONFIG.snapSideMin` 0.45): straight
+pull-back = SLAP — the carry tether (sim `stepCarriedPuck` + client `predictedCarriedPuck`)
+targets `carryRestWorldPosition` (new, stick.ts) so the puck stays at the feet while only the
+stick draws back, and the slap aims from the puck, not the drawn-back blade. Side-carry then
+draw back = new SNAP shot (`GestureState.windupKind`, release type `"snap"`, shot event detail
+`"snap"`): cap `snapMaxShotSpeed` 1550 (wrist 1040 < snap < slap 1980), tighter corner aim
+(`snapPlacementMargin` 12 vs 30), wrist lift (crossbar calibration holds), not isChargedShot.
+Animation unchanged for both (chargeShot coil). Bots never wind up — unaffected. Verified:
+typecheck, 251/97/249 tests, two-client smoke. **USER EYEBALLS OWED:** slap windup look (puck
+parked at feet, stick back), snap side-draw feel, three-tier shot pace, snap corner placement.
+Knobs: `snapSideMin`, `snapMaxShotSpeed`, `snapPlacementMargin`.
+
+**PREVIOUSLY SHIPPED — perceptual audio slider taper (2026-07-23, `0dc5ee4`).** User report: music
 only got quieter below ~10%. Cause: sliders mapped linearly to GainNode gain. Fix:
 `perceptualGainForLevel` (level³) in `audio/preferences.ts`, applied to all three buses + TTS
 fallback in AudioManager. Defaults re-tuned to cube roots (93/93/82 ≡ old 80/80/55 loudness);
