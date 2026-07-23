@@ -42,7 +42,18 @@ Source links (download only from official Pixabay):
 `https://pixabay.com/music/beats-positive-hip-hop-184768/`, and
 `https://pixabay.com/music/beats-hip-hop-old-school-208627/`.
 
-**LATEST SHIPPED — 13-item playtest batch (2026-07-21, `aebe2de` + `f157969` + `ac93937`, all
+**LATEST SHIPPED — Game Night home redesign (2026-07-23, `9bc0efa`).** Boot splash + main menu
+rebuilt to the user's design handoff: full-bleed stadium screenshots
+(`public/backgrounds/center-ice-live-spread-01/02.png`, 03 spare) under gradient scrims, Archivo
+wordmark, square broadcast panel buttons, sizes scaled from the 1100×660 authoring canvas via a
+`--u` viewport unit (arcadeTheme.css). Splash advances on click/Enter/Space/gamepad Start; menu
+has a keyboard+gamepad selection index (yellow left bar = focus; arrows/WASD, d-pad, left stick;
+A/Start activates; rising-edge so held buttons never skip/fire; suspended while SettingsOverlay
+is open via `MainMenu.inputLocked`). Verified: typecheck, 245 client tests, DOM-driven preview
+walk of splash→menu→settings. **USER EYEBALLS OWED:** both screens' look at their real window
+size, hover/pulse feel, gamepad nav with a physical pad.
+
+**PREVIOUSLY SHIPPED — 13-item playtest batch (2026-07-21, `aebe2de` + `f157969` + `ac93937`, all
 pushed, user-approved plan).** Three batches, all green (241 core / 97 server / 243 client +
 smoke + prod build):
 - **Faceoff countdowns as sim state** (`WorldState.faceoffUntilMs`, `beginPlay`,
