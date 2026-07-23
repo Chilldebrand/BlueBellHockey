@@ -42,7 +42,15 @@ Source links (download only from official Pixabay):
 `https://pixabay.com/music/beats-positive-hip-hop-184768/`, and
 `https://pixabay.com/music/beats-hip-hop-old-school-208627/`.
 
-**LATEST SHIPPED — Game Night home redesign (2026-07-23, `9bc0efa`).** Boot splash + main menu
+**LATEST SHIPPED — perceptual audio slider taper (2026-07-23, `0dc5ee4`).** User report: music
+only got quieter below ~10%. Cause: sliders mapped linearly to GainNode gain. Fix:
+`perceptualGainForLevel` (level³) in `audio/preferences.ts`, applied to all three buses + TTS
+fallback in AudioManager. Defaults re-tuned to cube roots (93/93/82 ≡ old 80/80/55 loudness);
+persisted payloads without `curve: "cubic"` are cube-rooted on load, so existing installs keep
+their exact mix until a slider moves. Verified live: legacy 0.8/0.8/0.55 migrated to 93/93/82
+with identical bus gains; music at 50% now −18 dB (was −6 dB).
+
+**PREVIOUSLY SHIPPED — Game Night home redesign (2026-07-23, `9bc0efa`).** Boot splash + main menu
 rebuilt to the user's design handoff: full-bleed stadium screenshots
 (`public/backgrounds/center-ice-live-spread-01/02.png`, 03 spare) under gradient scrims, Archivo
 wordmark, square broadcast panel buttons, sizes scaled from the 1100×660 authoring canvas via a
