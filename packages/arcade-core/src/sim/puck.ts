@@ -9,7 +9,11 @@ import {
   passDirectionWithAssist
 } from "./actions.js";
 import { clearPendingRelease } from "./gestures.js";
-import { bladeWorldPosition, bladeWorldVelocity } from "./stick.js";
+import {
+  bladeWorldPosition,
+  bladeWorldVelocity,
+  carryRestWorldPosition
+} from "./stick.js";
 import { hasActivePowerup } from "./powerups.js";
 import {
   characterStatMultiplier,
@@ -76,6 +80,11 @@ export interface PuckConfig {
   readonly passCatchMaxRelativeSpeed: number;
   readonly wristShotSpeed: number;
   readonly maxChargedShotSpeed: number;
+  /**
+   * Speed cap of a fully wound snap shot (side-carry draw-back): stronger
+   * than any wrist flick, well under a full slap.
+   */
+  readonly snapMaxShotSpeed: number;
   /** Shooting within this of gathering a teammate's pass is a one-timer. */
   readonly oneTimerWindowMs: number;
   /** Power multiplier a one-timer adds to the shot. */
@@ -86,6 +95,11 @@ export interface PuckConfig {
   readonly slapLiftSpeed: number;
   /** Aim placement keeps this far inside the posts at full stick deflection. */
   readonly shotPlacementMargin: number;
+  /**
+   * Snap shots place within this of the posts instead — the "control" edge
+   * of the snap: corner picks actually reach the corners.
+   */
+  readonly snapPlacementMargin: number;
   readonly releasePickupCooldownMs: number;
   /** Holding the pass button this long charges a pass to full strength. */
   readonly passChargeMaxMs: number;
@@ -131,6 +145,7 @@ export const PUCK_CONFIG: PuckConfig = {
   passCatchMaxRelativeSpeed: 2850,
   wristShotSpeed: 1040,
   maxChargedShotSpeed: 1980,
+  snapMaxShotSpeed: 1550,
   oneTimerWindowMs: 550,
   oneTimerPowerMultiplier: 1.22,
   wristLiftSpeed: 660,
@@ -141,6 +156,7 @@ export const PUCK_CONFIG: PuckConfig = {
   // the crossbar for a top-shelf attempt.
   slapLiftSpeed: 680,
   shotPlacementMargin: 30,
+  snapPlacementMargin: 12,
   releasePickupCooldownMs: 220,
   passChargeMaxMs: 600,
   passChargeSpeedBonus: 689
@@ -300,7 +316,15 @@ function stepCarriedPuck(
   // Tether: spring the puck's velocity toward tracking the blade point.
   // Pass the sim time — without it a long-expired poke lunge would read as
   // still active and permanently tether the puck ahead of the blade.
-  const blade = bladeWorldPosition(carrier, undefined, world.time.nowMs);
+  // During a SLAP windup only the stick goes back: the puck tethers to the
+  // neutral carry point at the feet, not the drawn-back blade (which would
+  // both drag the puck backward and trip the break-distance check). Snap
+  // windups keep the blade tether — the puck rides the side draw.
+  const isSlapWindup =
+    carrier.gesture.phase === "windup" && carrier.gesture.windupKind === "slap";
+  const blade = isSlapWindup
+    ? carryRestWorldPosition(carrier)
+    : bladeWorldPosition(carrier, undefined, world.time.nowMs);
   const toBladeX = blade.x - puck.position.x;
   const toBladeY = blade.y - puck.position.y;
   const separation = Math.hypot(toBladeX, toBladeY);
@@ -359,17 +383,23 @@ function releaseGestureShot(
 ): void {
   const gesture = carrier.gesture;
   const isSlap = gesture.pendingReleaseType === "slap";
+  const isSnap = gesture.pendingReleaseType === "snap";
   const power = gesture.pendingReleasePower;
   const isOneTimer = world.time.nowMs < carrier.oneTimerUntilMs;
   const oneTimerBoost = isOneTimer ? config.oneTimerPowerMultiplier : 1;
   const hardShot = hasActivePowerup(world, carrier.id, "hard-shot")
     ? HARD_SHOT_MULTIPLIER
     : 1;
+  // Three shot tiers by speed cap: wrist flick < snap (side-carry windup)
+  // < full slap. Snap trades the slap's pace for placement (see margin below).
   const speed =
     (isSlap
       ? config.wristShotSpeed +
         (config.maxChargedShotSpeed - config.wristShotSpeed) * power
-      : config.wristShotSpeed * (0.78 + 0.22 * power)) *
+      : isSnap
+        ? config.wristShotSpeed +
+          (config.snapMaxShotSpeed - config.wristShotSpeed) * power
+        : config.wristShotSpeed * (0.78 + 0.22 * power)) *
     oneTimerBoost *
     hardShot *
     // Shot stat scales release velocity only — lift is untouched so the
@@ -380,16 +410,23 @@ function releaseGestureShot(
   const lateralAim = Math.max(-1, Math.min(1, input?.moveY ?? 0));
   const heightAim = Math.max(-1, Math.min(1, input?.moveX ?? 0));
   const attackedNet = carrier.teamId === "home" ? "away" : "home";
+  const placementMargin = isSnap
+    ? config.snapPlacementMargin
+    : config.shotPlacementMargin;
   const target = {
     x: goalLineX(attackedNet),
     y:
       RINK_CONFIG.height / 2 +
-      lateralAim * (RINK_CONFIG.goalWidth / 2 - config.shotPlacementMargin)
+      lateralAim * (RINK_CONFIG.goalWidth / 2 - placementMargin)
   };
-  const blade = bladeWorldPosition(carrier, undefined, world.time.nowMs);
+  // A slap fires from where the puck actually sits (at the feet during the
+  // windup) — aiming from the drawn-back blade would skew the shot line.
+  const origin = isSlap
+    ? world.puck.position
+    : bladeWorldPosition(carrier, undefined, world.time.nowMs);
   const direction = normalizeOrZero({
-    x: target.x - blade.x,
-    y: target.y - blade.y
+    x: target.x - origin.x,
+    y: target.y - origin.y
   });
 
   // Height: base lift by shot type/power, pushed up or held down by aim. The
@@ -416,7 +453,7 @@ function releaseGestureShot(
     atMs: world.time.nowMs,
     sourceSlotId: carrier.id,
     force: speed,
-    detail: isOneTimer ? "oneTimer" : isSlap ? "slap" : "wrist"
+    detail: isOneTimer ? "oneTimer" : isSlap ? "slap" : isSnap ? "snap" : "wrist"
   });
 
   if (isOneTimer) {

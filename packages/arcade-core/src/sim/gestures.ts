@@ -20,6 +20,12 @@ export interface GestureConfig {
   readonly slapMaxChargeMs: number;
   /** Minimum normalized power of any slap that fires. */
   readonly slapMinPower: number;
+  /**
+   * |stickX| at windup entry at or above this classifies the windup as a
+   * SNAP shot (puck carried out to the side rides the blade back) instead of
+   * a slap (straight pull-back; the puck stays at the feet).
+   */
+  readonly snapSideMin: number;
   /** Refractory period after any release. */
   readonly releaseCooldownMs: number;
 }
@@ -36,6 +42,7 @@ export const GESTURE_CONFIG: GestureConfig = {
   slapReleaseZone: 0.12,
   slapMaxChargeMs: 750,
   slapMinPower: 0.35,
+  snapSideMin: 0.45,
   releaseCooldownMs: 260
 };
 
@@ -44,6 +51,7 @@ export function createGestureState(): GestureState {
     phase: "neutral",
     windupStartMs: 0,
     windupDepth: 0,
+    windupKind: "slap",
     prevStickX: 0,
     prevStickY: 0,
     cooldownUntilMs: 0,
@@ -57,8 +65,11 @@ export function createGestureState(): GestureState {
  * Skill-stick gesture detection over raw stick samples, one sample per tick.
  * Runs identically on server and predicting client (all state lives on the
  * skater). Flick forward = wrist shot; pull back beyond the windup depth,
- * then flick forward = slap shot whose power scales with depth and hold time.
- * Anything slower is stickhandling — the blade just follows the stick.
+ * then flick forward = a wound-up shot whose power scales with depth and hold
+ * time. The windup is classified at entry: straight back = slap (hardest
+ * shot, puck stays at the feet), puck carried out to the side = snap shot
+ * (softer cap, tighter placement, puck rides the blade back). Anything
+ * slower is stickhandling — the blade just follows the stick.
  */
 export function stepGesture(
   skater: SkaterEntity,
@@ -87,7 +98,7 @@ export function stepGesture(
           config.slapMinPower,
           1
         );
-        latchRelease(gesture, "slap", power, stickX, nowMs, config);
+        latchRelease(gesture, gesture.windupKind, power, stickX, nowMs, config);
       }
 
       // Forward again: the windup is over whether it fired or whiffed.
@@ -100,6 +111,9 @@ export function stepGesture(
       gesture.phase = "windup";
       gesture.windupStartMs = nowMs;
       gesture.windupDepth = -stickY;
+      // Classified once at entry so a mid-windup sweep can't flip the shot.
+      gesture.windupKind =
+        Math.abs(stickX) >= config.snapSideMin ? "snap" : "slap";
     } else if (
       canRelease &&
       flickSpeed > config.wristFlickSpeed &&
@@ -144,7 +158,7 @@ export function clearPendingRelease(gesture: GestureState): void {
 
 function latchRelease(
   gesture: GestureState,
-  type: "wrist" | "slap",
+  type: "wrist" | "snap" | "slap",
   power: number,
   side: number,
   nowMs: number,

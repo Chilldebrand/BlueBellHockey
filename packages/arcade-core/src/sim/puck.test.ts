@@ -5,6 +5,7 @@ import {
   PUCK_CONFIG,
   RINK_CONFIG,
   bladeWorldPosition,
+  carryRestWorldPosition,
   createWorld,
   goalLineX,
   resetForFaceoff,
@@ -348,6 +349,135 @@ describe("puck simulation", () => {
     // scores below GOAL_HEIGHT - puck radius. A neutral slap used to clang here.
     expect(peakHeight).toBeGreaterThan(20);
     expect(peakHeight).toBeLessThan(GOAL_HEIGHT - PUCK_CONFIG.radius);
+  });
+
+  it("tiers full-power shot speed: wrist < snap < slap", () => {
+    const speeds = (["wrist", "snap", "slap"] as const).map((type) => {
+      const world = playingWorld();
+      const shooter = world.skaters.find((s) => s.id === "home-skater-1")!;
+      shooter.position = {
+        x: RINK_CONFIG.width * 0.5,
+        y: RINK_CONFIG.height / 2
+      };
+      world.skaters.find((s) => s.id === "home-skater-2")!.position = {
+        x: 400,
+        y: 300
+      };
+      world.puck.carrierSlotId = shooter.id;
+      world.puck.position = { ...bladeWorldPosition(shooter) };
+      shooter.gesture.pendingReleaseType = type;
+      shooter.gesture.pendingReleasePower = 1;
+
+      stepWorld(world, [inputFrame(shooter.id, 1)], 16);
+      return Math.hypot(world.puck.velocity.x, world.puck.velocity.y);
+    });
+
+    expect(speeds[1]).toBeGreaterThan(speeds[0]); // snap beats any wrist
+    expect(speeds[2]).toBeGreaterThan(speeds[1]); // full slap is the hammer
+  });
+
+  it("lets a snap place tighter to the post than a wrist shot", () => {
+    const impliedTargetY = (type: "wrist" | "snap"): number => {
+      const world = playingWorld();
+      const shooter = world.skaters.find((s) => s.id === "home-skater-1")!;
+      shooter.position = {
+        x: RINK_CONFIG.width * 0.5,
+        y: RINK_CONFIG.height / 2
+      };
+      world.skaters.find((s) => s.id === "home-skater-2")!.position = {
+        x: 400,
+        y: 300
+      };
+      world.puck.carrierSlotId = shooter.id;
+      world.puck.position = { ...bladeWorldPosition(shooter) };
+      shooter.gesture.pendingReleaseType = type;
+      shooter.gesture.pendingReleasePower = 0.8;
+
+      // Full lateral aim toward +y; recover the aimed target from the
+      // release direction (velocity direction is target minus blade). The
+      // aim input is movement input too, so the blade must be read AFTER
+      // the step — the shooter turns slightly before the release fires.
+      stepWorld(world, [inputFrame(shooter.id, 1, { moveY: 1 })], 16);
+      const blade = bladeWorldPosition(shooter, undefined, world.time.nowMs);
+      const slope = world.puck.velocity.y / world.puck.velocity.x;
+      return blade.y + slope * (goalLineX("away") - blade.x);
+    };
+
+    const wristY = impliedTargetY("wrist");
+    const snapY = impliedTargetY("snap");
+    const post = RINK_CONFIG.height / 2 + RINK_CONFIG.goalWidth / 2;
+
+    expect(snapY).toBeGreaterThan(wristY); // closer to the post edge
+    expect(snapY).toBeLessThan(post); // still inside the frame
+    expect(snapY).toBeCloseTo(post - PUCK_CONFIG.snapPlacementMargin, 0);
+  });
+
+  it("keeps the puck at the feet through a slap windup instead of dragging it back", () => {
+    const world = playingWorld();
+    const shooter = world.skaters[0];
+    world.puck.carrierSlotId = shooter.id;
+    world.puck.position = { ...bladeWorldPosition(shooter) };
+
+    for (let tick = 1; tick <= 20; tick += 1) {
+      stepWorld(world, [inputFrame(shooter.id, tick, { stickY: -1 })], 16);
+    }
+
+    expect(shooter.gesture.phase).toBe("windup");
+    expect(shooter.gesture.windupKind).toBe("slap");
+    // Carry survives: the old blade tether would have measured the puck
+    // against the drawn-back blade and popped it loose.
+    expect(world.puck.carrierSlotId).toBe(shooter.id);
+
+    const rest = carryRestWorldPosition(shooter);
+    const blade = bladeWorldPosition(shooter, undefined, world.time.nowMs);
+    const toRest = Math.hypot(
+      world.puck.position.x - rest.x,
+      world.puck.position.y - rest.y
+    );
+    const toBlade = Math.hypot(
+      world.puck.position.x - blade.x,
+      world.puck.position.y - blade.y
+    );
+
+    expect(toRest).toBeLessThan(20); // parked at the feet
+    expect(toBlade).toBeGreaterThan(40); // stick is drawn back without it
+  });
+
+  it("aims a slap from the puck at the feet, not the drawn-back blade", () => {
+    const world = playingWorld();
+    const shooter = world.skaters.find((s) => s.id === "home-skater-1")!;
+    // Off-center so a blade-origin aim would visibly skew the line.
+    shooter.position = {
+      x: RINK_CONFIG.width * 0.5,
+      y: RINK_CONFIG.height / 2 + 250
+    };
+    world.skaters.find((s) => s.id === "home-skater-2")!.position = {
+      x: 400,
+      y: 300
+    };
+    shooter.stick.localY = -1; // blade fully drawn back
+    world.puck.carrierSlotId = shooter.id;
+    world.puck.position = carryRestWorldPosition(shooter);
+    const origin = { ...world.puck.position };
+    shooter.gesture.pendingReleaseType = "slap";
+    shooter.gesture.pendingReleasePower = 1;
+
+    stepWorld(world, [inputFrame(shooter.id, 1)], 16);
+
+    const target = {
+      x: goalLineX("away"),
+      y: RINK_CONFIG.height / 2
+    };
+    const expectedLength = Math.hypot(target.x - origin.x, target.y - origin.y);
+    const speed = Math.hypot(world.puck.velocity.x, world.puck.velocity.y);
+    expect(world.puck.velocity.x / speed).toBeCloseTo(
+      (target.x - origin.x) / expectedLength,
+      2
+    );
+    expect(world.puck.velocity.y / speed).toBeCloseTo(
+      (target.y - origin.y) / expectedLength,
+      2
+    );
   });
 
   it("keeps pace in the air and scrubs it on the ice", () => {

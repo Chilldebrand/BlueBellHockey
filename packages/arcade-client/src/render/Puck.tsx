@@ -1,4 +1,9 @@
-import { bladeWorldPosition, type PuckState, type SkaterEntity } from "@bbh/arcade-core";
+import {
+  bladeWorldPosition,
+  carryRestWorldPosition,
+  type PuckState,
+  type SkaterEntity
+} from "@bbh/arcade-core";
 
 export interface PuckProps {
   readonly puck: PuckState;
@@ -78,10 +83,17 @@ export function predictedCarriedPuck(
   // Snap the locally-carried puck to the predicted carrier's blade so it
   // doesn't trail a network tick behind the player's own stick. nowMs matters:
   // without it an expired poke lunge reads as active forever and the puck
-  // floats ahead of the blade.
+  // floats ahead of the blade. During a slap windup the sim keeps the puck
+  // at the feet while the stick draws back — mirror that here.
+  const isSlapWindup =
+    predictedCarrier.gesture.phase === "windup" &&
+    predictedCarrier.gesture.windupKind === "slap";
+
   return {
     ...puck,
-    position: bladeWorldPosition(predictedCarrier, undefined, nowMs)
+    position: isSlapWindup
+      ? carryRestWorldPosition(predictedCarrier)
+      : bladeWorldPosition(predictedCarrier, undefined, nowMs)
   };
 }
 

@@ -111,6 +111,65 @@ describe("skill-stick gestures", () => {
     expect(slap.puck.verticalVelocity).toBeGreaterThan(0);
   });
 
+  it("releases a side-carry draw-back as a snap: between wrist and slap pace", () => {
+    const wrist = carrierWorld();
+    playStick(wrist, [
+      [0, 0],
+      [0, 1]
+    ]);
+
+    const slap = carrierWorld();
+    const straightBack: [number, number][] = Array.from(
+      { length: 30 },
+      () => [0, -1] as [number, number]
+    );
+    playStick(slap, [[0, 0], ...straightBack, [0, 1]]);
+
+    const snap = carrierWorld();
+    const sideBack: [number, number][] = Array.from(
+      { length: 30 },
+      () => [1, -1] as [number, number]
+    );
+    // Carry the puck out to the side first, then draw back and flick.
+    playStick(snap, [[1, 0], [1, 0], [1, 0], ...sideBack, [0, 1]]);
+
+    expect(snap.puck.carrierSlotId).toBeNull();
+    expect(snap.puck.isChargedShot).toBe(false); // charged flag stays slap-only
+    expect(
+      snap.eventQueue.some(
+        (event) => event.type === "shot" && event.detail === "snap"
+      )
+    ).toBe(true);
+    expect(magnitude(snap.puck.velocity)).toBeGreaterThan(
+      magnitude(wrist.puck.velocity)
+    );
+    expect(magnitude(snap.puck.velocity)).toBeLessThan(
+      magnitude(slap.puck.velocity)
+    );
+  });
+
+  it("classifies the windup kind once at entry from the lateral stick", () => {
+    const straight = carrierWorld();
+    playStick(straight, [
+      [0, 0],
+      [0.3, -1] // modest side lean still reads as a straight pull-back
+    ]);
+    expect(straight.skaters[0].gesture.phase).toBe("windup");
+    expect(straight.skaters[0].gesture.windupKind).toBe("slap");
+
+    const side = carrierWorld();
+    playStick(side, [
+      [1, 0],
+      [1, -1]
+    ]);
+    expect(side.skaters[0].gesture.phase).toBe("windup");
+    expect(side.skaters[0].gesture.windupKind).toBe("snap");
+
+    // Sweeping to the side mid-windup does not flip an armed slap.
+    playStick(straight, [[1, -1]]);
+    expect(straight.skaters[0].gesture.windupKind).toBe("slap");
+  });
+
   it("slows the carrier while winding up (telegraphed slapper)", () => {
     const world = carrierWorld();
     const skater = world.skaters[0];

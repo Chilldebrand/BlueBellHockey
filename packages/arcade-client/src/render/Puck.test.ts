@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { bladeWorldPosition, createWorld } from "@bbh/arcade-core";
+import {
+  bladeWorldPosition,
+  carryRestWorldPosition,
+  createWorld
+} from "@bbh/arcade-core";
 import {
   pocketCarriedPuck,
   predictedCarriedPuck,
@@ -30,6 +34,29 @@ describe("predictedCarriedPuck", () => {
     const puck = predictedCarriedPuck(world.puck, world.skaters[0]);
 
     expect(puck).toBe(world.puck);
+  });
+
+  it("parks the puck at the feet during a slap windup but not a snap windup", () => {
+    const world = createWorld(1, "arcade3v3");
+    const base = world.skaters[0];
+    const slapCarrier = {
+      ...base,
+      stick: { ...base.stick, localY: -1 },
+      gesture: { ...base.gesture, phase: "windup" as const, windupKind: "slap" as const }
+    };
+    world.puck.carrierSlotId = slapCarrier.id;
+
+    expect(predictedCarriedPuck(world.puck, slapCarrier).position).toEqual(
+      carryRestWorldPosition(slapCarrier)
+    );
+
+    const snapCarrier = {
+      ...slapCarrier,
+      gesture: { ...slapCarrier.gesture, windupKind: "snap" as const }
+    };
+    expect(predictedCarriedPuck(world.puck, snapCarrier).position).toEqual(
+      bladeWorldPosition(snapCarrier)
+    );
   });
 });
 

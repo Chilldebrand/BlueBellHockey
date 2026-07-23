@@ -15,7 +15,8 @@ const KEYBOARD_MOUSE_BINDINGS: readonly KeyBinding[] = [
   { keys: ["Shift"], action: "Turbo" },
   {
     keys: ["Mouse"],
-    action: "Skill stick — flick up: wrist shot · drag down, flick up: slap"
+    action:
+      "Skill stick — flick up: wrist · straight back, flick up: slap · side then back: snap"
   },
   { keys: ["I", "J", "K", "L"], action: "Skill stick on keys" },
   {
@@ -327,7 +328,9 @@ export function ControlsGuide(): JSX.Element {
       <ul className="controls-notes">
         <li>
           Skill stick: flick up = wrist shot (a hit attempt without the puck),
-          pull back then flick up = slap shot, sweep = stickhandle.
+          pull straight back then flick up = slap shot (hardest — the puck
+          waits at your feet), carry the puck out to the side then pull back
+          and flick = snap shot (quicker, most accurate), sweep = stickhandle.
         </li>
         <li>Powerups fire automatically when you skate over them.</li>
       </ul>

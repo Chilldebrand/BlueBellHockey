@@ -71,7 +71,14 @@ export interface StickState {
 
 export type GesturePhase = "neutral" | "handling" | "windup";
 
-export type GestureReleaseType = "none" | "wrist" | "slap";
+export type GestureReleaseType = "none" | "wrist" | "snap" | "slap";
+
+/**
+ * What a windup releases as. A straight pull-back is a slap (stick draws
+ * back, puck stays at the feet); pulling back with the puck carried out to
+ * the side is a snap shot (puck rides the blade, quicker but softer).
+ */
+export type WindupKind = "slap" | "snap";
 
 /**
  * Deterministic skill-stick gesture state, replicated with the skater so
@@ -83,6 +90,8 @@ export interface GestureState {
   windupStartMs: number;
   /** Peak back-depth reached during the windup (0..1). */
   windupDepth: number;
+  /** Classified once at windup entry from the lateral stick position. */
+  windupKind: WindupKind;
   /** Previous tick's raw stick sample (body space). */
   prevStickX: number;
   prevStickY: number;

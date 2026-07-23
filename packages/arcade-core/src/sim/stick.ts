@@ -75,6 +75,26 @@ export function bladeBodyOffset(
   };
 }
 
+/**
+ * The neutral carry point just ahead-right of the skates ("by the feet").
+ * During a slap windup the puck tethers here instead of the drawn-back
+ * blade — in real hockey only the stick goes back, not the puck.
+ */
+export function carryRestWorldPosition(
+  skater: SkaterEntity,
+  config: StickConfig = STICK_CONFIG
+): Vec2 {
+  const offset = rotate(
+    { x: config.restOffset, y: config.restLateral },
+    skater.facing
+  );
+
+  return {
+    x: skater.position.x + offset.x,
+    y: skater.position.y + offset.y
+  };
+}
+
 /** World-space blade position: body offset rotated by facing. */
 export function bladeWorldPosition(
   skater: SkaterEntity,
