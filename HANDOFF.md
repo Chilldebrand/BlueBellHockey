@@ -42,7 +42,19 @@ Source links (download only from official Pixabay):
 `https://pixabay.com/music/beats-positive-hip-hop-184768/`, and
 `https://pixabay.com/music/beats-hip-hop-old-school-208627/`.
 
-**LATEST SHIPPED — bot shot-flick pump (2026-07-23, `6408f17`, user playtest).** AI carriers
+**LATEST SHIPPED — goalie scoring-chance package (2026-07-23, `af044d1`, user-approved
+brainstorm).** Angle-cut goalies were saving everything. Now: (1) MOMENTUM — goalie lateral
+velocity persists, capped by `lateralAccel` 2400/s² with arrival braking; reversals cost ~0.45s
+(dekes open the net), cold starts can't hit top speed (cross-crease one-timers beat him). (2)
+`lateralSpeed` 624→540. (3) PER-SHOT MISS ROLL — real shots (never friendly stops) miss on a
+sliding scale: 55% crossing-distance-vs-reach + 45% arrival-speed (friction prices in range),
+floor 2% → cap 15% (user set the cap; 35% rejected as too high). Roll = hash(world.seed,
+`PuckState.shotAtMs` (new, set in releasePuck), shooter) — constant per shot, re-compared per
+tick against current difficulty, replay-safe, no Math.random. Knobs in GOALIE_CONFIG /
+TUNING.goalie (Feel Lab). Verified: 260/97/249 tests + smoke. **USER EYEBALLS OWED:** overall
+save rate, deke/one-timer feel, whether 15% cap and 540 speed feel right.
+
+**PREVIOUSLY SHIPPED — bot shot-flick pump (2026-07-23, `6408f17`, user playtest).** AI carriers
 sometimes drove into the goalie and ground on the crease holding the puck. Cause: bots held
 stickY at 1 while `decision.shoot` was true, but flicks are edge-triggered and an edge landing
 inside the 260ms release cooldown (shoot → rebound regathered → shoot again) was swallowed —
