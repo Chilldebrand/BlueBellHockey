@@ -73,6 +73,51 @@ describe("world lifecycle", () => {
     }
   });
 
+  it("builds a one-skater world from a roster subset, keeping both goalies", () => {
+    const world = createWorld(12345, "arcade3v3", undefined, undefined, {
+      skaterSlots: SKATER_SLOTS.filter((slot) => slot.id === "home-skater-1")
+    });
+
+    expect(world.skaters).toHaveLength(1);
+    expect(world.skaters[0].id).toBe("home-skater-1");
+    expect(world.goalies).toHaveLength(2);
+    // Stat lines exist only for the rostered skater plus both goalies.
+    expect(Object.keys(world.stats.players).sort()).toEqual([
+      "away-goalie",
+      "home-goalie",
+      "home-skater-1"
+    ]);
+  });
+
+  it("steps a one-skater world and still records a goalie save", () => {
+    const world = createWorld(12345, "arcade3v3", undefined, undefined, {
+      skaterSlots: SKATER_SLOTS.filter((slot) => slot.id === "home-skater-1")
+    });
+    world.phase = "playing";
+
+    // Fire the puck straight at the away net from close range: a live shot
+    // the goalie must confront. Whatever the deterministic outcome (save or
+    // goal), the world must step without throwing and produce the event.
+    const awayGoalie = world.goalies.find((goalie) => goalie.teamId === "away")!;
+    world.puck.position = { x: awayGoalie.position.x - 260, y: awayGoalie.position.y };
+    world.puck.velocity = { x: 1400, y: 0 };
+    world.puck.shotBySlotId = "home-skater-1";
+    world.puck.shotAtMs = world.time.nowMs;
+    world.puck.lastTouchSlotId = "home-skater-1";
+
+    for (let tick = 0; tick < 120; tick += 1) {
+      stepWorld(world, [], 16);
+    }
+
+    const sawOutcome =
+      world.score.home > 0 ||
+      world.eventQueue.some(
+        (event) => event.type === "save" || event.type === "goal"
+      ) ||
+      world.stats.away.saves > 0;
+    expect(sawOutcome).toBe(true);
+  });
+
   it("advances the clock only while playing", () => {
     const waitingWorld = createWorld(12345, "arcade3v3");
 

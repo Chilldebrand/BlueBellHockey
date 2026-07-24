@@ -4,6 +4,7 @@ export interface MainMenuProps {
   readonly onQuickMatch: () => void;
   readonly onPrivateRoom: () => void;
   readonly onFreeSkate?: () => void;
+  readonly onShootout?: () => void;
   readonly onOpenSettings?: () => void;
   /** Suspend menu keyboard/gamepad handling (e.g. while an overlay is open). */
   readonly inputLocked?: boolean;
@@ -26,6 +27,7 @@ export function MainMenu({
   onQuickMatch,
   onPrivateRoom,
   onFreeSkate,
+  onShootout,
   onOpenSettings,
   inputLocked = false
 }: MainMenuProps): JSX.Element {
@@ -35,6 +37,10 @@ export function MainMenu({
   ];
   if (onFreeSkate) {
     items.push({ key: "free-skate", label: "Free Skate", action: onFreeSkate });
+  }
+
+  if (onShootout) {
+    items.push({ key: "shootout", label: "Shootout", action: onShootout });
   }
 
   if (onOpenSettings) {

@@ -1,4 +1,8 @@
-import { createWorld, DEFAULT_MATCH_RULES } from "@bbh/arcade-core";
+import {
+  createWorld,
+  DEFAULT_MATCH_RULES,
+  DEFAULT_TEAM_IDENTITIES
+} from "@bbh/arcade-core";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { ArcadeClientState } from "./store.js";
@@ -34,6 +38,7 @@ const baseState: ArcadeClientState = {
   playerSessionId: null,
   roomCreatorSessionId: null,
   rules: DEFAULT_MATCH_RULES,
+  teamIdentities: DEFAULT_TEAM_IDENTITIES,
   roster: [],
   score: { home: 0, away: 0 },
   phase: "waiting",

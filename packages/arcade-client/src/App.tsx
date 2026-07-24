@@ -5,7 +5,8 @@ import {
   type InputFrame,
   type MatchRules,
   type SkaterEntity,
-  type TeamId
+  type TeamId,
+  type TeamIdentityId
 } from "@bbh/arcade-core";
 import { gamepadStateFromGamepad } from "./input/gamepad.js";
 import {
@@ -72,6 +73,7 @@ import { BootSplash } from "./ui/BootSplash.js";
 import { ControllerPrompt } from "./ui/ControllerPrompt.js";
 import { FaceoffIntro } from "./ui/FaceoffIntro.js";
 import { FreeSkate } from "./ui/FreeSkate.js";
+import { ShootoutScreen } from "./ui/ShootoutScreen.js";
 import { Lobby } from "./ui/Lobby.js";
 import { MainMenu } from "./ui/MainMenu.js";
 import { Postgame } from "./ui/Postgame.js";
@@ -116,9 +118,9 @@ export function App({
   const unackedFramesRef = useRef<InputFrame[]>([]);
   const smoothedSkaterRef = useRef<SkaterEntity | null>(null);
   const predictedSlotIdRef = useRef<string | null>(null);
-  const [screen, setScreen] = useState<"boot" | "menu" | "lobby" | "freeskate">(
-    "boot"
-  );
+  const [screen, setScreen] = useState<
+    "boot" | "menu" | "lobby" | "freeskate" | "shootout"
+  >("boot");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [audioReady, setAudioReady] = useState(false);
   const [audioPreferences, setAudioPreferences] = useState<AudioPreferences>(() =>
@@ -316,6 +318,10 @@ export function App({
     activeRoomRef.current?.session.requestStart();
   }, []);
 
+  const handleSetTeamIdentity = useCallback((identityId: TeamIdentityId) => {
+    activeRoomRef.current?.session.setTeamIdentity(identityId);
+  }, []);
+
   const handleRematch = useCallback(() => {
     activeRoomRef.current?.session.requestRematch();
   }, []);
@@ -376,7 +382,9 @@ export function App({
   const localControlledEntityId = localGoalieId ?? localSlotId;
 
   useEffect(() => {
-    if (screen === "freeskate") {
+    // Local-sim screens consume audio through their own onWorldUpdate bridge;
+    // consuming here too would double every goal horn and save cue.
+    if (screen === "freeskate" || screen === "shootout") {
       return;
     }
 
@@ -530,6 +538,12 @@ export function App({
             consumedWorldCursorRef.current = null;
             setScreen("freeskate");
           }}
+          onShootout={() => {
+            setSettingsOpen(false);
+            audioRef.current.resetEventCursor();
+            consumedWorldCursorRef.current = null;
+            setScreen("shootout");
+          }}
           onOpenSettings={handleOpenSettings}
           inputLocked={settingsOpen}
         />
@@ -570,6 +584,31 @@ export function App({
     );
   }
 
+  if (screen === "shootout") {
+    return (
+      <ShootoutScreen
+        onExit={() => {
+          setSettingsOpen(false);
+          audioRef.current.resetEventCursor();
+          consumedWorldCursorRef.current = null;
+          setScreen("menu");
+        }}
+        onOpenSettings={handleOpenSettings}
+        settingsOpen={settingsOpen}
+        audioPreferences={audioPreferences}
+        onAudioPreferencesChange={handleAudioPreferencesChange}
+        onCloseSettings={handleCloseSettings}
+        onWorldUpdate={(world, localEntityId) => {
+          consumedWorldCursorRef.current = {
+            tick: world.time.tick,
+            localEntityId
+          };
+          audioRef.current.consumeWorld(world, localEntityId);
+        }}
+      />
+    );
+  }
+
   if (state.phase === "ended" && state.currentWorld) {
     return (
       <>
@@ -577,6 +616,7 @@ export function App({
         <Scene
           currentWorld={state.currentWorld}
           previousWorld={state.previousWorld}
+          teamIdentities={state.teamIdentities}
           localSlotId={localSlotId}
           localGoalieId={localGoalieId}
           predictedLocalSkater={predictedLocalSkater}
@@ -585,6 +625,7 @@ export function App({
         />
         <Postgame
           world={state.currentWorld}
+          teamIdentities={state.teamIdentities}
           rematchVotes={state.roster.reduce(
             (count, slot) => count + (slot.votedRematch ? 1 : 0),
             0
@@ -628,6 +669,7 @@ export function App({
       <Scene
         currentWorld={state.currentWorld}
         previousWorld={state.previousWorld}
+        teamIdentities={state.teamIdentities}
         localSlotId={localSlotId}
         localGoalieId={localGoalieId}
         predictedLocalSkater={predictedLocalSkater}
@@ -650,6 +692,7 @@ export function App({
             onKickPlayer={handleKickPlayer}
             onOpenSettings={handleOpenSettings}
             onExitToMenu={handleExitToMenu}
+            onSetTeamIdentity={handleSetTeamIdentity}
           />
           <ControllerPrompt />
         </>

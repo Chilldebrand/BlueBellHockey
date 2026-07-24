@@ -9,7 +9,12 @@ import {
   type MatchRules
 } from "../config/match.js";
 import { RINK_CONFIG } from "../config/rink.js";
-import { GOALIE_SLOTS, SKATER_SLOTS } from "../config/teams.js";
+import {
+  GOALIE_SLOTS,
+  SKATER_SLOTS,
+  type GoalieSlot,
+  type SkaterSlot
+} from "../config/teams.js";
 import { TUNING } from "../config/tuning.js";
 import type {
   GoalieEntity,
@@ -45,14 +50,25 @@ function zeroVector(): Vec2 {
   return { x: 0, y: 0 };
 }
 
+/**
+ * Optional roster subset for special modes (e.g. the solo Shootout builds a
+ * one-skater world). Defaults to the full 3v3 slot lists; every sim system
+ * iterates world.skaters/world.goalies, so smaller rosters step safely.
+ */
+export interface WorldRosterOptions {
+  readonly skaterSlots?: readonly SkaterSlot[];
+  readonly goalieSlots?: readonly GoalieSlot[];
+}
+
 export function createWorld(
   seed: number,
   mode: MatchMode,
   charactersBySlotId?: Readonly<Record<string, CharacterId>>,
-  rules: MatchRules = DEFAULT_MATCH_RULES
+  rules: MatchRules = DEFAULT_MATCH_RULES,
+  roster?: WorldRosterOptions
 ): WorldState {
   const selectedRules: MatchRules = { ...rules };
-  const skaters: SkaterEntity[] = SKATER_SLOTS.map((slot) => {
+  const skaters: SkaterEntity[] = (roster?.skaterSlots ?? SKATER_SLOTS).map((slot) => {
     const teamSide = slot.teamId === "home" ? -1 : 1;
 
     return {
@@ -83,7 +99,7 @@ export function createWorld(
     };
   });
 
-  const goalies: GoalieEntity[] = GOALIE_SLOTS.map((slot) => {
+  const goalies: GoalieEntity[] = (roster?.goalieSlots ?? GOALIE_SLOTS).map((slot) => {
     const teamSide = slot.teamId === "home" ? -1 : 1;
 
     return {

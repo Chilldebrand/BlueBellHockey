@@ -13,14 +13,23 @@ describe("arcade menu flow", () => {
         onQuickMatch={vi.fn()}
         onPrivateRoom={vi.fn()}
         onFreeSkate={vi.fn()}
+        onShootout={vi.fn()}
         onOpenSettings={vi.fn()}
       />
     );
     expect(menu).toContain("Quick Match");
     expect(menu).toContain("Private Room");
     expect(menu).toContain("Free Skate");
+    expect(menu).toContain("Shootout");
     expect(menu).toContain("Settings");
     // Quick Match is the default keyboard/gamepad focus (yellow bar).
     expect(menu).toContain("is-focused");
+  });
+
+  it("omits the Shootout entry when no handler is provided", () => {
+    const menu = renderToStaticMarkup(
+      <MainMenu onQuickMatch={vi.fn()} onPrivateRoom={vi.fn()} />
+    );
+    expect(menu).not.toContain("Shootout");
   });
 });

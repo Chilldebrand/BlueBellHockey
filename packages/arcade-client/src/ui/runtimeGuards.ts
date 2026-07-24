@@ -1,13 +1,13 @@
 import type { WorldPhase } from "@bbh/arcade-core";
 import type { AppConnectionApi } from "../App.js";
 
-export type AppScreen = "boot" | "menu" | "lobby" | "freeskate";
+export type AppScreen = "boot" | "menu" | "lobby" | "freeskate" | "shootout";
 
 export function isMenuMusicAllowed(
   screen: AppScreen,
   phase: WorldPhase
 ): boolean {
-  if (screen === "boot" || screen === "freeskate") {
+  if (screen === "boot" || screen === "freeskate" || screen === "shootout") {
     return false;
   }
 
