@@ -1,11 +1,13 @@
 import { createWorld } from "@bbh/arcade-core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   HIGH_INTENSITY_MUSIC,
+  LAST_TRACKS_STORAGE_KEY,
   MENU_MUSIC,
   REGULAR_MATCH_MUSIC,
   createMusicShuffle,
-  musicRouteForWorld
+  musicRouteForWorld,
+  readLastMusicTracks
 } from "./music.js";
 
 describe("authored music plan", () => {
@@ -46,6 +48,52 @@ describe("authored music plan", () => {
 
     expect(new Set(firstCycle).size).toBe(REGULAR_MATCH_MUSIC.length);
     expect(secondCycleFirst).not.toBe(firstCycle.at(-1));
+  });
+
+  it("never opens with the seeded previous-run track", () => {
+    // random() = 0 makes the Fisher-Yates order deterministic; without the
+    // seed the first draw would be "342-maxed-out". Seeding it as the
+    // previous run's last track must push something else to the front.
+    const zeroRandom = () => 0;
+    const unseeded = createMusicShuffle(REGULAR_MATCH_MUSIC, zeroRandom);
+    const wouldBeFirst = unseeded().id;
+
+    const seeded = createMusicShuffle(
+      REGULAR_MATCH_MUSIC,
+      zeroRandom,
+      wouldBeFirst
+    );
+    expect(seeded().id).not.toBe(wouldBeFirst);
+  });
+
+  it("round-trips per-route last tracks and survives corrupt storage", () => {
+    const entries = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => entries.get(key) ?? null,
+      setItem: (key: string, value: string) => entries.set(key, value)
+    } as unknown as Storage;
+
+    expect(readLastMusicTracks(null)).toEqual({});
+    expect(readLastMusicTracks(storage)).toEqual({});
+
+    entries.set(
+      LAST_TRACKS_STORAGE_KEY,
+      JSON.stringify({ menu: "delinquente", regular: "shout-it", junk: 4 })
+    );
+    expect(readLastMusicTracks(storage)).toEqual({
+      menu: "delinquente",
+      regular: "shout-it"
+    });
+
+    entries.set(LAST_TRACKS_STORAGE_KEY, "{nope");
+    expect(readLastMusicTracks(storage)).toEqual({});
+
+    const throwing = {
+      getItem: vi.fn(() => {
+        throw new Error("denied");
+      })
+    } as unknown as Storage;
+    expect(readLastMusicTracks(throwing)).toEqual({});
   });
 
   it("routes overtime and late close games to the high-intensity pool", () => {

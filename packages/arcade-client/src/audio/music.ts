@@ -63,10 +63,14 @@ export function musicRouteForWorld(world: Pick<
 
 export function createMusicShuffle<T extends MusicTrack>(
   tracks: readonly T[],
-  random: () => number = Math.random
+  random: () => number = Math.random,
+  // Seeding the no-repeat guard with the last track of a PREVIOUS app run
+  // stops a fresh boot from opening with the song you just heard — the
+  // repeat-on-restart that reads as "the playlist is in order".
+  initialLastTrackId: string | null = null
 ): () => T {
   let remaining: T[] = [];
-  let lastTrackId: string | null = null;
+  let lastTrackId: string | null = initialLastTrackId;
 
   const refill = (): void => {
     remaining = [...tracks];
@@ -112,6 +116,49 @@ const TRACKS_BY_ROUTE: Record<Exclude<MusicRoute, "off">, readonly MusicTrack[]>
 
 const SILENT_GAIN = 0.0001;
 
+type MusicRouteKey = Exclude<MusicRoute, "off">;
+
+export const LAST_TRACKS_STORAGE_KEY = "bbh.audio.lastTracks.v1";
+
+const ROUTE_KEYS: readonly MusicRouteKey[] = ["menu", "regular", "high"];
+
+/** Per-route last-played track ids persisted across app runs. Corruption-safe. */
+export function readLastMusicTracks(
+  storage: Storage | null
+): Partial<Record<MusicRouteKey, string>> {
+  if (!storage) {
+    return {};
+  }
+
+  try {
+    const raw = storage.getItem(LAST_TRACKS_STORAGE_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {};
+    }
+
+    const result: Partial<Record<MusicRouteKey, string>> = {};
+    for (const route of ROUTE_KEYS) {
+      const value = (parsed as Record<string, unknown>)[route];
+      if (typeof value === "string" && value) {
+        result[route] = value;
+      }
+    }
+
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+function defaultMusicStorage(): Storage | null {
+  try {
+    return typeof window === "undefined" ? null : window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
 export class MenuMusic {
   readonly output: GainNode;
   route: MusicRoute = "off";
@@ -124,14 +171,19 @@ export class MenuMusic {
   private readonly buffers = new Map<string, AudioBuffer>();
   private currentSource: AudioBufferSourceNode | null = null;
   private generation = 0;
+  private readonly storage: Storage | null;
+  private readonly lastTracks: Partial<Record<MusicRouteKey, string>>;
 
   constructor(
     private readonly context: AudioContext,
-    destination: AudioNode
+    destination: AudioNode,
+    storage: Storage | null = defaultMusicStorage()
   ) {
     this.output = context.createGain();
     this.output.gain.value = SILENT_GAIN;
     this.output.connect(destination);
+    this.storage = storage;
+    this.lastTracks = readLastMusicTracks(storage);
   }
 
   setBuffers(buffers: ReadonlyMap<string, AudioBuffer>): void {
@@ -183,6 +235,13 @@ export class MenuMusic {
       return;
     }
 
+    // Nothing decoded yet (assets still loading): don't touch the shuffle
+    // bag at all — burning draws on unplayable tracks churned the rotation
+    // before the first real song.
+    if (!pool.some((track) => this.buffers.has(track.id))) {
+      return;
+    }
+
     let nextTrack: MusicTrack | null = null;
     const next = this.getShuffle(this.route);
     for (let attempt = 0; attempt < pool.length; attempt += 1) {
@@ -217,17 +276,42 @@ export class MenuMusic {
     };
     this.currentSource = source;
     this.currentTrackId = nextTrack.id;
+    this.persistLastTrack(this.route, nextTrack.id);
     source.start(this.context.currentTime + 0.05);
   }
 
   private getShuffle(route: Exclude<MusicRoute, "off">): () => MusicTrack {
     let shuffle = this.shuffles.get(route);
     if (!shuffle) {
-      shuffle = createMusicShuffle(TRACKS_BY_ROUTE[route]);
+      shuffle = createMusicShuffle(
+        TRACKS_BY_ROUTE[route],
+        undefined,
+        this.lastTracks[route] ?? null
+      );
       this.shuffles.set(route, shuffle);
     }
 
     return shuffle;
+  }
+
+  private persistLastTrack(route: MusicRoute, trackId: string): void {
+    if (route === "off") {
+      return;
+    }
+
+    this.lastTracks[route] = trackId;
+    if (!this.storage) {
+      return;
+    }
+
+    try {
+      this.storage.setItem(
+        LAST_TRACKS_STORAGE_KEY,
+        JSON.stringify(this.lastTracks)
+      );
+    } catch {
+      // Ignore storage quota / privacy mode failures.
+    }
   }
 
   private stopCurrentSource(): void {
