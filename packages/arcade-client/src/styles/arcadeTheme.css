@@ -455,14 +455,20 @@ input {
   text-transform: uppercase;
 }
 
+/* Team-colored UI reads --team-color (set inline from the chosen identity);
+   the old blue/red hexes remain as fallbacks so identity-less contexts keep
+   today's exact look. Brightened text = mix toward white; glows/tints = mix
+   toward transparent. */
 .pg-win--home {
-  color: #4ea3ff;
-  text-shadow: 0 0 26px rgba(31, 143, 255, 0.7);
+  color: color-mix(in srgb, var(--team-color, #1f8fff) 72%, #ffffff);
+  text-shadow: 0 0 26px
+    color-mix(in srgb, var(--team-color, #1f8fff) 70%, transparent);
 }
 
 .pg-win--away {
-  color: #ff6f7b;
-  text-shadow: 0 0 26px rgba(255, 79, 94, 0.7);
+  color: color-mix(in srgb, var(--team-color, #ff4f5e) 72%, #ffffff);
+  text-shadow: 0 0 26px
+    color-mix(in srgb, var(--team-color, #ff4f5e) 70%, transparent);
 }
 
 .pg-win--draw {
@@ -483,13 +489,15 @@ input {
 }
 
 .pg-score-team--home {
-  color: #4ea3ff;
-  text-shadow: 0 0 14px rgba(31, 143, 255, 0.7);
+  color: color-mix(in srgb, var(--team-color, #1f8fff) 72%, #ffffff);
+  text-shadow: 0 0 14px
+    color-mix(in srgb, var(--team-color, #1f8fff) 70%, transparent);
 }
 
 .pg-score-team--away {
-  color: #ff6f7b;
-  text-shadow: 0 0 14px rgba(255, 79, 94, 0.7);
+  color: color-mix(in srgb, var(--team-color, #ff4f5e) 72%, #ffffff);
+  text-shadow: 0 0 14px
+    color-mix(in srgb, var(--team-color, #ff4f5e) 70%, transparent);
 }
 
 .pg-score-value {
@@ -518,12 +526,14 @@ input {
 
 .pg-star-card--home {
   animation: pgRise 0.6s ease-out both;
-  border: 1px solid rgba(31, 143, 255, 0.45);
+  border: 1px solid
+    color-mix(in srgb, var(--team-color, #1f8fff) 45%, transparent);
 }
 
 .pg-star-card--away {
   animation: pgRise 0.6s ease-out both;
-  border: 1px solid rgba(255, 79, 94, 0.45);
+  border: 1px solid
+    color-mix(in srgb, var(--team-color, #ff4f5e) 45%, transparent);
 }
 
 .pg-accent {
@@ -531,11 +541,11 @@ input {
 }
 
 .pg-accent--home {
-  background: #1f8fff;
+  background: var(--team-color, #1f8fff);
 }
 
 .pg-accent--away {
-  background: #ff4f5e;
+  background: var(--team-color, #ff4f5e);
 }
 
 .pg-star-body {
@@ -636,13 +646,15 @@ input {
 }
 
 .pg-jersey--home {
-  color: #4ea3ff;
-  text-shadow: 0 0 20px rgba(31, 143, 255, 0.85);
+  color: color-mix(in srgb, var(--team-color, #1f8fff) 72%, #ffffff);
+  text-shadow: 0 0 20px
+    color-mix(in srgb, var(--team-color, #1f8fff) 85%, transparent);
 }
 
 .pg-jersey--away {
-  color: #ff6f7b;
-  text-shadow: 0 0 20px rgba(255, 79, 94, 0.85);
+  color: color-mix(in srgb, var(--team-color, #ff4f5e) 72%, #ffffff);
+  text-shadow: 0 0 20px
+    color-mix(in srgb, var(--team-color, #ff4f5e) 85%, transparent);
 }
 
 .pg-star-stats {
@@ -658,13 +670,15 @@ input {
 }
 
 .pg-stat-box--home {
-  background: rgba(31, 143, 255, 0.12);
-  border: 1px solid rgba(31, 143, 255, 0.35);
+  background: color-mix(in srgb, var(--team-color, #1f8fff) 12%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--team-color, #1f8fff) 35%, transparent);
 }
 
 .pg-stat-box--away {
-  background: rgba(255, 79, 94, 0.1);
-  border: 1px solid rgba(255, 79, 94, 0.35);
+  background: color-mix(in srgb, var(--team-color, #ff4f5e) 10%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--team-color, #ff4f5e) 35%, transparent);
 }
 
 .pg-stat-value {
@@ -694,13 +708,15 @@ input {
 }
 
 .pg-panel--home {
-  border: 1px solid rgba(31, 143, 255, 0.4);
-  border-top: 3px solid #1f8fff;
+  border: 1px solid
+    color-mix(in srgb, var(--team-color, #1f8fff) 40%, transparent);
+  border-top: 3px solid var(--team-color, #1f8fff);
 }
 
 .pg-panel--away {
-  border: 1px solid rgba(255, 79, 94, 0.4);
-  border-top: 3px solid #ff4f5e;
+  border: 1px solid
+    color-mix(in srgb, var(--team-color, #ff4f5e) 40%, transparent);
+  border-top: 3px solid var(--team-color, #ff4f5e);
 }
 
 .pg-panel-row {
@@ -719,13 +735,15 @@ input {
 }
 
 .pg-panel-team--home {
-  color: #4ea3ff;
-  text-shadow: 0 0 14px rgba(31, 143, 255, 0.6);
+  color: color-mix(in srgb, var(--team-color, #1f8fff) 72%, #ffffff);
+  text-shadow: 0 0 14px
+    color-mix(in srgb, var(--team-color, #1f8fff) 60%, transparent);
 }
 
 .pg-panel-team--away {
-  color: #ff6f7b;
-  text-shadow: 0 0 14px rgba(255, 79, 94, 0.6);
+  color: color-mix(in srgb, var(--team-color, #ff4f5e) 72%, #ffffff);
+  text-shadow: 0 0 14px
+    color-mix(in srgb, var(--team-color, #ff4f5e) 60%, transparent);
 }
 
 .pg-col-label {
@@ -752,11 +770,11 @@ input {
 }
 
 .pg-player-num--home {
-  color: #4ea3ff;
+  color: color-mix(in srgb, var(--team-color, #1f8fff) 72%, #ffffff);
 }
 
 .pg-player-num--away {
-  color: #ff6f7b;
+  color: color-mix(in srgb, var(--team-color, #ff4f5e) 72%, #ffffff);
 }
 
 .pg-stat-cell {
@@ -1001,13 +1019,15 @@ input {
 }
 
 .lobby-scoreboard-team--home {
-  color: #4ea3ff;
-  text-shadow: 0 0 16px rgba(31, 143, 255, 0.8);
+  color: color-mix(in srgb, var(--team-color, #1f8fff) 72%, #ffffff);
+  text-shadow: 0 0 16px
+    color-mix(in srgb, var(--team-color, #1f8fff) 80%, transparent);
 }
 
 .lobby-scoreboard-team--away {
-  color: #ff6f7b;
-  text-shadow: 0 0 16px rgba(255, 79, 94, 0.8);
+  color: color-mix(in srgb, var(--team-color, #ff4f5e) 72%, #ffffff);
+  text-shadow: 0 0 16px
+    color-mix(in srgb, var(--team-color, #ff4f5e) 80%, transparent);
 }
 
 .lobby-scoreboard-digits {
@@ -1139,13 +1159,70 @@ input {
 }
 
 .team-column--home .team-column-header h2 {
-  color: #4ea3ff;
-  text-shadow: 0 0 14px rgba(31, 143, 255, 0.6);
+  color: color-mix(in srgb, var(--team-color, #1f8fff) 72%, #ffffff);
+  text-shadow: 0 0 14px
+    color-mix(in srgb, var(--team-color, #1f8fff) 60%, transparent);
 }
 
 .team-column--away .team-column-header h2 {
-  color: #ff6f7b;
-  text-shadow: 0 0 14px rgba(255, 79, 94, 0.6);
+  color: color-mix(in srgb, var(--team-color, #ff4f5e) 72%, #ffffff);
+  text-shadow: 0 0 14px
+    color-mix(in srgb, var(--team-color, #ff4f5e) 60%, transparent);
+}
+
+/* Captain's identity picker: one jersey-colored chip per identity. */
+.team-identity-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 2px 0 8px;
+}
+
+.team-column--home .team-identity-picker {
+  justify-content: flex-end;
+}
+
+.team-identity-swatch {
+  align-items: center;
+  border: 2px solid rgba(239, 248, 255, 0.25);
+  border-radius: 0;
+  color: #eff8ff;
+  cursor: pointer;
+  display: flex;
+  font-size: 9px;
+  font-weight: 800;
+  height: 26px;
+  justify-content: center;
+  letter-spacing: 0.06em;
+  padding: 0;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+  transition:
+    border-color 120ms ease,
+    transform 120ms ease;
+  width: 34px;
+}
+
+.team-identity-swatch:not(:disabled):hover {
+  border-color: #ffdf6e;
+  transform: translateY(-1px);
+}
+
+.team-identity-swatch.is-active {
+  border-color: #ffdf6e;
+  box-shadow: 0 0 10px rgba(255, 223, 110, 0.45);
+}
+
+.team-identity-swatch:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.team-identity-swatch.is-active:disabled {
+  opacity: 1;
+}
+
+.team-identity-swatch.is-taken {
+  opacity: 0.3;
 }
 
 .team-join-button {
@@ -1187,9 +1264,14 @@ input {
 }
 
 .team-column--home .slot-card {
-  background: linear-gradient(90deg, transparent, rgba(31, 143, 255, 0.14));
-  border: 1px solid rgba(31, 143, 255, 0.4);
-  border-right: 3px solid #1f8fff;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--team-color, #1f8fff) 14%, transparent)
+  );
+  border: 1px solid
+    color-mix(in srgb, var(--team-color, #1f8fff) 40%, transparent);
+  border-right: 3px solid var(--team-color, #1f8fff);
   flex-direction: row;
   justify-content: flex-end;
   text-align: right;
@@ -1204,13 +1286,15 @@ input {
 }
 
 .team-column--home .slot-card-number {
-  color: #4ea3ff;
-  text-shadow: 0 0 16px rgba(31, 143, 255, 0.8);
+  color: color-mix(in srgb, var(--team-color, #1f8fff) 72%, #ffffff);
+  text-shadow: 0 0 16px
+    color-mix(in srgb, var(--team-color, #1f8fff) 80%, transparent);
 }
 
 .team-column--away .slot-card-number {
-  color: #ff6f7b;
-  text-shadow: 0 0 16px rgba(255, 79, 94, 0.8);
+  color: color-mix(in srgb, var(--team-color, #ff4f5e) 72%, #ffffff);
+  text-shadow: 0 0 16px
+    color-mix(in srgb, var(--team-color, #ff4f5e) 80%, transparent);
 }
 
 .slot-card-head {
@@ -1268,7 +1352,7 @@ input {
   background: linear-gradient(
     90deg,
     rgba(255, 223, 110, 0.06),
-    rgba(31, 143, 255, 0.2)
+    color-mix(in srgb, var(--team-color, #1f8fff) 20%, transparent)
   );
   border-right-color: #ffdf6e;
 }
@@ -1277,7 +1361,7 @@ input {
 .team-column--away .slot-card.editing {
   background: linear-gradient(
     90deg,
-    rgba(255, 79, 94, 0.2),
+    color-mix(in srgb, var(--team-color, #ff4f5e) 20%, transparent),
     rgba(255, 223, 110, 0.06)
   );
   border-left-color: #ffdf6e;
@@ -2024,4 +2108,206 @@ input {
 
 .tuning-presets .tuning-row {
   grid-template-columns: 1fr 64px;
+}
+
+/* Shootout mode: solo shooter vs goalie, five one-shot attempts. */
+
+.shootout-screen {
+  height: 100vh;
+  position: relative;
+}
+
+/* Pre-game shooter picker: a dark full-screen panel around CharacterSelect. */
+.shootout-screen--select {
+  background: #05070c;
+  overflow-y: auto;
+}
+
+.shootout-select-panel {
+  color: #eaf3ff;
+  margin: 0 auto;
+  max-width: 1080px;
+  padding: 34px 24px 40px;
+}
+
+.shootout-select-title {
+  color: #ffdf6e;
+  font-family: Archivo, sans-serif;
+  font-size: 44px;
+  font-style: italic;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  margin: 0;
+  text-shadow: 0 0 22px rgba(255, 223, 110, 0.5);
+  text-transform: uppercase;
+}
+
+.shootout-select-blurb {
+  color: #9fc4e0;
+  letter-spacing: 0.04em;
+  margin: 8px 0 18px;
+}
+
+.shootout-select-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+.shootout-select-actions button {
+  background: transparent;
+  border: 1px solid rgba(234, 243, 255, 0.3);
+  color: #eaf3ff;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  padding: 10px 22px;
+  text-transform: uppercase;
+}
+
+.shootout-select-actions button:hover {
+  border-color: rgba(234, 243, 255, 0.6);
+}
+
+/* Broadcast shot tracker: fixed top-center over the Scene. */
+.shootout-hud {
+  align-items: center;
+  background: rgba(5, 13, 24, 0.82);
+  border: 2px solid rgba(119, 207, 255, 0.45);
+  border-bottom: 3px solid #ffdf6e;
+  display: flex;
+  gap: 14px;
+  left: 50%;
+  padding: 8px 16px;
+  position: fixed;
+  top: 14px;
+  transform: translateX(-50%);
+  z-index: 5;
+}
+
+.shootout-hud-label {
+  color: #ffdf6e;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+
+.shootout-track {
+  display: flex;
+  gap: 8px;
+}
+
+.shootout-box {
+  align-items: center;
+  background: rgba(7, 17, 29, 0.9);
+  border: 1px solid rgba(159, 196, 224, 0.35);
+  color: #eaf3ff;
+  display: flex;
+  font-size: 20px;
+  font-weight: 800;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.shootout-box.is-goal {
+  border-color: rgba(255, 223, 110, 0.8);
+  color: #ffdf6e;
+  text-shadow: 0 0 12px rgba(255, 223, 110, 0.7);
+}
+
+.shootout-box.is-miss {
+  border-color: rgba(255, 79, 94, 0.6);
+  color: #ff6f7b;
+}
+
+.shootout-box.is-current {
+  border-color: #77cfff;
+  box-shadow: 0 0 12px rgba(119, 207, 255, 0.45);
+}
+
+/* End-of-shootout overlay. */
+.shootout-results {
+  align-items: center;
+  background: rgba(4, 10, 18, 0.82);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  position: fixed;
+  z-index: 7;
+}
+
+.shootout-results-panel {
+  align-items: center;
+  background: rgba(5, 13, 24, 0.92);
+  border: 2px solid rgba(119, 207, 255, 0.45);
+  border-bottom: 3px solid #ffdf6e;
+  color: #eaf3ff;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 28px 44px 26px;
+}
+
+.shootout-results-panel h1 {
+  color: #ffdf6e;
+  font-family: Archivo, sans-serif;
+  font-size: 34px;
+  font-style: italic;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  margin: 0;
+  text-shadow: 0 0 22px rgba(255, 223, 110, 0.5);
+  text-transform: uppercase;
+}
+
+.shootout-results-score {
+  font-size: 40px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  margin: 0;
+}
+
+.shootout-track--results .shootout-box {
+  height: 42px;
+  width: 42px;
+}
+
+.shootout-results-actions {
+  display: flex;
+  gap: 14px;
+  margin-top: 6px;
+}
+
+.shootout-results-actions button {
+  background: transparent;
+  border: 1px solid rgba(234, 243, 255, 0.3);
+  color: #eaf3ff;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  padding: 12px 22px;
+  text-transform: uppercase;
+}
+
+.shootout-results-actions button:first-child {
+  background: linear-gradient(180deg, #ffe98a, #ffcf3d);
+  border: none;
+  box-shadow: 0 0 24px rgba(255, 207, 61, 0.4);
+  color: #05070c;
+  font-weight: 700;
+}
+
+.shootout-results-actions button:hover {
+  border-color: rgba(234, 243, 255, 0.6);
+}
+
+.shootout-results-actions button:first-child:hover {
+  border-color: transparent;
+  filter: brightness(1.06);
 }

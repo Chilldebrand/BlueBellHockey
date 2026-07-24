@@ -2,7 +2,11 @@ import { useEffect, useMemo, useRef } from "react";
 import { useGLTF, useAnimations } from "@react-three/drei";
 import { Color, type Group, Mesh, MeshStandardMaterial } from "three";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
-import { TEAM_PALETTES, type TeamId } from "@bbh/arcade-core";
+import {
+  TEAM_PALETTES,
+  type TeamId,
+  type UniformPalette
+} from "@bbh/arcade-core";
 import { clipForSkaterState, type SkaterAnimationState } from "../animation/clipMap.js";
 import {
   pickPlayableClip,
@@ -14,6 +18,8 @@ import { applyUniformMaterialColor } from "./uniformMaterials.js";
 export interface GltfSkaterBodyProps {
   readonly source: SkaterGltfSource;
   readonly teamId: TeamId;
+  /** Identity uniform override; omitted uses the side's default palette. */
+  readonly uniform?: UniformPalette;
   readonly isLocal: boolean;
   readonly animationState: SkaterAnimationState;
 }
@@ -29,6 +35,7 @@ const CROSSFADE_SECONDS = 0.18;
 export function GltfSkaterBody({
   source,
   teamId,
+  uniform,
   isLocal,
   animationState
 }: GltfSkaterBodyProps): JSX.Element {
@@ -63,12 +70,15 @@ export function GltfSkaterBody({
           : clonedMaterials[0];
       }
     });
-    const recolored = applyUniformMaterialColor(cloned, TEAM_PALETTES[teamId].uniform);
+    const recolored = applyUniformMaterialColor(
+      cloned,
+      uniform ?? TEAM_PALETTES[teamId].uniform
+    );
     if (!recolored) {
       throw new Error("GLB skater has no named uniform materials");
     }
     return cloned;
-  }, [gltf.scene, teamId, isLocal]);
+  }, [gltf.scene, teamId, uniform, isLocal]);
 
   const { actions, names } = useAnimations(gltf.animations, rootRef);
 

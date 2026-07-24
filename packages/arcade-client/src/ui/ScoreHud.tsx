@@ -1,5 +1,4 @@
-import { TEAM_PALETTES } from "@bbh/arcade-core";
-import type { ArcadeClientState } from "../store.js";
+import { identityForTeam, type ArcadeClientState } from "../store.js";
 
 export interface ScoreHudProps {
   readonly state: ArcadeClientState;
@@ -11,6 +10,8 @@ export interface ScoreHudProps {
  * phase shown only when not actively playing.
  */
 export function ScoreHud({ state }: ScoreHudProps): JSX.Element {
+  const homeIdentity = identityForTeam(state, "home");
+  const awayIdentity = identityForTeam(state, "away");
   const isOvertime = state.phase === "playing" && state.currentWorld?.isOvertime;
   const remainingSeconds = Math.max(
     0,
@@ -21,9 +22,9 @@ export function ScoreHud({ state }: ScoreHudProps): JSX.Element {
     <aside className="score-hud" aria-label="Score">
       <span
         className="score-hud-team"
-        style={{ borderLeftColor: TEAM_PALETTES.home.iconColor }}
+        style={{ borderLeftColor: homeIdentity.iconColor }}
       >
-        {TEAM_PALETTES.home.shortName}
+        {homeIdentity.shortName}
       </span>
       <strong className="score-hud-digits">{state.score.home}</strong>
       <div className="score-hud-center">
@@ -38,9 +39,9 @@ export function ScoreHud({ state }: ScoreHudProps): JSX.Element {
       <strong className="score-hud-digits">{state.score.away}</strong>
       <span
         className="score-hud-team"
-        style={{ borderLeftColor: TEAM_PALETTES.away.iconColor }}
+        style={{ borderLeftColor: awayIdentity.iconColor }}
       >
-        {TEAM_PALETTES.away.shortName}
+        {awayIdentity.shortName}
       </span>
     </aside>
   );

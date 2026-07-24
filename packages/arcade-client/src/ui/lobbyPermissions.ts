@@ -26,3 +26,24 @@ export function canEditSlot(
       candidate.isCaptain
   );
 }
+
+/**
+ * Team identity rule: only the team's captain picks its identity. Mirrors
+ * the server-side check in handleSetTeamIdentity — the server enforces.
+ */
+export function canEditTeamIdentity(
+  teamId: ClientRosterSlot["teamId"],
+  roster: readonly ClientRosterSlot[],
+  localSessionId: string | null
+): boolean {
+  if (!localSessionId) {
+    return false;
+  }
+
+  return roster.some(
+    (candidate) =>
+      candidate.teamId === teamId &&
+      candidate.sessionId === localSessionId &&
+      candidate.isCaptain
+  );
+}

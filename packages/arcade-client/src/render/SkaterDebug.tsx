@@ -1,4 +1,10 @@
-import type { CharacterId, PowerupType, TeamId, Vec2 } from "@bbh/arcade-core";
+import type {
+  CharacterId,
+  PowerupType,
+  TeamId,
+  UniformPalette,
+  Vec2
+} from "@bbh/arcade-core";
 import { CharacterModel } from "./CharacterModel.js";
 import { PowerupIcon } from "./Powerups.js";
 import type { SkaterAnimationState } from "./animation/clipMap.js";
@@ -6,6 +12,8 @@ import type { SkaterAnimationState } from "./animation/clipMap.js";
 export interface SkaterDebugProps {
   readonly id: string;
   readonly teamId: TeamId;
+  /** Identity uniform override; omitted uses the side's default palette. */
+  readonly uniform?: UniformPalette;
   readonly characterId?: CharacterId;
   readonly position: Vec2;
   readonly isLocal: boolean;
@@ -74,6 +82,7 @@ export const SKATER_MODEL_SCALE = 1.6;
 export function SkaterDebug({
   id,
   teamId,
+  uniform,
   characterId,
   position,
   isLocal,
@@ -124,6 +133,7 @@ export function SkaterDebug({
         <group scale={SKATER_MODEL_SCALE}>
           <CharacterModel
             teamId={teamId}
+            uniform={uniform}
             characterId={characterId}
             isLocal={isLocal}
             animationState={animationState}

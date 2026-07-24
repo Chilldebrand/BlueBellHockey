@@ -1,4 +1,10 @@
-import type { CharacterId, InputFrame, MatchRules, TeamId } from "@bbh/arcade-core";
+import type {
+  CharacterId,
+  InputFrame,
+  MatchRules,
+  TeamId,
+  TeamIdentityId
+} from "@bbh/arcade-core";
 import { Client } from "colyseus.js";
 import type { ServerRoomState } from "../store.js";
 
@@ -104,6 +110,11 @@ export class ArcadeRoomSession {
 
   chooseTeam(teamId: TeamId): void {
     this.room.send("client.chooseTeam", { teamId });
+  }
+
+  /** Captain-only: pick your team's cosmetic identity (server enforces). */
+  setTeamIdentity(identityId: TeamIdentityId): void {
+    this.room.send("client.setTeamIdentity", { identityId });
   }
 
   /**

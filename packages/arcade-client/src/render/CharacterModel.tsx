@@ -13,6 +13,7 @@ import {
   getCharacterById,
   type CharacterId,
   type TeamId,
+  type UniformPalette,
   type Vec2
 } from "@bbh/arcade-core";
 import {
@@ -35,6 +36,11 @@ export { FIRST_SKATER_MODEL_MANIFEST };
 
 export interface CharacterModelProps {
   readonly teamId: TeamId;
+  /**
+   * Identity uniform override (captain-picked team skins). Omitted falls
+   * back to the side's default palette (blue home / red away).
+   */
+  readonly uniform?: UniformPalette;
   readonly characterId?: CharacterId;
   readonly isLocal?: boolean;
   readonly animationState?: SkaterAnimationState;
@@ -65,6 +71,7 @@ export interface CharacterModelProps {
 
 export function CharacterModel({
   teamId,
+  uniform,
   characterId,
   isLocal = false,
   animationState = "idle",
@@ -88,6 +95,7 @@ export function CharacterModel({
   const blockout = (
     <BlockoutBody
       teamId={teamId}
+      uniform={uniform}
       characterId={characterId}
       isLocal={isLocal}
       manifestId={manifest.id}
@@ -119,6 +127,7 @@ export function CharacterModel({
         <GltfSkaterBody
           source={gltfSource}
           teamId={teamId}
+          uniform={uniform}
           isLocal={isLocal}
           animationState={animationState}
         />
@@ -129,6 +138,7 @@ export function CharacterModel({
 
 interface BlockoutBodyProps {
   readonly teamId: TeamId;
+  readonly uniform?: UniformPalette;
   readonly characterId?: CharacterId;
   readonly isLocal: boolean;
   readonly manifestId: string;
@@ -187,6 +197,7 @@ const STRIDE_EASE = 8; // 1/s blend into/out of the stride
 /** Procedural capsule blockout: the pre-GLB body and the universal fallback. */
 function BlockoutBody({
   teamId,
+  uniform,
   characterId,
   isLocal,
   manifestId,
@@ -195,7 +206,7 @@ function BlockoutBody({
   speed,
   windupDepth = 0
 }: BlockoutBodyProps): JSX.Element {
-  const palette = TEAM_PALETTES[teamId].uniform;
+  const palette = uniform ?? TEAM_PALETTES[teamId].uniform;
   const pose = skaterPose(animationState);
   const body = bodyScaleForCharacter(characterId);
 

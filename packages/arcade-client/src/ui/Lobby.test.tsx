@@ -115,6 +115,36 @@ describe("Lobby", () => {
     expect(withExit).toContain("Main Menu");
   });
 
+  it("enables identity swatches only for the local captain's own team", () => {
+    const html = renderToStaticMarkup(
+      <Lobby
+        state={lobbyState()}
+        onChooseTeam={vi.fn()}
+        onCreatePrivateRoom={vi.fn()}
+        onJoinPrivateRoom={vi.fn()}
+        onChooseCharacterFor={vi.fn()}
+        onQuickMatch={vi.fn()}
+        onRequestStart={vi.fn()}
+        onSetPlayerName={vi.fn()}
+        onSetReady={vi.fn()}
+        onSetMatchRules={vi.fn()}
+        onKickPlayer={vi.fn()}
+        onSetTeamIdentity={vi.fn()}
+      />
+    );
+
+    const swatches = html.match(/<button[^>]*team-identity-swatch[^>]*>/g) ?? [];
+    const disabledSwatches = swatches.filter((tag) => tag.includes("disabled"));
+
+    // 8 per column. Local (Ada) captains HOME: her 8 minus the active
+    // (blue-blades) and the taken (red-rockets) are clickable; the away
+    // column's 8 are all disabled for her.
+    expect(swatches).toHaveLength(16);
+    expect(disabledSwatches).toHaveLength(10);
+    expect(html).toContain("Purple Phantoms");
+    expect(html).toContain("Green Glaciers");
+  });
+
   it("renders team columns with player names and bot character cards", () => {
     const html = renderLobby(lobbyState());
 

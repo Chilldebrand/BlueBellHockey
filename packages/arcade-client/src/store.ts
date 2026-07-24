@@ -2,10 +2,16 @@ import type {
   CharacterId,
   MatchRules,
   TeamId,
+  TeamIdentity,
+  TeamIdentityId,
   WorldPhase,
   WorldState
 } from "@bbh/arcade-core";
-import { DEFAULT_MATCH_RULES } from "@bbh/arcade-core";
+import {
+  DEFAULT_MATCH_RULES,
+  DEFAULT_TEAM_IDENTITIES,
+  teamIdentityFor
+} from "@bbh/arcade-core";
 import type { ArcadeRoomConnection } from "./net/client.js";
 
 export type ConnectionStatus = "idle" | "connecting" | "connected" | "error";
@@ -56,6 +62,8 @@ export interface ArcadeClientState {
   readonly playerSessionId: string | null;
   readonly roomCreatorSessionId: string | null;
   readonly rules: MatchRules;
+  /** Captain-chosen cosmetic identity per side (defaults blue vs red). */
+  readonly teamIdentities: Readonly<Record<TeamId, TeamIdentityId>>;
   readonly roster: readonly ClientRosterSlot[];
   readonly score: ArcadeScore;
   readonly phase: WorldPhase;
@@ -75,8 +83,14 @@ export interface ServerRoomState {
   readonly roomCreatorSessionId?: string | null;
   readonly rules?: Partial<MatchRules>;
   readonly teams?: {
-    readonly home?: { readonly slots?: Iterable<ServerRosterSlot> };
-    readonly away?: { readonly slots?: Iterable<ServerRosterSlot> };
+    readonly home?: {
+      readonly identityId?: string;
+      readonly slots?: Iterable<ServerRosterSlot>;
+    };
+    readonly away?: {
+      readonly identityId?: string;
+      readonly slots?: Iterable<ServerRosterSlot>;
+    };
   };
 }
 
@@ -100,6 +114,7 @@ export function createInitialArcadeClientState(): ArcadeClientState {
     playerSessionId: null,
     roomCreatorSessionId: null,
     rules: { ...DEFAULT_MATCH_RULES },
+    teamIdentities: { ...DEFAULT_TEAM_IDENTITIES },
     roster: [],
     score: INITIAL_SCORE,
     phase: "waiting",
@@ -168,6 +183,10 @@ export function mapRoomState(room: ArcadeRoomConnection): ArcadeClientState {
     playerSessionId: room.sessionId,
     roomCreatorSessionId: serverState.roomCreatorSessionId ?? null,
     rules,
+    teamIdentities: {
+      home: teamIdentityFor("home", serverState.teams?.home?.identityId).id,
+      away: teamIdentityFor("away", serverState.teams?.away?.identityId).id
+    },
     roster,
     score: {
       home: score.home ?? 0,
@@ -195,6 +214,14 @@ function mapRosterSlot(
     isOwnedByLocalPlayer:
       slot.kind === "human" && slot.sessionId === localSessionId
   };
+}
+
+/** The full TeamIdentity a side currently wears (catalog fallback built in). */
+export function identityForTeam(
+  state: Pick<ArcadeClientState, "teamIdentities">,
+  teamId: TeamId
+): TeamIdentity {
+  return teamIdentityFor(teamId, state.teamIdentities[teamId]);
 }
 
 /**

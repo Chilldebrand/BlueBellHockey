@@ -1,13 +1,17 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import {
   GOAL_LIMIT_OPTIONS,
-  TEAM_PALETTES,
   TIME_LIMIT_OPTIONS_MS,
   type CharacterId,
   type MatchRules,
-  type TeamId
+  type TeamId,
+  type TeamIdentityId
 } from "@bbh/arcade-core";
-import type { ArcadeClientState, ClientRosterSlot } from "../store.js";
+import {
+  identityForTeam,
+  type ArcadeClientState,
+  type ClientRosterSlot
+} from "../store.js";
 import { CharacterSelect } from "./CharacterSelect.js";
 import { canEditSlot } from "./lobbyPermissions.js";
 import { slotLabel } from "./SlotCard.js";
@@ -31,6 +35,8 @@ export interface LobbyProps {
   readonly onOpenSettings?: () => void;
   /** Leave any room and return to the home screen (main menu). */
   readonly onExitToMenu?: () => void;
+  /** Captain-only team identity pick (server enforces). */
+  readonly onSetTeamIdentity?: (identityId: TeamIdentityId) => void;
 }
 
 export function Lobby({
@@ -46,7 +52,8 @@ export function Lobby({
   onRequestStart,
   onKickPlayer,
   onOpenSettings,
-  onExitToMenu
+  onExitToMenu,
+  onSetTeamIdentity
 }: LobbyProps): JSX.Element {
   const [joinCode, setJoinCode] = useState("");
   const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
@@ -59,6 +66,8 @@ export function Lobby({
   const roomLabel =
     state.roomCode || (isConnected ? "Quick match room" : "No room joined");
 
+  const homeIdentity = identityForTeam(state, "home");
+  const awayIdentity = identityForTeam(state, "away");
   const localSlot =
     state.roster.find((slot) => slot.isOwnedByLocalPlayer) ?? null;
   const [playerName, setPlayerName] = useState(localSlot?.playerName ?? "");
@@ -158,8 +167,11 @@ export function Lobby({
       <div className="lobby-content">
         <header className="lobby-scoreboard" aria-label="Score">
           <div className="lobby-scoreboard-side">
-            <span className="lobby-scoreboard-team lobby-scoreboard-team--home">
-              {TEAM_PALETTES.home.shortName}
+            <span
+              className="lobby-scoreboard-team lobby-scoreboard-team--home"
+              style={{ "--team-color": homeIdentity.iconColor } as CSSProperties}
+            >
+              {homeIdentity.shortName}
             </span>
             <span className="lobby-scoreboard-digits">{state.score.home}</span>
           </div>
@@ -171,8 +183,11 @@ export function Lobby({
           </div>
           <div className="lobby-scoreboard-side">
             <span className="lobby-scoreboard-digits">{state.score.away}</span>
-            <span className="lobby-scoreboard-team lobby-scoreboard-team--away">
-              {TEAM_PALETTES.away.shortName}
+            <span
+              className="lobby-scoreboard-team lobby-scoreboard-team--away"
+              style={{ "--team-color": awayIdentity.iconColor } as CSSProperties}
+            >
+              {awayIdentity.shortName}
             </span>
           </div>
         </header>
@@ -232,9 +247,12 @@ export function Lobby({
               editingSlotId={editingSlot?.slotId ?? null}
               disabled={!isConnected}
               canKick={isCreator && isConnected}
+              identityId={state.teamIdentities.home}
+              opposingIdentityId={state.teamIdentities.away}
               onJoinTeam={onChooseTeam}
               onEditSlot={setEditingSlotId}
               onKickPlayer={onKickPlayer}
+              onSetTeamIdentity={onSetTeamIdentity}
             />
             <div className="lobby-faceoff" aria-hidden="true">
               <div className="lobby-faceoff-medallion">
@@ -254,8 +272,11 @@ export function Lobby({
               editingSlotId={editingSlot?.slotId ?? null}
               disabled={!isConnected}
               canKick={isCreator && isConnected}
+              identityId={state.teamIdentities.away}
+              opposingIdentityId={state.teamIdentities.home}
               onJoinTeam={onChooseTeam}
               onEditSlot={setEditingSlotId}
+              onSetTeamIdentity={onSetTeamIdentity}
               onKickPlayer={onKickPlayer}
             />
           </div>

@@ -238,6 +238,92 @@ describe("ArcadeRoom", () => {
     });
   });
 
+  it("lets each team captain pick a distinct replicated team identity", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    const homeCaptain = client("session-a");
+    const awayCaptain = client("session-b");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(homeCaptain as never, { playerName: "Ada" });
+    room.onJoin(awayCaptain as never, { playerName: "Bo" });
+    const chooseTeam = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.chooseTeam"
+    )?.[1];
+    const setTeamIdentity = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setTeamIdentity"
+    )?.[1];
+
+    // Defaults replicate immediately.
+    expect(room.state.teams.home.identityId).toBe("blue-blades");
+    expect(room.state.teams.away.identityId).toBe("red-rockets");
+
+    chooseTeam?.(awayCaptain as never, { teamId: "away" });
+    setTeamIdentity?.(homeCaptain as never, { identityId: "purple-phantoms" });
+    setTeamIdentity?.(awayCaptain as never, { identityId: "gold-gauntlets" });
+
+    expect(room.state.teams.home.identityId).toBe("purple-phantoms");
+    expect(room.state.teams.away.identityId).toBe("gold-gauntlets");
+  });
+
+  it("rejects identity picks from non-captains, mid-match, when invalid, or already taken", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    const sender = vi
+      .spyOn(room, "send")
+      .mockImplementation(() => room as never);
+    const captain = client("session-a");
+    const teammate = client("session-b");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(captain as never, { playerName: "Ada" });
+    room.onJoin(teammate as never, { playerName: "Bo" });
+    const setTeamIdentity = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setTeamIdentity"
+    )?.[1];
+
+    // Later joiner on the same team is not the captain.
+    setTeamIdentity?.(teammate as never, { identityId: "purple-phantoms" });
+    expect(room.state.teams.home.identityId).toBe("blue-blades");
+    expect(sender).toHaveBeenCalledWith(teammate, "server.error", {
+      message: "Only the team captain can pick the team."
+    });
+
+    // Unknown identity id.
+    setTeamIdentity?.(captain as never, { identityId: "maroon-marauders" });
+    expect(room.state.teams.home.identityId).toBe("blue-blades");
+
+    // The other team already wears it.
+    setTeamIdentity?.(captain as never, { identityId: "red-rockets" });
+    expect(room.state.teams.home.identityId).toBe("blue-blades");
+    expect(sender).toHaveBeenCalledWith(captain, "server.error", {
+      message: "That identity is taken by the other team."
+    });
+
+    // Mid-match picks are rejected.
+    room["world"]!.phase = "playing";
+    setTeamIdentity?.(captain as never, { identityId: "purple-phantoms" });
+    expect(room.state.teams.home.identityId).toBe("blue-blades");
+  });
+
+  it("keeps chosen identities when rules rebuild the waiting world", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    const captain = client("session-a");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(captain as never, { playerName: "Ada" });
+    const setTeamIdentity = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setTeamIdentity"
+    )?.[1];
+    const setMatchRules = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.setMatchRules"
+    )?.[1];
+
+    setTeamIdentity?.(captain as never, { identityId: "black-bandits" });
+    setMatchRules?.(captain as never, { timeLimitMs: 420000, goalLimit: 7 });
+
+    expect(room.state.teams.home.identityId).toBe("black-bandits");
+    expect(room.state.teams.away.identityId).toBe("red-rockets");
+  });
+
   it("rejects invalid match rule pairs without changing rules or the roster", () => {
     const room = createTestRoom();
     const onMessage = vi.spyOn(room, "onMessage");

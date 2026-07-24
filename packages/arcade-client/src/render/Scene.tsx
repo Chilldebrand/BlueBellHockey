@@ -2,9 +2,13 @@ import { Canvas } from "@react-three/fiber";
 import {
   bladeBodyOffset,
   goalieSizeMultiplier,
+  teamIdentityFor,
   TUNING,
   type PuckState,
   type SkaterEntity,
+  type TeamId,
+  type TeamIdentity,
+  type TeamIdentityId,
   type WorldState
 } from "@bbh/arcade-core";
 import { interpolateSkaters } from "../game/interpolation.js";
@@ -42,6 +46,11 @@ export interface SceneProps {
   readonly highlightColorByEntityId?: Readonly<Record<string, string>>;
   /** Feel-lab overlays: velocity vectors and other sim diagnostics. */
   readonly debugOverlays?: boolean;
+  /**
+   * Captain-chosen team identities (uniform skins + arrow colors). Omitted
+   * (Free Skate) falls back to the classic blue home vs red away.
+   */
+  readonly teamIdentities?: Readonly<Record<TeamId, TeamIdentityId>>;
 }
 
 export function Scene({
@@ -52,11 +61,17 @@ export function Scene({
   predictedLocalSkater,
   predictedPuck = null,
   highlightColorByEntityId = {},
-  debugOverlays = false
+  debugOverlays = false,
+  teamIdentities
 }: SceneProps): JSX.Element | null {
   if (!currentWorld) {
     return null;
   }
+
+  const identities: Record<TeamId, TeamIdentity> = {
+    home: teamIdentityFor("home", teamIdentities?.home),
+    away: teamIdentityFor("away", teamIdentities?.away)
+  };
 
   const skaters = interpolateSkaters(previousWorld, currentWorld, 0.75, localSlotId);
   // Prefer the reconciled local skater when it's the carrier (no net lag),
@@ -156,6 +171,7 @@ export function Scene({
               key={skater.id}
               id={skater.id}
               teamId={skater.teamId}
+              uniform={identities[skater.teamId].uniform}
               characterId={skater.characterId}
               position={renderSkater.position}
               isLocal={skater.id === localSlotId}
@@ -211,6 +227,7 @@ export function Scene({
             ) : null}
             <GoalieModel
               teamId={goalie.teamId}
+              uniform={identities[goalie.teamId].uniform}
               animationState={selectGoalieAnimation({
                 goalie,
                 events: currentWorld.eventQueue,
@@ -223,7 +240,11 @@ export function Scene({
         <Vfx events={currentWorld.eventQueue} />
       </Canvas>
       <OffscreenArrowLayer
-        skaters={currentWorld.skaters}
+        skaters={currentWorld.skaters.map((skater) => ({
+          id: skater.id,
+          teamId: skater.teamId,
+          teamColor: identities[skater.teamId].iconColor
+        }))}
         highlightColorByEntityId={highlightColorByEntityId}
       />
     </section>

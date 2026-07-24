@@ -3,7 +3,9 @@ import {
   createBotInputFrame,
   createWorld,
   DEFAULT_MATCH_RULES,
+  DEFAULT_TEAM_IDENTITIES,
   isMatchRules,
+  isTeamIdentityId,
   KICKED_CLOSE_CODE,
   MATCH_CONFIG,
   resolveManualSwitchTarget,
@@ -16,6 +18,8 @@ import {
   type MatchMode,
   type MatchRules,
   type ServerWorldSnapshotMessage,
+  type TeamId,
+  type TeamIdentityId,
   type WorldState
 } from "@bbh/arcade-core";
 import { Room, type Client } from "colyseus";
@@ -28,6 +32,7 @@ import {
   allHumansReady,
   applyRosterCharactersToWorld,
   assignHumanToOpenSlot,
+  captainSessionId,
   clearHumanReadiness,
   clearRematchVotes,
   countRematchVotes,
@@ -172,6 +177,9 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
   private idleTickCounter = 0;
   private roomCreatorSessionId: string | null = null;
   private matchRules: MatchRules = { ...DEFAULT_MATCH_RULES };
+  private teamIdentities: Record<TeamId, TeamIdentityId> = {
+    ...DEFAULT_TEAM_IDENTITIES
+  };
   private world: WorldState | null = null;
   private readonly now: () => number;
   private readonly lobbyMutationBuckets = new Map<
@@ -221,6 +229,7 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     );
     this.syncRoomMetadata();
     this.syncMatchRulesState();
+    this.syncTeamIdentityState();
     this.syncStateFromWorld();
     this.syncRosterState();
     this.onMessage("client.setPlayerName", (client, message: unknown) => {
@@ -231,6 +240,9 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     });
     this.onMessage("client.setMatchRules", (client, message: unknown) => {
       this.handleSetMatchRules(client, message);
+    });
+    this.onMessage("client.setTeamIdentity", (client, message: unknown) => {
+      this.handleSetTeamIdentity(client, message);
     });
     this.onMessage("client.chooseTeam", (client, message: unknown) => {
       this.handleChooseTeam(client, message);
@@ -410,6 +422,15 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     this.state.rules.goalLimit = this.matchRules.goalLimit;
   }
 
+  private syncTeamIdentityState(): void {
+    if (!this.state) {
+      return;
+    }
+
+    this.state.teams.home.identityId = this.teamIdentities.home;
+    this.state.teams.away.identityId = this.teamIdentities.away;
+  }
+
   private createFreshWorld(): WorldState {
     const world = createWorld(
       this.seedGenerator(),
@@ -558,6 +579,58 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     this.world = this.createFreshWorld();
     this.syncMatchRulesState();
     this.syncStateFromWorld();
+  }
+
+  /**
+   * Captain-only cosmetic team identity pick. Waiting-phase only; the id
+   * must exist in the catalog and not be worn by the other team. Identity is
+   * room-lifetime state (like rules): it survives rematch and backToLobby,
+   * and never touches the sim world.
+   */
+  private handleSetTeamIdentity(client: Client, message: unknown): void {
+    if (!this.allowLobbyMutation(client.sessionId)) {
+      return;
+    }
+
+    if (this.world?.phase !== "waiting") {
+      this.send(client, "server.error", {
+        message: "Can't change team identity mid-match."
+      });
+      return;
+    }
+
+    const senderSlot = this.roster.find(
+      (slot) => slot.kind === "human" && slot.sessionId === client.sessionId
+    );
+
+    if (
+      !senderSlot ||
+      captainSessionId(this.roster, senderSlot.teamId) !== client.sessionId
+    ) {
+      this.send(client, "server.error", {
+        message: "Only the team captain can pick the team."
+      });
+      return;
+    }
+
+    const identityId = (message as { identityId?: unknown } | null)?.identityId;
+
+    if (!isTeamIdentityId(identityId)) {
+      this.send(client, "server.error", { message: "Invalid team identity." });
+      return;
+    }
+
+    const otherTeam: TeamId = senderSlot.teamId === "home" ? "away" : "home";
+
+    if (this.teamIdentities[otherTeam] === identityId) {
+      this.send(client, "server.error", {
+        message: "That identity is taken by the other team."
+      });
+      return;
+    }
+
+    this.teamIdentities[senderSlot.teamId] = identityId;
+    this.syncTeamIdentityState();
   }
 
   /**

@@ -2,7 +2,12 @@ import { TEAM_PALETTES, type TeamId } from "@bbh/arcade-core";
 import { registerArrowElement } from "./offscreenArrows.js";
 
 export interface OffscreenArrowLayerProps {
-  readonly skaters: readonly { readonly id: string; readonly teamId: TeamId }[];
+  readonly skaters: readonly {
+    readonly id: string;
+    readonly teamId: TeamId;
+    /** Identity icon color override; omitted uses the side's default. */
+    readonly teamColor?: string;
+  }[];
   /** Human identity colors by entity id (AI skaters fall back to team color). */
   readonly highlightColorByEntityId: Readonly<Record<string, string>>;
 }
@@ -26,6 +31,7 @@ export function OffscreenArrowLayer({
           style={{
             color:
               highlightColorByEntityId[skater.id] ??
+              skater.teamColor ??
               TEAM_PALETTES[skater.teamId].iconColor
           }}
         >

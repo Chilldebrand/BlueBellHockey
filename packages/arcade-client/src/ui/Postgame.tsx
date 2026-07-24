@@ -1,7 +1,10 @@
+import type { CSSProperties } from "react";
 import {
   getCharacterById,
-  TEAM_PALETTES,
+  teamIdentityFor,
   type TeamId,
+  type TeamIdentity,
+  type TeamIdentityId,
   type WorldState
 } from "@bbh/arcade-core";
 import { selectThreeStars, type ThreeStar } from "./threeStars.js";
@@ -26,6 +29,7 @@ export function Postgame({
   rematchVotes,
   localHasVoted,
   isHost,
+  teamIdentities,
   onRematch,
   onForceRematch,
   onChangeTeams,
@@ -35,6 +39,8 @@ export function Postgame({
   readonly rematchVotes: number;
   readonly localHasVoted: boolean;
   readonly isHost: boolean;
+  /** Captain-chosen identities; omitted falls back to blue vs red. */
+  readonly teamIdentities?: Readonly<Record<TeamId, TeamIdentityId>>;
   readonly onRematch: () => void;
   readonly onForceRematch: () => void;
   readonly onChangeTeams: () => void;
@@ -44,9 +50,15 @@ export function Postgame({
   const first = stars.find((star) => star.rank === 1);
   const second = stars.find((star) => star.rank === 2);
   const third = stars.find((star) => star.rank === 3);
+  const identities: Record<TeamId, TeamIdentity> = {
+    home: teamIdentityFor("home", teamIdentities?.home),
+    away: teamIdentityFor("away", teamIdentities?.away)
+  };
 
   const winner = world.winnerTeamId;
-  const winnerName = winner ? TEAM_PALETTES[winner].displayName.toUpperCase() : null;
+  const winnerName = winner
+    ? identities[winner].displayName.toUpperCase()
+    : null;
   const voteLabel = `${rematchVotes}/${REMATCH_VOTE_TOTAL} VOTES · ${REMATCH_VOTES_TO_START} TO START`;
 
   return (
@@ -57,33 +69,65 @@ export function Postgame({
           className={
             winner ? `pg-win pg-win--${winner}` : "pg-win pg-win--draw"
           }
+          style={
+            winner
+              ? ({ "--team-color": identities[winner].iconColor } as CSSProperties)
+              : undefined
+          }
         >
           {winnerName ? `${winnerName} WIN` : "DRAW"}
         </h1>
         <div className="pg-score">
-          <span className="pg-score-team pg-score-team--home">
-            {TEAM_PALETTES.home.shortName}
+          <span
+            className="pg-score-team pg-score-team--home"
+            style={{ "--team-color": identities.home.iconColor } as CSSProperties}
+          >
+            {identities.home.shortName}
           </span>
           <span className="pg-score-value">{world.score.home}</span>
           <span className="pg-score-dash">&ndash;</span>
           <span className="pg-score-value">{world.score.away}</span>
-          <span className="pg-score-team pg-score-team--away">
-            {TEAM_PALETTES.away.shortName}
+          <span
+            className="pg-score-team pg-score-team--away"
+            style={{ "--team-color": identities.away.iconColor } as CSSProperties}
+          >
+            {identities.away.shortName}
           </span>
         </div>
       </div>
 
       {/* Three stars: second, first (center), third */}
       <div className="pg-stars">
-        {second ? <StarCard star={second} variant="side" delay="0.6s" /> : null}
-        {first ? <StarCard star={first} variant="first" delay="0.4s" /> : null}
-        {third ? <StarCard star={third} variant="side" delay="0.8s" /> : null}
+        {second ? (
+          <StarCard
+            star={second}
+            variant="side"
+            delay="0.6s"
+            teamColor={identities[second.teamId].iconColor}
+          />
+        ) : null}
+        {first ? (
+          <StarCard
+            star={first}
+            variant="first"
+            delay="0.4s"
+            teamColor={identities[first.teamId].iconColor}
+          />
+        ) : null}
+        {third ? (
+          <StarCard
+            star={third}
+            variant="side"
+            delay="0.8s"
+            teamColor={identities[third.teamId].iconColor}
+          />
+        ) : null}
       </div>
 
       {/* Per-team player stat panels */}
       <div className="pg-panels">
-        <TeamPanel world={world} teamId="home" />
-        <TeamPanel world={world} teamId="away" />
+        <TeamPanel world={world} teamId="home" identity={identities.home} />
+        <TeamPanel world={world} teamId="away" identity={identities.away} />
       </div>
 
       {/* Actions */}
@@ -131,11 +175,13 @@ const RANK_WORD = ["FIRST STAR", "SECOND STAR", "THIRD STAR"];
 function StarCard({
   star,
   variant,
-  delay
+  delay,
+  teamColor
 }: {
   readonly star: ThreeStar;
   readonly variant: "first" | "side";
   readonly delay: string;
+  readonly teamColor: string;
 }): JSX.Element {
   const character = getCharacterById(star.characterId);
   const rankLabel = `${RANK_PREFIX[star.rank - 1] ?? "★"} ${
@@ -171,7 +217,12 @@ function StarCard({
 
   if (variant === "first") {
     return (
-      <div className="pg-first" style={{ animationDelay: delay }}>
+      <div
+        className="pg-first"
+        style={
+          { animationDelay: delay, "--team-color": teamColor } as CSSProperties
+        }
+      >
         <div className="pg-medallion">{"★"}</div>
         <div className="pg-first-card">
           <div className="pg-first-accent" />
@@ -185,7 +236,9 @@ function StarCard({
   return (
     <div
       className={`pg-star-card pg-star-card--${star.teamId}`}
-      style={{ animationDelay: delay }}
+      style={
+        { animationDelay: delay, "--team-color": teamColor } as CSSProperties
+      }
     >
       <div className={`pg-accent pg-accent--${star.teamId}`} />
       <div className="pg-star-body">{body}</div>
@@ -212,19 +265,23 @@ function StatBox({
 
 function TeamPanel({
   world,
-  teamId
+  teamId,
+  identity
 }: {
   readonly world: WorldState;
   readonly teamId: TeamId;
+  readonly identity: TeamIdentity;
 }): JSX.Element {
   const rows = teamPanelRows(world, teamId);
-  const palette = TEAM_PALETTES[teamId];
 
   return (
-    <div className={`pg-panel pg-panel--${teamId}`}>
+    <div
+      className={`pg-panel pg-panel--${teamId}`}
+      style={{ "--team-color": identity.iconColor } as CSSProperties}
+    >
       <div className="pg-panel-row pg-panel-head">
         <div className={`pg-panel-team pg-panel-team--${teamId}`}>
-          {palette.displayName.toUpperCase()}
+          {identity.displayName.toUpperCase()}
         </div>
         <div className="pg-col-label">SHOTS</div>
         <div className="pg-col-label">HITS</div>

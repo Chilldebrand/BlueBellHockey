@@ -1,4 +1,8 @@
-import { TEAM_PALETTES, type TeamId } from "@bbh/arcade-core";
+import {
+  TEAM_PALETTES,
+  type TeamId,
+  type UniformPalette
+} from "@bbh/arcade-core";
 import {
   REQUIRED_ATTACHMENTS,
   REQUIRED_GEAR_SLOTS,
@@ -13,6 +17,8 @@ import { getHeadgearColor } from "./headgearColor.js";
 
 export interface GoalieModelProps {
   readonly teamId: TeamId;
+  /** Identity uniform override; omitted uses the side's default palette. */
+  readonly uniform?: UniformPalette;
   readonly animationState?: GoalieAnimationState;
   readonly manifest?: CharacterModelManifest;
 }
@@ -44,6 +50,7 @@ export const FIRST_GOALIE_MODEL_MANIFEST: CharacterModelManifest = {
 
 export function GoalieModel({
   teamId,
+  uniform,
   animationState = "ready",
   manifest = FIRST_GOALIE_MODEL_MANIFEST
 }: GoalieModelProps): JSX.Element {
@@ -60,7 +67,7 @@ export function GoalieModel({
     );
   }
 
-  const palette = TEAM_PALETTES[teamId].uniform;
+  const palette = uniform ?? TEAM_PALETTES[teamId].uniform;
   const pose = goaliePose(animationState);
 
   return (

@@ -1,6 +1,11 @@
 import { ArraySchema, Schema, type } from "@colyseus/schema";
 import type { MatchMode, TeamId, WorldPhase } from "@bbh/arcade-core";
-import { DEFAULT_MATCH_RULES, MATCH_CONFIG, TEAM_IDS } from "@bbh/arcade-core";
+import {
+  DEFAULT_MATCH_RULES,
+  DEFAULT_TEAM_IDENTITIES,
+  MATCH_CONFIG,
+  TEAM_IDS
+} from "@bbh/arcade-core";
 import { captainSessionId, type RoomRosterSlot, type RosterSlotKind } from "./roster.js";
 
 export class ArcadeScoreState extends Schema {
@@ -38,6 +43,8 @@ export class ArcadeRoomSlotState extends Schema {
 
 export class ArcadeTeamState extends Schema {
   @type("string") teamId: TeamId = "home";
+  /** Captain-chosen cosmetic identity (see TEAM_IDENTITIES in arcade-core). */
+  @type("string") identityId = "";
   @type([ArcadeRoomSlotState]) slots = new ArraySchema<ArcadeRoomSlotState>();
 }
 
@@ -61,6 +68,7 @@ export class ArcadeRoomState extends Schema {
 function createTeamState(teamId: TeamId): ArcadeTeamState {
   const team = new ArcadeTeamState();
   team.teamId = teamId;
+  team.identityId = DEFAULT_TEAM_IDENTITIES[teamId];
   return team;
 }
 

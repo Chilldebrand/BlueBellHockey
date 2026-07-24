@@ -282,6 +282,17 @@ describe("arcade room connection", () => {
     expect(room.send).toHaveBeenCalledWith("client.setMatchRules", rules);
   });
 
+  it("sends captain team identity picks", () => {
+    const room = fakeRoom();
+    const session = new ArcadeRoomSession(room);
+
+    session.setTeamIdentity("purple-phantoms");
+
+    expect(room.send).toHaveBeenCalledWith("client.setTeamIdentity", {
+      identityId: "purple-phantoms"
+    });
+  });
+
   it("saves and reuses a short-lived reconnect ticket", async () => {
     const storage = memoryStorage();
     const room = fakeRoom();

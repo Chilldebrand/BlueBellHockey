@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ClientRosterSlot } from "../store.js";
-import { canEditSlot } from "./lobbyPermissions.js";
+import { canEditSlot, canEditTeamIdentity } from "./lobbyPermissions.js";
 
 function slot(overrides: Partial<ClientRosterSlot>): ClientRosterSlot {
   return {
@@ -68,5 +68,14 @@ describe("canEditSlot", () => {
     expect(canEditSlot(homeBot, roster, "session-b")).toBe(false);
     expect(canEditSlot(friendSlot, roster, "session-a")).toBe(false);
     expect(canEditSlot(homeBot, roster, null)).toBe(false);
+  });
+});
+
+describe("canEditTeamIdentity", () => {
+  it("only the team's captain may pick its identity", () => {
+    expect(canEditTeamIdentity("home", roster, "session-a")).toBe(true);
+    expect(canEditTeamIdentity("home", roster, "session-b")).toBe(false);
+    expect(canEditTeamIdentity("away", roster, "session-a")).toBe(false);
+    expect(canEditTeamIdentity("home", roster, null)).toBe(false);
   });
 });
