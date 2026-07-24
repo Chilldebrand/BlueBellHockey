@@ -209,11 +209,6 @@ input {
   }
 }
 
-.postgame-actions button {
-  min-width: 180px;
-  padding: 10px 16px;
-}
-
 .arcade-hud {
   left: 16px;
   position: fixed;
@@ -1352,20 +1347,6 @@ input {
   }
 }
 
-@media (max-width: 620px) {
-  .postgame-modal {
-    padding: 18px;
-  }
-
-  .postgame-stars {
-    grid-template-columns: 1fr;
-  }
-
-  .postgame-actions button {
-    width: 100%;
-  }
-}
-
 /* Feel lab (Free Skate + tuning panel) */
 
 .free-skate-screen {
@@ -1549,6 +1530,31 @@ input {
   display: flex;
   justify-content: space-between;
   margin-bottom: 12px;
+}
+
+/* Leave-the-room action: full-width, yellow-flagged so it reads as "you are
+   exiting", clearly separated from the tuning controls above it. */
+.settings-overlay-exit {
+  background: rgba(5, 13, 24, 0.9);
+  border: 2px solid rgba(119, 207, 255, 0.45);
+  border-left: 5px solid #ffdf6e;
+  color: #eff8ff;
+  cursor: pointer;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin-top: 14px;
+  padding: 12px 16px;
+  text-transform: uppercase;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+  width: 100%;
+}
+
+.settings-overlay-exit:hover {
+  background: rgba(18, 103, 216, 0.35);
+  border-color: rgba(119, 207, 255, 0.8);
+  border-left-color: #ffdf6e;
 }
 
 .settings-overlay-header h2 {

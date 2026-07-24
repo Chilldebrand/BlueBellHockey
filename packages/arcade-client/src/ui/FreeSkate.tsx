@@ -313,6 +313,7 @@ export function FreeSkate({
           preferences={audioPreferences}
           onChange={onAudioPreferencesChange}
           onClose={onCloseSettings}
+          onExitToMenu={onExit}
         />
       ) : null}
       <div className="free-skate-help">

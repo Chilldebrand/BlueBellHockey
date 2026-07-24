@@ -157,6 +157,38 @@ describe("SettingsOverlay", () => {
     });
   });
 
+  it("shows Exit to Main Menu only when a handler is provided and wires it", () => {
+    withFakeDocument(() => {
+      const withoutExit = SettingsOverlay({
+        open: true,
+        preferences: DEFAULT_AUDIO_PREFERENCES,
+        onChange: vi.fn(),
+        onClose: vi.fn()
+      });
+      expect(
+        findAllByType(withoutExit, "button").some(
+          (button) => button.props.children === "Exit to Main Menu"
+        )
+      ).toBe(false);
+
+      const onExitToMenu = vi.fn();
+      const tree = SettingsOverlay({
+        open: true,
+        preferences: DEFAULT_AUDIO_PREFERENCES,
+        onChange: vi.fn(),
+        onClose: vi.fn(),
+        onExitToMenu
+      });
+      const exit = findAllByType(tree, "button").find(
+        (button) => button.props.children === "Exit to Main Menu"
+      );
+
+      expect(exit).toBeDefined();
+      (exit?.props.onClick as () => void)();
+      expect(onExitToMenu).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("toggles the Always Up Stick Controls checkbox", () => {
     withFakeDocument(() => {
       const onControlPreferencesChange = vi.fn();

@@ -49,6 +49,11 @@ export interface SettingsOverlayProps {
   readonly onChange: (next: AudioPreferences) => void;
   readonly onControlPreferencesChange?: (next: ControlPreferences) => void;
   readonly onClose: () => void;
+  /**
+   * Renders an "Exit to Main Menu" action. Omit on the main menu itself;
+   * from a room screen the handler must also leave the room cleanly.
+   */
+  readonly onExitToMenu?: () => void;
 }
 
 export function SettingsOverlay({
@@ -57,7 +62,8 @@ export function SettingsOverlay({
   controlPreferences = DEFAULT_CONTROL_PREFERENCES,
   onChange,
   onControlPreferencesChange = () => undefined,
-  onClose
+  onClose,
+  onExitToMenu
 }: SettingsOverlayProps): JSX.Element | null {
   const openerRef = useRef<HTMLElement | null>(null);
 
@@ -139,6 +145,15 @@ export function SettingsOverlay({
           />
         </label>
         <ControlsGuide />
+        {onExitToMenu ? (
+          <button
+            type="button"
+            className="settings-overlay-exit"
+            onClick={onExitToMenu}
+          >
+            Exit to Main Menu
+          </button>
+        ) : null}
       </section>
     </section>
   );

@@ -90,6 +90,28 @@ function renderLobby(state: ArcadeClientState): string {
 }
 
 describe("Lobby", () => {
+  it("offers a Main Menu exit button only when a handler is provided", () => {
+    expect(renderLobby(lobbyState())).not.toContain("Main Menu");
+
+    const withExit = renderToStaticMarkup(
+      <Lobby
+        state={lobbyState()}
+        onChooseTeam={vi.fn()}
+        onCreatePrivateRoom={vi.fn()}
+        onJoinPrivateRoom={vi.fn()}
+        onChooseCharacterFor={vi.fn()}
+        onQuickMatch={vi.fn()}
+        onRequestStart={vi.fn()}
+        onSetPlayerName={vi.fn()}
+        onSetReady={vi.fn()}
+        onSetMatchRules={vi.fn()}
+        onKickPlayer={vi.fn()}
+        onExitToMenu={vi.fn()}
+      />
+    );
+    expect(withExit).toContain("Main Menu");
+  });
+
   it("renders team columns with player names and bot character cards", () => {
     const html = renderLobby(lobbyState());
 

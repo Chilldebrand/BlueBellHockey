@@ -29,6 +29,8 @@ export interface LobbyProps {
   readonly onRequestStart: () => void;
   readonly onKickPlayer?: (sessionId: string) => void;
   readonly onOpenSettings?: () => void;
+  /** Leave any room and return to the home screen (main menu). */
+  readonly onExitToMenu?: () => void;
 }
 
 export function Lobby({
@@ -43,7 +45,8 @@ export function Lobby({
   onSetMatchRules,
   onRequestStart,
   onKickPlayer,
-  onOpenSettings
+  onOpenSettings,
+  onExitToMenu
 }: LobbyProps): JSX.Element {
   const [joinCode, setJoinCode] = useState("");
   const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
@@ -291,6 +294,15 @@ export function Lobby({
                 onClick={onOpenSettings}
               >
                 Settings
+              </button>
+            ) : null}
+            {onExitToMenu ? (
+              <button
+                type="button"
+                className="lobby-settings-button"
+                onClick={onExitToMenu}
+              >
+                Main Menu
               </button>
             ) : null}
             {rulesAvailable ? (
