@@ -42,7 +42,34 @@ Source links (download only from official Pixabay):
 `https://pixabay.com/music/beats-positive-hip-hop-184768/`, and
 `https://pixabay.com/music/beats-hip-hop-old-school-208627/`.
 
-**LATEST SHIPPED — goalie scoring-chance package (2026-07-23, `af044d1`, user-approved
+**LATEST SHIPPED — arena far-plane clipping + floor-void fix (2026-07-23).** User saw black
+flickering lines on the far boards and stands "bleeding through into the rink". Cause: the
+known-accepted far=3000 quirk turned real — the 07-23 camera pullback (798/987) put the far
+bowl up to ~4200 units from the camera, so the far plane sliced through the boards/glass and
+stands, sweeping as the camera eased. Scene.tsx: `far` 3000→4500 (covers the whole bowl),
+`near` 0.1→10 (nothing is ever within ~400 of the camera; restores ~100× depth precision so
+the raise costs nothing and far-half marking shimmer dies too). ALSO: ArenaShell's four floor
+strips stopped at the rink bounding box, leaving pure-black void wedges outside the boards'
+rounded corners — replaced with ONE full slab whose top sits 1 unit below the ice (no
+coplanar fight). **USER EYEBALLS OWED:** far boards/stands solid at both rink ends, corner
+voids gone, no new artifacts.
+
+**PREVIOUSLY SHIPPED — postgame 1C redesign + rematch voting (2026-07-23, `1aa39b2`,
+design-handoff bundle).** Full-screen broadcast postgame over the frozen Scene per the
+approved Option 1C handoff: winner headline + score row, three-star cards (first star
+centered, gold medallion + shine sweep), per-team player stat panels (SHOTS/HITS/SAVES/PWR
+incl. a goalie row), action row REMATCH ▸ / FORCE REMATCH (host only) / CHANGE TEAMS / EXIT.
+New `pg-*` CSS + `pgRise`/`pgShine` keyframes replace all `.postgame-*` rules. Core:
+`PlayerStatLine` gained shots/saves/powerups; goalie ids seeded into `stats.players`; recorded
+in goal.ts/goalie.ts/powerups.ts. Server: `client.rematch` is now a VOTE (latch, postgame-only,
+auto-rematch at 4-of-6 humans, `REMATCH_VOTES_TO_START` in roster.ts), new host-only
+`client.forceRematch`; votes ride `votedRematch` on the roster slot schema and clear on every
+world reset. Client: store maps `votedRematch`, App wires force-rematch + Exit (reuses
+`handleExitToMenu`). Note: a lone host's REMATCH click is 1/6 votes — they must FORCE REMATCH
+(faithful to spec). **USER EYEBALLS OWED:** the whole screen at real window size, stagger
+timings, voted-state button, two-browser vote flow.
+
+**PREVIOUSLY SHIPPED — goalie scoring-chance package (2026-07-23, `af044d1`, user-approved
 brainstorm).** Angle-cut goalies were saving everything. Now: (1) MOMENTUM — goalie lateral
 velocity persists, capped by `lateralAccel` 2400/s² with arrival braking; reversals cost ~0.45s
 (dekes open the net), cold starts can't hit top speed (cross-crease one-timers beat him). (2)
@@ -150,8 +177,8 @@ Key files: `render/arenaLayout.ts`, `crowdGeneration.ts`, `crowdReaction.ts` (pu
 95 server + 228 client tests, production build, clean Free Skate mount (no console errors).
 **USER EYEBALLS OWED:** stands/wall look at all three camera positions, crowd variety, goal +
 knockdown reactions and cheers, PerfHud before/after (assistant can't render WebGL headlessly).
-Known accepted quirk: the far arena wall may clip at extreme puck positions (Canvas far=3000) —
-user approved; raise `far` in Scene.tsx if it ever bothers.
+Known accepted quirk (RESOLVED 2026-07-23): the far arena wall clipped at extreme puck
+positions — fixed by raising Canvas far to 4500 (see the arena far-plane entry above).
 
 **PREVIOUSLY SHIPPED — host rules + unlimited overtime (2026-07-21, pushed `9330ffa`).**
 Hosts can open a pre-game **Rules** panel; everyone sees it, but only the creator may choose 3/5/7/10

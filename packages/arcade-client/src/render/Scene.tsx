@@ -113,8 +113,17 @@ export function Scene({
         camera={{
           position: [520, 1180, 980],
           fov: 44,
-          near: 0.1,
-          far: 3000
+          // near 10 (not 0.1): nothing ever comes within ~400 of the camera
+          // (rig height 987, tallest arena structure 560), and a tight near
+          // plane is what depth precision lives on — at 0.1 the far half of
+          // the scene had only ~2-4 world units of z-resolution.
+          near: 10,
+          // far must cover the WHOLE arena bowl from the pulled-back camera
+          // (worst case ~4200: puck at one end, far wall top corner). At 3000
+          // the far plane sliced through the boards/stands and flickered as
+          // the camera eased — black lines on the boards, stands showing
+          // through where board geometry was clipped away.
+          far: 4500
         }}
       >
         <CameraRig puck={cameraAnchor} />

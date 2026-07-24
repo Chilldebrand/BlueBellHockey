@@ -132,43 +132,24 @@ function railInstances(layout: ArenaLayout): BoxInstance[] {
   return instances;
 }
 
-function floorInstances(layout: ArenaLayout, rinkWidth: number, rinkHeight: number): BoxInstance[] {
+function floorInstances(layout: ArenaLayout): BoxInstance[] {
   const { wall } = layout;
   const thickness = 4;
-  const y = -thickness / 2;
+  // One slab under EVERYTHING, its top 1 unit below the ice plane. The old
+  // four-strip floor stopped at the rink's bounding box, which left black
+  // voids at the four corners (the boards' rounded outer arc never reaches
+  // the box corner, so nothing rendered in the wedge outside it). Sitting
+  // 1 unit low keeps it clear of z-fighting the ice sheet above it.
+  const y = -1 - thickness / 2;
 
   return [
     {
       x: (wall.minX + wall.maxX) / 2,
       y,
-      z: wall.minZ / 2,
+      z: (wall.minZ + wall.maxZ) / 2,
       sizeX: wall.maxX - wall.minX,
       sizeY: thickness,
-      sizeZ: -wall.minZ
-    },
-    {
-      x: (wall.minX + wall.maxX) / 2,
-      y,
-      z: (rinkHeight + wall.maxZ) / 2,
-      sizeX: wall.maxX - wall.minX,
-      sizeY: thickness,
-      sizeZ: wall.maxZ - rinkHeight
-    },
-    {
-      x: wall.minX / 2,
-      y,
-      z: rinkHeight / 2,
-      sizeX: -wall.minX,
-      sizeY: thickness,
-      sizeZ: rinkHeight
-    },
-    {
-      x: (rinkWidth + wall.maxX) / 2,
-      y,
-      z: rinkHeight / 2,
-      sizeX: wall.maxX - rinkWidth,
-      sizeY: thickness,
-      sizeZ: rinkHeight
+      sizeZ: wall.maxZ - wall.minZ
     }
   ];
 }
@@ -315,10 +296,7 @@ export function ArenaShell({
   );
   const bleachers = useMemo(() => bleacherInstances(layout), [layout]);
   const rails = useMemo(() => railInstances(layout), [layout]);
-  const floor = useMemo(
-    () => floorInstances(layout, RINK_CONFIG.width, RINK_CONFIG.height),
-    [layout]
-  );
+  const floor = useMemo(() => floorInstances(layout), [layout]);
   const walls = useMemo(() => wallInstances(layout), [layout]);
   const corners = useMemo(() => cornerInstances(layout), [layout]);
   const lightBanks = useMemo(() => lightBankInstances(layout), [layout]);
