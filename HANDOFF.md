@@ -42,7 +42,18 @@ Source links (download only from official Pixabay):
 `https://pixabay.com/music/beats-positive-hip-hop-184768/`, and
 `https://pixabay.com/music/beats-hip-hop-old-school-208627/`.
 
-**LATEST SHIPPED — slap windup realism + snap shot (2026-07-23, `7d0b59e`, approved plan).**
+**LATEST SHIPPED — goalie angle-cut + camera fixes (2026-07-23, `ce57ceb`, user playtest).**
+User found cross-corner snaps/slaps from the wing were AUTOMATIC goals: the goalie mirrored
+puck-y clamped to the crease (parked on the near post vs a wide carrier) and his reaction lag
+chased a trailing point, making the far corner unreachable. `trackPuckInCrease` now positions
+on the lagged puck→net-center line at the goalie plane (angle cut; lateral shadow kept for
+pucks at/behind his plane — wraparounds). Regression test reproduces the wing snap → saved;
+cross-crease/one-timer beats still work via the lag. ALSO: camera anchors on the carrier's
+rendered body while the puck is carried (the carried puck now hops blade↔feet on windups —
+following it read as shake) and the rig pulled back 5% (760/940 → 798/987). User approved the
+snap/slap feel ("these changes feel good") before these fixes.
+
+**PREVIOUSLY SHIPPED — slap windup realism + snap shot (2026-07-23, `7d0b59e`, approved plan).**
 Windups are classified at entry by |stickX| (`GESTURE_CONFIG.snapSideMin` 0.45): straight
 pull-back = SLAP — the carry tether (sim `stepCarriedPuck` + client `predictedCarriedPuck`)
 targets `carryRestWorldPosition` (new, stick.ts) so the puck stays at the feet while only the
