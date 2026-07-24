@@ -42,7 +42,28 @@ Source links (download only from official Pixabay):
 `https://pixabay.com/music/beats-positive-hip-hop-184768/`, and
 `https://pixabay.com/music/beats-hip-hop-old-school-208627/`.
 
-**LATEST SHIPPED — team identities (2026-07-24, `b8f1423`, approved plan).** 8 captain-picked
+**LATEST SHIPPED — Shootout mode (2026-07-24, approved plan).** Solo mode from the main menu
+(below Free Skate): pick a shooter (reuses CharacterSelect, Done = start), spawn at CENTER ICE
+with the puck, five ONE-SHOT attempts on the standard away goalie, respawn at center after
+each. Broadcast tracker top-center (`ShootoutHud`: SHOT N/5 + five boxes, gold ✓ / red ✗,
+current highlighted); results overlay (`ShootoutResults`: X/5, Retry = sim.reset(), Exit).
+Rules: goal = home-score DELTA (not the event); miss = save (any detail), post, rebound back
+to own stick, puck at rest, or 2.5s timeout (`SHOT_RESOLVE_MS`); a deke gone loose gets 2.5s
+(`LOOSE_RESOLVE_MS`) to regather without ending the attempt; results hold 1.5s
+(`RESULT_HOLD_MS`) then respawn. Core: `createWorld` gained optional backward-compatible
+`roster?: WorldRosterOptions` (5th param) — a TRUE 1-skater world (+ both goalies; every sim
+system verified count-agnostic). Client: pure state machine in `src/game/shootout.ts`
+(`stepShootoutTransition`, `respawnForAttempt` = core `resetForFaceoff` + center override,
+`createShootoutSim` — no bots/switching/goalie grants; per-tick hygiene pins the clock and
+clears powerups/bananas/faceoff holds; "new events" = `atMs === preStepNowMs`, verified
+stamp-before-time-increment). `ShootoutScreen` duplicates FreeSkate's RAF loop minus dev
+tooling; App: screen union += "shootout", consumeWorld guard skips it (audio via its own
+bridge — no doubling), menu music off. Verified: typecheck, 263/99/279 + smoke-adjacent, prod
+build, DOM preview walk (menu → picker → SHOT 1/5 screen → Exit, zero console errors).
+**USER EYEBALLS OWED:** skate-in + shot feel, goalie difficulty on a clean solo rush (tuned
+for 3v3 traffic — may want a shootout-specific nerf), respawn rhythm, results overlay, retry.
+
+**PREVIOUSLY SHIPPED — team identities (2026-07-24, `b8f1423`, approved plan).** 8 captain-picked
 team skins: `TEAM_IDENTITIES` catalog in `config/teams.ts` (Blue Blades/Red Rockets/Green
 Glaciers/Gold Gauntlets/Purple Phantoms/Orange Outlaws/Cyan Cyclones/Black Bandits; unique
 jerseys+shortNames, contrast-tested numbers, gold wears dark numbers). Sim untouched
