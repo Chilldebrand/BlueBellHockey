@@ -183,6 +183,7 @@ export function createInitialPuckState(position: Vec2): PuckState {
     lastTouchSlotId: null,
     assistCandidateSlotId: null,
     shotBySlotId: null,
+    shotAtMs: 0,
     shotPower: 0,
     isChargedShot: false,
     passedFromSlotId: null,
@@ -853,6 +854,7 @@ function releasePuck(
   world.puck.goalieCarrierId = null;
   world.puck.lastTouchSlotId = carrier.id;
   world.puck.shotBySlotId = release.shotBySlotId;
+  world.puck.shotAtMs = release.shotBySlotId ? world.time.nowMs : 0;
   world.puck.shotPower = release.shotPower;
   world.puck.isChargedShot = release.isChargedShot;
   world.puck.passedFromSlotId = null;

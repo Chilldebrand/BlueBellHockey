@@ -48,6 +48,7 @@ const puck: PuckState = {
   assistCandidateSlotId: null,
   lastTouchSlotId: null,
   shotBySlotId: null,
+  shotAtMs: 0,
   shotPower: 0,
   isChargedShot: false,
   passedFromSlotId: null,

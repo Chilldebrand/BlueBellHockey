@@ -3,11 +3,14 @@ import {
   GIANT_GOALIE_SIZE,
   GOALIE_CONFIG,
   MINI_GOALIE_SIZE,
+  PUCK_CONFIG,
   RINK_CONFIG,
   bladeWorldPosition,
   createWorld,
   goalieHoldPosition,
   goalieSizeMultiplier,
+  saveMissChance,
+  saveMissRoll,
   stepWorld,
   type GoalieEntity,
   type InputFrame,
@@ -291,6 +294,123 @@ describe("goalie simulation", () => {
     stepWorld(world, [], 16);
 
     expect(world.stats.saves.home).toBe(0);
+  });
+});
+
+describe("goalie momentum", () => {
+  it("cannot hit top speed from a cold start in one tick", () => {
+    const world = playingWorld();
+    const goalie = homeGoalieOf(world);
+    // Puck right at his plane, far to one side: the lateral target is far
+    // but his velocity may only grow by lateralAccel per second.
+    world.puck.position = {
+      x: goalie.position.x + 10,
+      y: goalie.position.y + 200
+    };
+
+    stepWorld(world, [], 16);
+
+    const maxStep = GOALIE_CONFIG.lateralAccel * 0.016;
+    expect(homeGoalieOf(world).velocity.y).toBeGreaterThan(0);
+    expect(homeGoalieOf(world).velocity.y).toBeLessThanOrEqual(maxStep + 1e-6);
+  });
+
+  it("keeps sliding the wrong way briefly when the puck reverses (deke window)", () => {
+    const world = playingWorld();
+    const goalie = homeGoalieOf(world);
+    // Mid-slide toward +y at full speed when the puck is suddenly on the
+    // other side: he must brake through his momentum before reversing.
+    goalie.velocity = { x: 0, y: GOALIE_CONFIG.lateralSpeed };
+    world.puck.position = {
+      x: goalie.position.x + 10,
+      y: goalie.position.y - 200
+    };
+    const startY = goalie.position.y;
+
+    stepWorld(world, [], 16);
+
+    expect(homeGoalieOf(world).position.y).toBeGreaterThan(startY);
+    expect(homeGoalieOf(world).velocity.y).toBeGreaterThan(
+      GOALIE_CONFIG.lateralSpeed - GOALIE_CONFIG.lateralAccel * 0.016 - 1e-6
+    );
+  });
+});
+
+describe("goalie miss chance", () => {
+  it("scales from the floor on easy saves to the cap on edge rockets", () => {
+    const floor = saveMissChance(0, GOALIE_CONFIG.saveReach, 0);
+    const cap = saveMissChance(
+      GOALIE_CONFIG.saveReach,
+      GOALIE_CONFIG.saveReach,
+      PUCK_CONFIG.maxChargedShotSpeed
+    );
+
+    expect(floor).toBeCloseTo(GOALIE_CONFIG.missChanceFloor, 6);
+    expect(cap).toBeCloseTo(GOALIE_CONFIG.missChanceCap, 6);
+    // Monotonic in both axes.
+    expect(saveMissChance(60, 84, 900)).toBeGreaterThan(saveMissChance(20, 84, 900));
+    expect(saveMissChance(60, 84, 1800)).toBeGreaterThan(saveMissChance(60, 84, 900));
+  });
+
+  it("rolls deterministically per shot and varies between shots", () => {
+    expect(saveMissRoll(1, 512, "home-skater-1")).toBe(
+      saveMissRoll(1, 512, "home-skater-1")
+    );
+
+    const rolls = Array.from({ length: 200 }, (_, i) =>
+      saveMissRoll(1, i * 16, "home-skater-1")
+    );
+    for (const roll of rolls) {
+      expect(roll).toBeGreaterThanOrEqual(0);
+      expect(roll).toBeLessThan(1);
+    }
+    // Spread sanity: a meaningful share lands under a 15% cap.
+    const under = rolls.filter((roll) => roll < 0.15).length;
+    expect(under).toBeGreaterThan(10);
+    expect(under).toBeLessThan(80);
+  });
+
+  it("lets a hard edge shot beat the goalie when its roll comes up short", () => {
+    // Deterministically pick a shot identity whose roll loses to an
+    // edge-rocket's miss chance, then fire exactly that shot.
+    const lateral = 80;
+    const speed = 1900;
+    const chance = saveMissChance(lateral, GOALIE_CONFIG.saveReach, speed);
+    let beatenAtMs = -1;
+    for (let atMs = 16; atMs < 20_000; atMs += 16) {
+      if (saveMissRoll(1, atMs, "away-skater-1") < chance) {
+        beatenAtMs = atMs;
+        break;
+      }
+    }
+    expect(beatenAtMs).toBeGreaterThan(0);
+
+    const world = playingWorld();
+    shotAtHomeGoalie(world, { speed, lateral });
+    world.puck.shotAtMs = beatenAtMs;
+
+    for (let tick = 0; tick < 6; tick += 1) {
+      stepWorld(world, [], 16);
+    }
+
+    expect(world.stats.saves.home).toBe(0);
+    expect(world.score.away).toBe(1);
+  });
+
+  it("never fumbles a friendly puck drifting toward its own net", () => {
+    // Same losing roll, but the puck came off a teammate: must still stop.
+    const world = playingWorld();
+    const goalie = homeGoalieOf(world);
+    world.puck.position = { x: goalie.position.x + 24, y: goalie.position.y + 80 };
+    world.puck.velocity = { x: -1900, y: 0 };
+    world.puck.lastTouchSlotId = "home-skater-1";
+    world.puck.shotBySlotId = null;
+    world.puck.shotAtMs = 0;
+
+    stepWorld(world, [], 16);
+
+    expect(world.score.away).toBe(0);
+    expect(world.puck.velocity.x).toBeGreaterThan(0);
   });
 });
 

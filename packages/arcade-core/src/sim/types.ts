@@ -199,6 +199,9 @@ export interface PuckState {
   lastTouchSlotId: string | null;
   assistCandidateSlotId: string | null;
   shotBySlotId: string | null;
+  /** Sim time the live shot was released — the shot's identity for the
+   *  goalie's deterministic per-shot miss roll. 0 when no shot is live. */
+  shotAtMs: number;
   shotPower: number;
   isChargedShot: boolean;
   /** Set while a pass is in flight — a teammate gathering it arms a one-timer. */

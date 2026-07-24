@@ -2,7 +2,7 @@ import { RINK_CONFIG, goalLineX } from "../config/rink.js";
 import type { TeamId } from "../config/teams.js";
 import type { GoalieEntity, Vec2, WorldState } from "./types.js";
 import { clamp } from "./physics.js";
-import { GOAL_HEIGHT } from "./puck.js";
+import { GOAL_HEIGHT, PUCK_CONFIG } from "./puck.js";
 
 // Goalie-resize powerups. Giant grows the user's OWN goalie into a near-wall;
 // Mini shrinks the OPPOSING goalie so the user scores easier. The multiplier
@@ -45,6 +45,13 @@ export interface GoalieConfig {
   readonly awayX: number;
   readonly creaseHalfHeight: number;
   readonly lateralSpeed: number;
+  /**
+   * Lateral acceleration cap (units/s²). The goalie ramps up and must brake
+   * to reverse, so cross-crease passes, one-timers, and side-to-side dekes
+   * genuinely open the net — he can no longer flip direction at full speed
+   * in a single tick.
+   */
+  readonly lateralAccel: number;
   /** Blade/pad reach around the goalie's body for the save test. */
   readonly saveReach: number;
   /** Only pucks within this of the goal line concern the goalie. */
@@ -64,6 +71,10 @@ export interface GoalieConfig {
    * frame-perfect wall.
    */
   readonly reactionDelayMs: number;
+  /** Miss chance of the easiest save (slow shot into the chest). */
+  readonly missChanceFloor: number;
+  /** Miss chance of the hardest save (full-speed shot at the reach edge). */
+  readonly missChanceCap: number;
 }
 
 export const GOALIE_CONFIG: GoalieConfig = {
@@ -71,16 +82,21 @@ export const GOALIE_CONFIG: GoalieConfig = {
   homeX: goalLineX("home") + RINK_CONFIG.goalieDepth,
   awayX: goalLineX("away") - RINK_CONFIG.goalieDepth,
   creaseHalfHeight: RINK_CONFIG.goalWidth / 2,
-  // Tuning 2026-07-07: goalies ~20% better — quicker across, longer reach,
-  // faster reactions (shots are also 20% hotter now, so saves keep pace).
-  lateralSpeed: 624,
+  // Playtest 2026-07-23: the angle-cut positioning made goalies near-perfect,
+  // so the scoring-chance package pulls them back toward "very good": top
+  // speed 624→540, an acceleration cap (reversals and cold starts cost real
+  // time — one-timers and dekes open the net), and a per-shot miss roll.
+  lateralSpeed: 540,
+  lateralAccel: 2400,
   saveReach: 84,
   saveZoneDepth: 340,
   coverMaxSpeed: 520,
   coverMaxOffset: 46,
   reboundSpeedFactor: 0.45,
   reboundMinSpeed: 320,
-  reactionDelayMs: 120
+  reactionDelayMs: 120,
+  missChanceFloor: 0.02,
+  missChanceCap: 0.15
 };
 
 export type GoalieSaveType = "pad" | "body" | "glove" | "blocker" | "cover";
@@ -164,21 +180,35 @@ function trackPuckInCrease(
       : // At or behind his own plane (wraparounds, corner play): shadow the
         // puck laterally like before so he hugs the near post.
         laggedY;
-  const targetY = clamp(
-    angleCutY,
-    RINK_CONFIG.height / 2 - config.creaseHalfHeight,
-    RINK_CONFIG.height / 2 + config.creaseHalfHeight
-  );
-  const maxMove = config.lateralSpeed * (dtMs / 1000);
-  const delta = clamp(targetY - goalie.position.y, -maxMove, maxMove);
+  const creaseMin = RINK_CONFIG.height / 2 - config.creaseHalfHeight;
+  const creaseMax = RINK_CONFIG.height / 2 + config.creaseHalfHeight;
+  const targetY = clamp(angleCutY, creaseMin, creaseMax);
 
-  goalie.position = {
-    x: goalieX,
-    y: goalie.position.y + delta
-  };
+  // Momentum: velocity persists across ticks and changes at most
+  // lateralAccel per second, so reversing a full-speed slide costs real time
+  // (dekes) and a cold start can't instantly hit top speed (cross-crease
+  // one-timers). Arrival braking (v² = 2·a·d) keeps him from ringing around
+  // the target under the accel cap.
+  const dtSeconds = dtMs / 1000;
+  const distanceToTarget = targetY - goalie.position.y;
+  const brakeSpeed = Math.sqrt(
+    2 * config.lateralAccel * Math.abs(distanceToTarget)
+  );
+  const desiredVelocity =
+    Math.sign(distanceToTarget) * Math.min(config.lateralSpeed, brakeSpeed);
+  const maxVelocityStep = config.lateralAccel * dtSeconds;
+  const velocity = clamp(
+    desiredVelocity,
+    goalie.velocity.y - maxVelocityStep,
+    goalie.velocity.y + maxVelocityStep
+  );
+  const nextY = clamp(goalie.position.y + velocity * dtSeconds, creaseMin, creaseMax);
+
+  goalie.position = { x: goalieX, y: nextY };
   goalie.velocity = {
     x: 0,
-    y: delta / (dtMs / 1000 || 1)
+    // Hitting the crease edge kills the slide (he does not lean on the post).
+    y: nextY === creaseMin || nextY === creaseMax ? 0 : velocity
   };
 }
 
@@ -263,6 +293,27 @@ function resolveGoalieSave(
   const friendlyPuck = shooterTeam === goalie.teamId;
 
   const speed = Math.hypot(puck.velocity.x, puck.velocity.y);
+
+  // Goalies are very good, not perfect (playtest 2026-07-23): real shots get
+  // a sliding-scale miss chance from how far from his body the puck crosses
+  // and how hot it arrives (ice friction already slows long-range shots, so
+  // distance is priced in). The roll hashes the shot's identity — constant
+  // for the whole flight, so each tick re-compares the same roll against the
+  // current difficulty: he "misses" the fingertip moment but still recovers
+  // if the path then passes closer to his body. Replay-safe, no Math.random.
+  // Friendly-puck stops (own-goal protection) never miss.
+  if (!friendlyPuck && puck.shotBySlotId) {
+    const missChance = saveMissChance(
+      Math.min(closestDistance, restingDistance),
+      saveReach,
+      speed,
+      config
+    );
+    if (saveMissRoll(world.seed, puck.shotAtMs, puck.shotBySlotId) < missChance) {
+      return;
+    }
+  }
+
   const lateral = puck.position.y - goalie.position.y;
   const saveType = goalieSaveType(puck.height, lateral, speed, config);
   const attackingTeam: TeamId = goalie.teamId === "home" ? "away" : "home";
@@ -336,6 +387,48 @@ function resolveGoalieSave(
   puck.lastTouchSlotId = goalie.id;
   puck.pickupDisabledForSlotId = null;
   puck.pickupDisabledUntilMs = world.time.nowMs + 100;
+}
+
+/**
+ * Save difficulty → miss probability, between the config floor and cap.
+ * Edge (crossing distance vs reach) weighs 55%, arrival heat 45%. Pure so
+ * tests can assert the curve.
+ */
+export function saveMissChance(
+  crossingDistance: number,
+  saveReach: number,
+  shotSpeed: number,
+  config: GoalieConfig = GOALIE_CONFIG
+): number {
+  const edge = clamp(crossingDistance / Math.max(saveReach, 1), 0, 1);
+  const heat = clamp(shotSpeed / PUCK_CONFIG.maxChargedShotSpeed, 0, 1);
+  const difficulty = clamp(0.55 * edge + 0.45 * heat, 0, 1);
+
+  return (
+    config.missChanceFloor +
+    (config.missChanceCap - config.missChanceFloor) * difficulty
+  );
+}
+
+/**
+ * Deterministic per-shot roll in [0, 1): hashes world seed + release time +
+ * shooter, so a given shot rolls once for its whole flight, replays stay
+ * byte-identical, and consecutive shots roll independently.
+ */
+export function saveMissRoll(
+  seed: number,
+  shotAtMs: number,
+  shooterSlotId: string
+): number {
+  let h = (seed | 0) ^ Math.imul((shotAtMs | 0) + 1, 0x9e3779b1);
+  for (let i = 0; i < shooterSlotId.length; i += 1) {
+    h = Math.imul(h ^ shooterSlotId.charCodeAt(i), 0x85ebca6b);
+  }
+  h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d);
+  h = Math.imul(h ^ (h >>> 12), 0x297a2d39);
+  h ^= h >>> 15;
+
+  return (h >>> 0) / 4294967296;
 }
 
 function holdPuckByGoalie(world: WorldState, goalie: GoalieEntity): void {
