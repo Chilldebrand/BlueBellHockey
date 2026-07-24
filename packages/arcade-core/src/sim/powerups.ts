@@ -13,6 +13,7 @@ import {
 } from "../config/powerups.js";
 import type { SkaterEntity, WorldState } from "./types.js";
 import { magnitude, normalizeOrZero } from "./physics.js";
+import { playerStatLine } from "./stats.js";
 
 /** How long a frozen skater stays an ice block. */
 export const FREEZE_DURATION_MS = 5000;
@@ -193,6 +194,10 @@ function pickUpPowerups(world: WorldState): void {
       (candidate) => candidate.id !== pickup.id
     );
     activatePowerup(world, skater, pickup.type);
+    const collectorStats = playerStatLine(world.stats, skater.id);
+    if (collectorStats) {
+      collectorStats.powerups += 1;
+    }
     world.eventQueue.push({
       id: `powerup-pickup-${world.time.tick}-${skater.id}`,
       type: "powerupPickup",

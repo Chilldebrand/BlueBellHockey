@@ -76,6 +76,10 @@ export function resolveGoals(world: WorldState): void {
   if (world.puck.shotBySlotId) {
     world.stats[scoringTeam].shots += 1;
     world.stats.shots[scoringTeam] += 1;
+    const shooterStats = playerStatLine(world.stats, world.puck.shotBySlotId);
+    if (shooterStats) {
+      shooterStats.shots += 1;
+    }
   }
   world.eventQueue.push({
     id: `goal-${world.time.tick}-${scoringTeam}`,

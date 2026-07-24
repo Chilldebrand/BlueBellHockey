@@ -29,7 +29,10 @@ import {
   applyRosterCharactersToWorld,
   assignHumanToOpenSlot,
   clearHumanReadiness,
+  clearRematchVotes,
+  countRematchVotes,
   createRoster,
+  REMATCH_VOTES_TO_START,
   earliestHumanSessionId,
   fillRosterWithBots,
   InvalidCharacterSelectionError,
@@ -243,6 +246,9 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     });
     this.onMessage("client.rematch", (client) => {
       this.handleRematch(client);
+    });
+    this.onMessage("client.forceRematch", (client) => {
+      this.handleForceRematch(client);
     });
     this.onMessage("client.backToLobby", (client) => {
       this.handleBackToLobby(client);
@@ -740,15 +746,55 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     );
   }
 
+  /**
+   * Rematch is a VOTE now, not an instant reset: a hostile or impatient client
+   * can't yank six players back into a new match alone. Each postgame human gets
+   * one vote; the match rematches once enough have voted (or the host forces
+   * it). Re-clicking is idempotent — the vote is a latch, not a toggle.
+   */
   private handleRematch(client: Client): void {
     if (!this.canRequestPostgameAction(client)) {
       return;
     }
 
+    const slot = this.roster.find(
+      (candidate) =>
+        candidate.kind === "human" && candidate.sessionId === client.sessionId
+    );
+    if (!slot || slot.votedRematch) {
+      return;
+    }
+
+    slot.votedRematch = true;
+    this.syncRosterState();
+
+    if (countRematchVotes(this.roster) >= REMATCH_VOTES_TO_START) {
+      this.performRematch();
+    }
+  }
+
+  /** Host-only immediate rematch, bypassing the vote threshold. */
+  private handleForceRematch(client: Client): void {
+    if (!this.canRequestPostgameAction(client)) {
+      return;
+    }
+    if (this.roomCreatorSessionId !== client.sessionId) {
+      this.send(client, "server.error", {
+        message: "Only the room creator can force a rematch."
+      });
+      return;
+    }
+
+    this.performRematch();
+  }
+
+  private performRematch(): void {
     this.world = this.createFreshWorld();
     beginPlay(this.world);
     this.botInputSequence = 0;
     this.clearAllGoalieGrants();
+    clearRematchVotes(this.roster);
+    this.syncRosterState();
     this.syncStateFromWorld();
     this.broadcastSnapshot();
   }
@@ -766,6 +812,7 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     // Everyone was necessarily ready when the finished match started; stale
     // flags would let the creator relaunch before anyone re-picks.
     clearHumanReadiness(this.roster);
+    clearRematchVotes(this.roster);
     this.startBlockedFirstAtMs = null;
     this.syncRosterState();
     this.syncStateFromWorld();

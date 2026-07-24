@@ -24,6 +24,7 @@ import {
   smoothPredictedSkater
 } from "./game/prediction.js";
 import {
+  clearReconnectTicket,
   connectQuickMatch,
   createPrivateRoom,
   hasReconnectTicket,
@@ -319,9 +320,30 @@ export function App({
     activeRoomRef.current?.session.requestRematch();
   }, []);
 
+  const handleForceRematch = useCallback(() => {
+    activeRoomRef.current?.session.forceRematch();
+  }, []);
+
   const handleBackToLobby = useCallback(() => {
     activeRoomRef.current?.session.backToLobby();
     setScreen("lobby");
+  }, []);
+
+  // Deliberate exit to the home screen (settings overlay / lobby button):
+  // leave the room cleanly and clear the reconnect ticket so nothing
+  // auto-rejoins the abandoned seat — unlike a drop, this is goodbye.
+  const handleExitToMenu = useCallback(() => {
+    setSettingsOpen(false);
+    clearReconnectTicket();
+    reconnectSourceRef.current = null;
+    // Invalidate any in-flight connect so a late resolve gets disposed.
+    startConnectionAttempt(connectionAttemptRef);
+    const active = activeRoomRef.current;
+    activeRoomRef.current = null;
+    active?.session.room.removeAllListeners?.();
+    void active?.session.leave();
+    dispatch({ type: "connection.left" });
+    setScreen("menu");
   }, []);
 
   const handleAudioPreferencesChange = useCallback((next: AudioPreferences) => {
@@ -563,9 +585,19 @@ export function App({
         />
         <Postgame
           world={state.currentWorld}
+          rematchVotes={state.roster.reduce(
+            (count, slot) => count + (slot.votedRematch ? 1 : 0),
+            0
+          )}
+          localHasVoted={localSlot?.votedRematch ?? false}
+          isHost={
+            state.playerSessionId !== null &&
+            state.playerSessionId === state.roomCreatorSessionId
+          }
           onRematch={handleRematch}
-          onBackToLobby={handleBackToLobby}
-          onOpenSettings={handleOpenSettings}
+          onForceRematch={handleForceRematch}
+          onChangeTeams={handleBackToLobby}
+          onExit={handleExitToMenu}
         />
         <SettingsOverlay
           open={settingsOpen}
@@ -574,6 +606,7 @@ export function App({
           onChange={handleAudioPreferencesChange}
           onControlPreferencesChange={handleControlPreferencesChange}
           onClose={handleCloseSettings}
+          onExitToMenu={handleExitToMenu}
         />
       </>
     );
@@ -616,6 +649,7 @@ export function App({
             onRequestStart={handleRequestStart}
             onKickPlayer={handleKickPlayer}
             onOpenSettings={handleOpenSettings}
+            onExitToMenu={handleExitToMenu}
           />
           <ControllerPrompt />
         </>
@@ -627,6 +661,7 @@ export function App({
         onChange={handleAudioPreferencesChange}
         onControlPreferencesChange={handleControlPreferencesChange}
         onClose={handleCloseSettings}
+        onExitToMenu={handleExitToMenu}
       />
     </>
   );

@@ -19,6 +19,7 @@ function slot(overrides: Partial<ClientRosterSlot>): ClientRosterSlot {
     teamJoinOrder: 1,
     isOwnedByLocalPlayer: false,
     controlledGoalieId: null,
+    votedRematch: false,
     ...overrides
   };
 }

@@ -174,6 +174,12 @@ export interface PlayerStatLine {
   goals: number;
   assists: number;
   hits: number;
+  /** Shots on goal (goals scored on a shot + shots the goalie saved). */
+  shots: number;
+  /** Saves — populated for goalie stat lines; always 0 for skaters. */
+  saves: number;
+  /** Powerup drops collected. */
+  powerups: number;
 }
 
 export interface MatchStats {

@@ -35,6 +35,12 @@ export interface RoomRosterSlot {
    * on leave/team move/control switch, and on every world reset.
    */
   controlledGoalieId: string | null;
+  /**
+   * Postgame rematch vote. Set when a human clicks Rematch on the ended screen;
+   * the match rematches once enough humans have voted (or the host forces it).
+   * Only meaningful for human slots; always cleared on any world reset.
+   */
+  votedRematch: boolean;
 }
 
 export interface HumanAssignment {
@@ -74,7 +80,8 @@ function createSlot(slot: SkaterSlot): RoomRosterSlot {
     botId: null,
     characterId: characterIdForSlot(slot),
     teamJoinOrder: null,
-    controlledGoalieId: null
+    controlledGoalieId: null,
+    votedRematch: false
   };
 }
 
@@ -223,6 +230,7 @@ export function releaseHuman(
   slot.botId = null;
   slot.teamJoinOrder = null;
   slot.controlledGoalieId = null;
+  slot.votedRematch = false;
 
   return slot;
 }
@@ -431,6 +439,22 @@ export function clearHumanReadiness(roster: RoomRosterSlot[]): void {
       slot.ready = false;
     }
   }
+}
+
+/** Rematch votes only live for one postgame; wipe them on every world reset. */
+export function clearRematchVotes(roster: RoomRosterSlot[]): void {
+  for (const slot of roster) {
+    slot.votedRematch = false;
+  }
+}
+
+/** How many human rematch votes trigger an automatic rematch. */
+export const REMATCH_VOTES_TO_START = 4;
+
+/** Count of humans who have voted to rematch on the current postgame screen. */
+export function countRematchVotes(roster: readonly RoomRosterSlot[]): number {
+  return roster.filter((slot) => slot.kind === "human" && slot.votedRematch)
+    .length;
 }
 
 /**

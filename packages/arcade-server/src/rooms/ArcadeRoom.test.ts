@@ -1444,7 +1444,7 @@ describe("ArcadeRoom", () => {
     ).toThrow();
   });
 
-  it("ignores rematch requests unless the match has ended", () => {
+  it("only registers rematch votes once the match has ended", () => {
     const room = createTestRoom();
     const onMessage = vi.spyOn(room, "onMessage");
     vi.spyOn(room, "broadcast").mockImplementation(() => room as never);
@@ -1455,16 +1455,85 @@ describe("ArcadeRoom", () => {
       ([messageType]) => messageType === "client.rematch"
     )?.[1];
 
-    // Mid-match rematch spam must not reset the live world.
+    // Mid-match rematch spam must not register a vote or reset the live world.
     room["world"]!.phase = "playing";
     room["world"]!.score.home = 3;
     rematch?.(clientA as never, undefined);
     expect(room["world"]!.score.home).toBe(3);
     expect(room["world"]!.phase).toBe("playing");
+    expect(room.state.teams.home.slots[0].votedRematch).toBe(false);
 
-    // After the match ends it works and produces a fresh playing world.
+    // After the match ends the click registers a vote, but a lone vote is short
+    // of the 4-of-6 threshold, so the match stays on the postgame screen.
     room["world"]!.phase = "ended";
     rematch?.(clientA as never, undefined);
+    expect(room["world"]!.phase).toBe("ended");
+    expect(room.state.teams.home.slots[0].votedRematch).toBe(true);
+  });
+
+  it("auto-rematches once four humans have voted", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    vi.spyOn(room, "broadcast").mockImplementation(() => room as never);
+    const clients = ["a", "b", "c", "d"].map((id) => client(`session-${id}`));
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    for (const joined of clients) {
+      room.onJoin(joined as never, { playerName: joined.sessionId });
+    }
+    const rematch = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.rematch"
+    )?.[1];
+
+    room["world"]!.phase = "ended";
+    room["world"]!.score.home = 5;
+
+    // First three votes stay short of the 4-of-6 threshold.
+    rematch?.(clients[0] as never, undefined);
+    rematch?.(clients[1] as never, undefined);
+    rematch?.(clients[2] as never, undefined);
+    expect(room["world"]!.phase).toBe("ended");
+
+    // The fourth vote trips the threshold and starts a fresh playing world.
+    rematch?.(clients[3] as never, undefined);
+    expect(room["world"]!.phase).toBe("playing");
+    expect(room["world"]!.score).toEqual({ home: 0, away: 0 });
+    // Votes are wiped by the reset.
+    const allSlots = [
+      ...room.state.teams.home.slots,
+      ...room.state.teams.away.slots
+    ];
+    expect(allSlots.every((slot) => !slot.votedRematch)).toBe(true);
+  });
+
+  it("lets only the host force a rematch", () => {
+    const room = createTestRoom();
+    const onMessage = vi.spyOn(room, "onMessage");
+    vi.spyOn(room, "broadcast").mockImplementation(() => room as never);
+    const send = vi
+      .spyOn(
+        room as unknown as { send: (...args: unknown[]) => void },
+        "send"
+      )
+      .mockImplementation(() => undefined);
+    const host = client("session-host");
+    const guest = client("session-guest");
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(host as never, { playerName: "Host" });
+    room.onJoin(guest as never, { playerName: "Guest" });
+    const forceRematch = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.forceRematch"
+    )?.[1];
+
+    room["world"]!.phase = "ended";
+    room["world"]!.score.home = 5;
+
+    // A non-host force attempt is rejected with an error and no reset.
+    forceRematch?.(guest as never, undefined);
+    expect(room["world"]!.phase).toBe("ended");
+    expect(send).toHaveBeenCalled();
+
+    // The host forces the rematch immediately.
+    forceRematch?.(host as never, undefined);
     expect(room["world"]!.phase).toBe("playing");
     expect(room["world"]!.score).toEqual({ home: 0, away: 0 });
   });
@@ -1870,15 +1939,16 @@ describe("ArcadeRoom", () => {
     const clientA = client("session-a");
     room.onCreate({ quickMatch: true, mode: "arcade3v3" });
     room.onJoin(clientA as never, { playerName: "Ada" });
-    const rematch = onMessage.mock.calls.find(
-      ([messageType]) => messageType === "client.rematch"
+    // The lone host forces the rematch (a single vote can't hit the threshold).
+    const forceRematch = onMessage.mock.calls.find(
+      ([messageType]) => messageType === "client.forceRematch"
     )?.[1];
 
     room["world"]!.phase = "playing";
     room["world"]!.puck.goalieCarrierId = "home-goalie";
     room["applyGoalieControlGrants"](null);
     room["world"]!.phase = "ended";
-    rematch?.(clientA as never, undefined);
+    forceRematch?.(clientA as never, undefined);
 
     expect(room.state.teams.home.slots[0].controlledGoalieId).toBeNull();
     expect(room["world"]!.puck.goalieCarrierId).toBeNull();

@@ -92,7 +92,10 @@ describe("checking and knockdowns", () => {
     expect(world.stats.players[target.id]).toEqual({
       goals: 0,
       assists: 0,
-      hits: 0
+      hits: 0,
+      shots: 0,
+      saves: 0,
+      powerups: 0
     });
   });
 

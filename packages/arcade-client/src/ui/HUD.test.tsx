@@ -34,7 +34,8 @@ describe("HUD", () => {
         ready: false,
         teamJoinOrder: 1,
           isOwnedByLocalPlayer: true,
-          controlledGoalieId: null
+          controlledGoalieId: null,
+          votedRematch: false
         }
       ]
     };

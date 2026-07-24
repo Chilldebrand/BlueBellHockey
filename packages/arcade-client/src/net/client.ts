@@ -122,6 +122,10 @@ export class ArcadeRoomSession {
     this.room.send("client.rematch");
   }
 
+  forceRematch(): void {
+    this.room.send("client.forceRematch");
+  }
+
   backToLobby(): void {
     this.room.send("client.backToLobby");
   }

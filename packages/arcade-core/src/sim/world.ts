@@ -118,7 +118,10 @@ export function createWorld(
       home: 0,
       away: 0
     },
-    stats: createInitialStats(skaters.map(({ id }) => id)),
+    stats: createInitialStats(
+      skaters.map(({ id }) => id),
+      goalies.map(({ id }) => id)
+    ),
     skaters,
     goalies,
     puck: createInitialPuckState({

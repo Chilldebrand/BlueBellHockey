@@ -108,7 +108,10 @@ describe("goal scoring and match loop", () => {
     expect(world.stats.players["home-skater-2"]).toEqual({
       goals: 0,
       assists: 0,
-      hits: 0
+      hits: 0,
+      shots: 0,
+      saves: 0,
+      powerups: 0
     });
   });
 

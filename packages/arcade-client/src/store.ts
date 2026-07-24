@@ -36,12 +36,18 @@ export interface ServerRosterSlot {
    * Optional on the wire for tolerance; mapRosterSlot normalizes to null.
    */
   readonly controlledGoalieId?: string | null;
+  /**
+   * Postgame rematch vote for this slot. Optional on the wire for tolerance;
+   * mapRosterSlot normalizes to false.
+   */
+  readonly votedRematch?: boolean;
 }
 
 export interface ClientRosterSlot extends ServerRosterSlot {
   readonly displayName: string;
   readonly isOwnedByLocalPlayer: boolean;
   readonly controlledGoalieId: string | null;
+  readonly votedRematch: boolean;
 }
 
 export interface ArcadeClientState {
@@ -183,6 +189,7 @@ function mapRosterSlot(
   return {
     ...slot,
     controlledGoalieId: slot.controlledGoalieId ?? null,
+    votedRematch: slot.votedRematch ?? false,
     displayName:
       slot.kind === "human" ? slot.playerName?.trim() || "Player" : "Bot",
     isOwnedByLocalPlayer:

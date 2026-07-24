@@ -10,12 +10,24 @@ function createTeamStats(): TeamStatTotals {
   };
 }
 
-export function createInitialStats(slotIds: readonly string[]): MatchStats {
+function createPlayerStatLine(): PlayerStatLine {
+  return { goals: 0, assists: 0, hits: 0, shots: 0, saves: 0, powerups: 0 };
+}
+
+export function createInitialStats(
+  skaterSlotIds: readonly string[],
+  goalieSlotIds: readonly string[] = []
+): MatchStats {
   const home = createTeamStats();
   const away = createTeamStats();
   const scoreCounters = () => ({ home: 0, away: 0 });
+  // Goalies get their own player stat lines too (keyed by goalie id) so the
+  // postgame team panels can show a per-goalie SAVES row.
   const players = Object.fromEntries(
-    slotIds.map((slotId) => [slotId, { goals: 0, assists: 0, hits: 0 }])
+    [...skaterSlotIds, ...goalieSlotIds].map((slotId) => [
+      slotId,
+      createPlayerStatLine()
+    ])
   );
 
   return {

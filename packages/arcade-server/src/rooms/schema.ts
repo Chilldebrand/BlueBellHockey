@@ -33,6 +33,7 @@ export class ArcadeRoomSlotState extends Schema {
   @type("boolean") isCaptain = false;
   @type("number") teamJoinOrder: number | null = null;
   @type("string") controlledGoalieId: string | null = null;
+  @type("boolean") votedRematch = false;
 }
 
 export class ArcadeTeamState extends Schema {
@@ -84,6 +85,7 @@ function createSlotState(
     slot.sessionId === teamCaptainSessionId;
   state.teamJoinOrder = slot.teamJoinOrder;
   state.controlledGoalieId = slot.controlledGoalieId;
+  state.votedRematch = slot.votedRematch;
   return state;
 }
 

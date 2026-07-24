@@ -7,7 +7,7 @@ function worldWithStats(
 ): WorldState {
   const world = createWorld(7, MATCH_CONFIG.mode);
   for (const [slotId, line] of Object.entries(stats)) {
-    world.stats.players[slotId] = line;
+    world.stats.players[slotId] = { ...line, shots: 0, saves: 0, powerups: 0 };
   }
   return world;
 }

@@ -3,6 +3,7 @@ import type { TeamId } from "../config/teams.js";
 import type { GoalieEntity, Vec2, WorldState } from "./types.js";
 import { clamp } from "./physics.js";
 import { GOAL_HEIGHT, PUCK_CONFIG } from "./puck.js";
+import { playerStatLine } from "./stats.js";
 
 // Goalie-resize powerups. Giant grows the user's OWN goalie into a near-wall;
 // Mini shrinks the OPPOSING goalie so the user scores easier. The multiplier
@@ -321,10 +322,18 @@ function resolveGoalieSave(
   if (!friendlyPuck) {
     world.stats[goalie.teamId].saves += 1;
     world.stats.saves[goalie.teamId] += 1;
+    const goalieStats = playerStatLine(world.stats, goalie.id);
+    if (goalieStats) {
+      goalieStats.saves += 1;
+    }
 
     if (puck.shotBySlotId) {
       world.stats[attackingTeam].shots += 1;
       world.stats.shots[attackingTeam] += 1;
+      const shooterStats = playerStatLine(world.stats, puck.shotBySlotId);
+      if (shooterStats) {
+        shooterStats.shots += 1;
+      }
     }
 
     world.eventQueue.push({
