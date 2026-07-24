@@ -42,7 +42,27 @@ Source links (download only from official Pixabay):
 `https://pixabay.com/music/beats-positive-hip-hop-184768/`, and
 `https://pixabay.com/music/beats-hip-hop-old-school-208627/`.
 
-**LATEST SHIPPED — arena far-plane clipping + floor-void fix (2026-07-23).** User saw black
+**LATEST SHIPPED — team identities (2026-07-24, `b8f1423`, approved plan).** 8 captain-picked
+team skins: `TEAM_IDENTITIES` catalog in `config/teams.ts` (Blue Blades/Red Rockets/Green
+Glaciers/Gold Gauntlets/Purple Phantoms/Orange Outlaws/Cyan Cyclones/Black Bandits; unique
+jerseys+shortNames, contrast-tested numbers, gold wears dark numbers). Sim untouched
+(home/away only); `TEAM_PALETTES` now DERIVED from `DEFAULT_TEAM_IDENTITIES` (blue/red) so
+Free Skate + old call sites look identical. Server: `ArcadeTeamState.identityId` + captain-
+gated `client.setTeamIdentity` (rate-limited, waiting-only, catalog-validated, other-team's
+identity rejected, persists for room lifetime). Client: swatch row under each lobby team
+header (captain-only enabled, `canEditTeamIdentity`), `state.teamIdentities` +
+`identityForTeam` in store, identity threaded to ScoreHud/Lobby scoreboard/Postgame (winner,
+stars, panels) and the RENDERER (Scene `teamIdentities` prop → uniform overrides on
+CharacterModel/GoalieModel/GltfSkaterBody + arrow colors); team CSS now `--team-color` custom
+properties with old hexes as fallbacks. Verified: typecheck, all suites + smoke, and a LIVE
+two-client colyseus probe (picks replicate both ways; taken/invalid rejected). NOTE: App.tsx
+wiring (4 optional props incl. `onSetTeamIdentity`) rides with the concurrent shootout
+session's App commit. Preview-pane rAF suspension blocks lobby DOM verification in the
+assistant's browser (state deliveries coalesce on rAF) — probe used instead. **USER EYEBALLS
+OWED:** swatch row look, new uniform colors on ice, postgame/scoreboard colors for non-default
+identities.
+
+**PREVIOUSLY SHIPPED — arena far-plane clipping + floor-void fix (2026-07-23).** User saw black
 flickering lines on the far boards and stands "bleeding through into the rink". Cause: the
 known-accepted far=3000 quirk turned real — the 07-23 camera pullback (798/987) put the far
 bowl up to ~4200 units from the camera, so the far plane sliced through the boards/glass and
