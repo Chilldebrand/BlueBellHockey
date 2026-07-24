@@ -42,7 +42,15 @@ Source links (download only from official Pixabay):
 `https://pixabay.com/music/beats-positive-hip-hop-184768/`, and
 `https://pixabay.com/music/beats-hip-hop-old-school-208627/`.
 
-**LATEST SHIPPED — goalie angle-cut + camera fixes (2026-07-23, `ce57ceb`, user playtest).**
+**LATEST SHIPPED — bot shot-flick pump (2026-07-23, `6408f17`, user playtest).** AI carriers
+sometimes drove into the goalie and ground on the crease holding the puck. Cause: bots held
+stickY at 1 while `decision.shoot` was true, but flicks are edge-triggered and an edge landing
+inside the 260ms release cooldown (shoot → rebound regathered → shoot again) was swallowed —
+pinned stick, no further edges, ever. Fix: `createBotInputFrame` pumps the stick (dips neutral
+one tick per `SHOT_PUMP_PERIOD_TICKS` 4) so held shoot decisions re-flick every 64ms until the
+shot fires. Regression test starts from the exact stuck state.
+
+**PREVIOUSLY SHIPPED — goalie angle-cut + camera fixes (2026-07-23, `ce57ceb`, user playtest).**
 User found cross-corner snaps/slaps from the wing were AUTOMATIC goals: the goalie mirrored
 puck-y clamped to the crease (parked on the near post vs a wide carrier) and his reaction lag
 chased a trailing point, making the far corner unreachable. `trackPuckInCrease` now positions
