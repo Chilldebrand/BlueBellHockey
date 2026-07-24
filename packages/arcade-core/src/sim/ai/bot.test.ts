@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { RINK_CONFIG, createWorld } from "../../index";
+import {
+  RINK_CONFIG,
+  bladeWorldPosition,
+  createWorld,
+  stepWorld
+} from "../../index";
 import {
   DEFAULT_BOT_DIFFICULTY,
   assignTeamRoles,
@@ -29,6 +34,7 @@ describe("bot input frames", () => {
       y: RINK_CONFIG.height / 2 - 30
     };
     world.puck.carrierSlotId = bot.id;
+    world.time.tick = 1; // a pump "up" tick (see SHOT_PUMP_PERIOD_TICKS)
 
     const frame = createBotInputFrame(bot, world, 7, {
       ...DEFAULT_BOT_DIFFICULTY,
@@ -45,6 +51,52 @@ describe("bot input frames", () => {
       turbo: true
     });
     expect(Math.hypot(frame.moveX, frame.moveY)).toBeCloseTo(1);
+
+    // The pump dips the stick to neutral once per period so held shoot
+    // decisions keep producing fresh flick edges.
+    world.time.tick = 4;
+    expect(
+      createBotInputFrame(bot, world, 8, {
+        ...DEFAULT_BOT_DIFFICULTY,
+        shotAggression: 1,
+        specialFrequency: 1
+      }).stickY
+    ).toBe(0);
+  });
+
+  it("re-flicks through the release cooldown instead of grinding on the crease", () => {
+    const world = createWorld(1, "arcade3v3");
+    world.phase = "playing";
+    const bot = world.skaters.find((s) => s.id === "home-skater-1")!;
+    // Jammed right on the away crease with the puck, fresh off a release
+    // (rebound regathered): cooldown live, stick still held forward. The old
+    // held-at-1 stick never produced another flick edge from this state, so
+    // the bot ground on the goalie holding the puck forever.
+    bot.position = {
+      x: RINK_CONFIG.width - 260,
+      y: RINK_CONFIG.height / 2 - 20
+    };
+    bot.facing = 0;
+    world.puck.carrierSlotId = bot.id;
+    world.puck.position = { ...bladeWorldPosition(bot) };
+    bot.gesture.cooldownUntilMs = 260;
+    bot.gesture.prevStickY = 1;
+    // Everyone else far away so the outcome is purely the shooter's.
+    for (const skater of world.skaters) {
+      if (skater.id !== bot.id) {
+        skater.position = { x: 300, y: skater.position.y };
+      }
+    }
+
+    let shot = false;
+    for (let tick = 0; tick < 45 && !shot; tick += 1) {
+      stepWorld(world, [createBotInputFrame(bot, world, tick + 1)], 16);
+      shot = world.eventQueue.some(
+        (event) => event.type === "shot" && event.sourceSlotId === bot.id
+      );
+    }
+
+    expect(shot).toBe(true);
   });
 
   it("uses pressure to create pass and target-switch frames", () => {

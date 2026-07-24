@@ -19,6 +19,16 @@ import {
  */
 const BOT_POKE_RANGE = 80;
 
+/**
+ * Shot flicks are edge-triggered: only a stick jump reads as a wrist flick,
+ * and a flick that lands inside the 260ms post-release gesture cooldown is
+ * swallowed. A bot that held stickY at 1 after that never flicked again and
+ * ground on the goalie's crease holding the puck forever (playtest
+ * 2026-07-23). Pumping the stick on the sim tick re-flicks every few ticks
+ * until the shot actually fires.
+ */
+const SHOT_PUMP_PERIOD_TICKS = 4;
+
 /** Roles that hold a station — ease in and settle rather than orbiting it. */
 const SETTLING_INTENTS: ReadonlySet<BotIntent> = new Set([
   "support",
@@ -86,7 +96,10 @@ export function createBotInputFrame(
     moveX: movement.x,
     moveY: movement.y,
     stickX: 0,
-    stickY: shootFlick ? 1 : 0,
+    // Pump, don't hold: dip to neutral one tick per period so every period
+    // produces a fresh flick edge (see SHOT_PUMP_PERIOD_TICKS).
+    stickY:
+      shootFlick && world.time.tick % SHOT_PUMP_PERIOD_TICKS !== 0 ? 1 : 0,
     pass: decision.pass,
     check: decision.check,
     poke,
