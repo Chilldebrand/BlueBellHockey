@@ -114,8 +114,8 @@ export function stepGoalies(
   for (const goalie of world.goalies) {
     trackPuckInCrease(
       goalie,
-      world.puck.position.y,
-      world.puck.velocity.y,
+      world.puck.position,
+      world.puck.velocity,
       dtMs,
       config
     );
@@ -130,18 +130,42 @@ export function stepGoalies(
 
 function trackPuckInCrease(
   goalie: GoalieEntity,
-  puckY: number,
-  puckVelY: number,
+  puckPosition: Vec2,
+  puckVelocity: Vec2,
   dtMs: number,
   config: GoalieConfig
 ): void {
-  // React with human latency: aim where the puck was reactionDelayMs ago,
-  // estimated from its current lateral velocity. A hot shot or cross-crease
-  // pass leaves him a beat behind (far side opens); slow puck movement barely
-  // lags, so he keeps his angle.
-  const laggedY = puckY - puckVelY * (config.reactionDelayMs / 1000);
+  // React with human latency: aim off where the puck was reactionDelayMs
+  // ago, estimated from its current velocity. A hot shot or cross-crease
+  // pass leaves him a beat behind (far side opens); slow puck movement
+  // barely lags, so he keeps his angle.
+  const lagSeconds = config.reactionDelayMs / 1000;
+  const laggedX = puckPosition.x - puckVelocity.x * lagSeconds;
+  const laggedY = puckPosition.y - puckVelocity.y * lagSeconds;
+  const goalieX = goalie.teamId === "home" ? config.homeX : config.awayX;
+
+  // CUT THE ANGLE: stand where the puck→net-center line crosses the goalie's
+  // plane, not on the puck's own y. Mirroring the puck parked him on the near
+  // post whenever the carrier walked wide, leaving the entire far side open —
+  // cross-corner snaps/slaps were automatic goals (playtest 2026-07-23). From
+  // the angle line both corners are within reach; beating him now takes
+  // moving the puck faster than his lag+legs (one-timers, cross passes).
+  const netCenter = {
+    x: goalLineX(goalie.teamId),
+    y: RINK_CONFIG.height / 2
+  };
+  const puckUpIce =
+    goalie.teamId === "home" ? laggedX > goalieX : laggedX < goalieX;
+  const spanX = netCenter.x - laggedX;
+  const angleCutY =
+    puckUpIce && Math.abs(spanX) > 1e-6
+      ? laggedY +
+        (netCenter.y - laggedY) * clamp((goalieX - laggedX) / spanX, 0, 1)
+      : // At or behind his own plane (wraparounds, corner play): shadow the
+        // puck laterally like before so he hugs the near post.
+        laggedY;
   const targetY = clamp(
-    laggedY,
+    angleCutY,
     RINK_CONFIG.height / 2 - config.creaseHalfHeight,
     RINK_CONFIG.height / 2 + config.creaseHalfHeight
   );
@@ -149,7 +173,7 @@ function trackPuckInCrease(
   const delta = clamp(targetY - goalie.position.y, -maxMove, maxMove);
 
   goalie.position = {
-    x: goalie.teamId === "home" ? config.homeX : config.awayX,
+    x: goalieX,
     y: goalie.position.y + delta
   };
   goalie.velocity = {

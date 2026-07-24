@@ -3,6 +3,11 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { RINK_CONFIG, type Vec2 } from "@bbh/arcade-core";
 
 export interface CameraTargetInput {
+  /**
+   * Follow point: the carrier's body while the puck is carried (a carried
+   * puck hops between blade and feet on windups/dangles — following it
+   * directly reads as camera shake), otherwise the puck itself.
+   */
   readonly puck: Vec2;
   readonly rink?: {
     readonly width: number;
@@ -34,9 +39,10 @@ export function computeCameraPosition(target: Vec2): {
   readonly y: number;
   readonly z: number;
 } {
+  // Playtest 2026-07-23: pulled back 5% (760/940 → 798/987) to show more ice.
   return {
-    x: Math.round(target.x - 760),
-    y: 940,
+    x: Math.round(target.x - 798),
+    y: 987,
     z: Math.round(target.y)
   };
 }

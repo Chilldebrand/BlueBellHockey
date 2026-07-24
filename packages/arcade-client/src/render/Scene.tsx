@@ -94,6 +94,14 @@ export function Scene({
       : skater
     ).position
   }));
+  // Camera anchor: the carrier's rendered BODY while the puck is carried — a
+  // carried puck pops between blade and feet on windup entry/exit (slap parks
+  // it at the feet now), and following those pops read as camera shake. Loose
+  // pucks and shots keep the puck follow.
+  const cameraAnchor = puckCarrier
+    ? trackedSkaters.find((skater) => skater.id === puckCarrier.id)?.position ??
+      puckCarrier.position
+    : renderedPuck.position;
   const arrowsEnabled =
     currentWorld.phase === "playing" &&
     currentWorld.faceoffUntilMs <= currentWorld.time.nowMs;
@@ -109,7 +117,7 @@ export function Scene({
           far: 3000
         }}
       >
-        <CameraRig puck={renderedPuck.position} />
+        <CameraRig puck={cameraAnchor} />
         <OffscreenArrowTracker skaters={trackedSkaters} enabled={arrowsEnabled} />
         <ambientLight intensity={0.95} />
         <directionalLight position={[320, 900, 460]} intensity={1.25} castShadow />

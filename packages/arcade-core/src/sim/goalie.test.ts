@@ -4,11 +4,13 @@ import {
   GOALIE_CONFIG,
   MINI_GOALIE_SIZE,
   RINK_CONFIG,
+  bladeWorldPosition,
   createWorld,
   goalieHoldPosition,
   goalieSizeMultiplier,
   stepWorld,
   type GoalieEntity,
+  type InputFrame,
   type WorldState
 } from "../index";
 
@@ -16,6 +18,27 @@ function playingWorld(): WorldState {
   const world = createWorld(1, "arcade3v3");
   world.phase = "playing";
   return world;
+}
+
+function inputFrame(
+  slotId: string,
+  sequence: number,
+  overrides: Partial<InputFrame> = {}
+): InputFrame {
+  return {
+    playerId: "session-a",
+    slotId,
+    sequence,
+    moveX: 0,
+    moveY: 0,
+    stickX: 0,
+    stickY: 0,
+    pass: false,
+    check: false,
+    turbo: false,
+    switchTarget: false,
+    ...overrides
+  };
 }
 
 function homeGoalieOf(world: WorldState): GoalieEntity {
@@ -181,6 +204,61 @@ describe("goalie simulation", () => {
     expect(world.stats.saves.home).toBe(1);
     expect(world.puck.velocity.x).toBeGreaterThan(0);
     expect(world.puck.assistCandidateSlotId).toBeNull();
+  });
+
+  it("cuts the angle on a wide carrier instead of parking on the near post", () => {
+    const world = playingWorld();
+    const shooter = world.skaters.find((s) => s.id === "away-skater-1")!;
+    shooter.position = { x: 730, y: RINK_CONFIG.height / 2 + 320 };
+    shooter.facing = Math.PI; // bearing down on the home net from the wing
+    world.puck.carrierSlotId = shooter.id;
+    world.puck.position = { ...bladeWorldPosition(shooter) };
+
+    for (let tick = 1; tick <= 15; tick += 1) {
+      stepWorld(world, [inputFrame(shooter.id, tick)], 16);
+    }
+
+    const goalie = homeGoalieOf(world);
+    // Angle line from a +y-wing carrier crosses the goalie plane just above
+    // center — nowhere near the +y crease edge the old tracker slid to.
+    expect(goalie.position.y).toBeGreaterThan(RINK_CONFIG.height / 2);
+    expect(goalie.position.y).toBeLessThan(
+      RINK_CONFIG.height / 2 + GOALIE_CONFIG.creaseHalfHeight - 40
+    );
+  });
+
+  it("saves the cross-corner snap that used to be automatic from the wing", () => {
+    const world = playingWorld();
+    const shooter = world.skaters.find((s) => s.id === "away-skater-1")!;
+    shooter.position = { x: 730, y: RINK_CONFIG.height / 2 + 320 };
+    shooter.facing = Math.PI;
+    world.puck.carrierSlotId = shooter.id;
+    world.puck.position = { ...bladeWorldPosition(shooter) };
+    // Everyone else far up-ice, chasing from behind the shot line, so the
+    // save (or goal) is purely goalie-vs-shooter.
+    for (const skater of world.skaters) {
+      if (skater.id !== shooter.id) {
+        skater.position = { x: 1600 + Math.abs(skater.position.y % 400), y: skater.position.y };
+      }
+    }
+
+    // Let the goalie settle onto his angle while the carrier holds the wing.
+    for (let tick = 1; tick <= 15; tick += 1) {
+      stepWorld(world, [inputFrame(shooter.id, tick)], 16);
+    }
+
+    // Full-corner snap at the far (-y) post — the reported exploit.
+    shooter.gesture.pendingReleaseType = "snap";
+    shooter.gesture.pendingReleasePower = 0.9;
+    stepWorld(world, [inputFrame(shooter.id, 16, { moveY: -1 })], 16);
+    expect(world.puck.carrierSlotId).toBeNull();
+
+    for (let tick = 0; tick < 45; tick += 1) {
+      stepWorld(world, [], 16);
+    }
+
+    expect(world.score.away).toBe(0);
+    expect(world.stats.saves.home).toBe(1);
   });
 
   it("reacts with latency so a fast cross-crease puck opens the far side", () => {
