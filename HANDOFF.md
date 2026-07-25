@@ -42,8 +42,8 @@ Source links (download only from official Pixabay):
 `https://pixabay.com/music/beats-positive-hip-hop-184768/`, and
 `https://pixabay.com/music/beats-hip-hop-old-school-208627/`.
 
-**AWAITING USER VERDICT — dangle retention + momentum knockdowns (2026-07-24, committed
-locally, NOT pushed).** Two playtest asks, both fixed in the sim.
+**SHIPPED, AWAITING USER VERDICT — dangle retention + momentum knockdowns (2026-07-24,
+`c2a3eea`, pushed).** Two playtest asks, both fixed in the sim.
 
 (1) **A hard deke no longer knocks the puck off your own stick.** Ripping the stick fully across
 moves the blade ~78 units in ONE tick while the tethered puck physically cannot follow, so
@@ -74,7 +74,7 @@ All knobs in TUNING.check / TUNING.puck → Feel Lab. Verified: typecheck, 273 c
 (this is a big swing — full-turbo aligned hits now reliably flatten), whether dekes feel secure
 now, and whether braced-tank immunity at `anchorResistMultiplier` 1.2 still feels right.
 
-**AWAITING USER VERDICT — goalie deke bite (2026-07-24, committed locally, NOT pushed).** User
+**SHIPPED, AWAITING USER VERDICT — goalie deke bite (2026-07-24, `d07105e`, pushed).** User
 asked to explore making goalies bite on dekes in front of the net. Measured first: with a fixed
 rig (lone away carrier, everyone else chased up ice, dangle → snap back → wrist shot at the
 vacated corner, 24 seeds) a deke only ever beat the goalie from INSIDE the crease (x≈320) and
