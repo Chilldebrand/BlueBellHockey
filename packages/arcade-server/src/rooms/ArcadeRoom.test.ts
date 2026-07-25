@@ -1318,7 +1318,7 @@ describe("ArcadeRoom", () => {
     ).toThrow("room is full");
   });
 
-  it("throttles snapshots while idle but streams full-rate during play", () => {
+  it("throttles snapshots while idle and halves them during play", () => {
     const room = createTestRoom();
     const onMessage = vi.spyOn(room, "onMessage");
     const broadcast = vi
@@ -1339,7 +1339,10 @@ describe("ArcadeRoom", () => {
     }
     expect(snapshotCount()).toBe(2);
 
-    // Live play streams a snapshot on every tick again.
+    // Live play streams every 2nd tick (31.25/s): a full-world snapshot is
+    // ~8.8 KiB, and the client coalesces deliveries to one per animation
+    // frame anyway, so the per-tick stream was paying to send frames nothing
+    // ever drew. Prediction and interpolation cover the gap.
     const startHandler = onMessage.mock.calls.find(
       ([messageType]) => messageType === "client.requestStart"
     )?.[1];
@@ -1352,7 +1355,35 @@ describe("ArcadeRoom", () => {
     for (let i = 0; i < 10; i += 1) {
       room.tick(MATCH_CONFIG.fixedTickMs);
     }
-    expect(snapshotCount()).toBe(beforePlaying + 10);
+    expect(snapshotCount()).toBe(beforePlaying + 5);
+  });
+
+  it("sends a snapshot on the first tick of play, not a beat late", () => {
+    // The counter must reset when the phase flips, or the opening tick of a
+    // match (and of every restart) could land on the skipped half of the
+    // cycle and leave clients a tick behind at the faceoff.
+    const room = createTestRoom();
+    const broadcast = vi
+      .spyOn(room, "broadcast")
+      .mockImplementation(() => room as never);
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+
+    // Land on an odd idle tick so a shared counter would be mid-cycle.
+    for (let i = 0; i < 3; i += 1) {
+      room.tick(MATCH_CONFIG.fixedTickMs);
+    }
+    room["world"]!.phase = "playing";
+    const before = broadcast.mock.calls.filter(
+      ([messageType]) => messageType === "server.worldSnapshot"
+    ).length;
+
+    room.tick(MATCH_CONFIG.fixedTickMs);
+
+    expect(
+      broadcast.mock.calls.filter(
+        ([messageType]) => messageType === "server.worldSnapshot"
+      ).length
+    ).toBe(before + 1);
   });
 
   it("broadcasts authoritative world snapshots on each tick", () => {

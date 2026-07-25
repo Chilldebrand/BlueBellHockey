@@ -42,6 +42,28 @@ Source links (download only from official Pixabay):
 `https://pixabay.com/music/beats-positive-hip-hop-184768/`, and
 `https://pixabay.com/music/beats-hip-hop-old-school-208627/`.
 
+**SHIPPED — halved in-play snapshot rate (2026-07-25).** User is now playing the Railway deploy
+with friends, so the long-standing "snapshot bandwidth before real strangers play" item came due.
+MEASURED (don't re-estimate): a live full-world snapshot is **8,981 bytes of JSON** — at the old
+62.5/s that is 4.28 Mbit/s per client and ~25.7 Mbit/s of egress from one six-player room.
+Composition: skaters 57.7%, eventQueue 14.6%, stats 10.4%, goalies 6.5%, **puck only 5.7%**.
+Fix: `PLAYING_SNAPSHOT_TICK_INTERVAL = 2` in ArcadeRoom.ts (its own `playingTickCounter`, reset
+on phase flip so the first tick of play always sends) → 31.25/s, halving egress and serialization
+CPU. Near-free because `sessionBinding.ts` already coalesces deliveries to one per animation
+frame, so at 62.5/s roughly every other snapshot was discarded before it drew anything; the gap
+is covered by the input-replay prediction + interpolation that already exist.
+
+**DEAD END — do not retry:** "just send what the renderer draws" (a lean payload measures 468
+bytes, 5.2% of full) BREAKS client-side prediction. `predictLocalState` does `cloneWorld` then
+re-runs `stepWorld` over the snapshot, so the client needs the WHOLE world, not a render subset.
+Real remaining wins, in order: (1) move the retained `eventQueue` onto its own one-shot message —
+it is ~15% of every packet and pure history after first delivery; (2) send `stats` on change
+(~10%); (3) delta encoding; (4) float quantisation on the skaters block (58%). Also note
+`patchRate` is still the Colyseus 50 ms default — gameplay bypasses it entirely (custom
+`broadcast`), but roster/control-switch signals ride it, so "who you control" can be up to 50 ms
+stale on the client after a possession change; the per-tick snapshot's `inputAcks` are already
+keyed by active entity if that ever needs closing. Verified: typecheck, 276/103/280, smoke.
+
 **SHIPPED, AWAITING USER VERDICT — backskating (2026-07-25).** Hold **LT/L2** (gamepad) or **Q**
 (keyboard) to glide in the direction you push while the body stays turned the other way — the
 defenceman's retreat, stick pointed at the play. New optional `InputFrame.skateBackward`

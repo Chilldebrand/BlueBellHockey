@@ -112,8 +112,24 @@ const MAX_SIMULATION_STEPS_PER_TICK = 5;
 // Outside live play the world is static (the sim clock doesn't advance in
 // waiting/ended), so streaming 62.5 full-world snapshots/s to the lobby is
 // pure waste — measured as the main client CPU burn. One snapshot every 8th
-// tick (~8/s) keeps joins and postgame fresh; "playing" keeps the full rate.
+// tick (~8/s) keeps joins and postgame fresh.
 const IDLE_SNAPSHOT_TICK_INTERVAL = 8;
+// During play, every 2nd tick (31.25/s). A snapshot is a MEASURED 8.8 KiB of
+// JSON, so the old per-tick stream cost 4.3 Mbit/s per client — ~26 Mbit/s of
+// egress from one room of six, which the public Railway deploy pays for.
+//
+// Halving it is close to free on the client: deliveries are already coalesced
+// to one per animation frame, so at 62.5/s roughly every other snapshot was
+// dropped before anything drew it. The gap between snapshots is covered the
+// way it already is between frames — input-replay prediction for your own
+// skater, interpolation for everyone else.
+//
+// Do NOT "fix" this by trimming the payload to what the renderer draws: the
+// client re-runs stepWorld over this state to predict, so it needs the whole
+// world, not a render subset. Real further wins are delta encoding or moving
+// the retained eventQueue (~15% of every packet, and pure history after its
+// first delivery) onto its own one-shot message.
+const PLAYING_SNAPSHOT_TICK_INTERVAL = 2;
 // Room codes and player names are hostile input: they land in replicated
 // schema state and room metadata, so both are strictly bounded here.
 const PRIVATE_CODE_PATTERN = /^[A-Z0-9]{1,12}$/;
@@ -175,6 +191,7 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
   private accumulatedTickMs = 0;
   private botInputSequence = 0;
   private idleTickCounter = 0;
+  private playingTickCounter = 0;
   private roomCreatorSessionId: string | null = null;
   private matchRules: MatchRules = { ...DEFAULT_MATCH_RULES };
   private teamIdentities: Record<TeamId, TeamIdentityId> = {
@@ -391,8 +408,12 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
     // lobby/postgame world only needs an occasional refresh for new joins.
     if (this.world.phase === "playing") {
       this.idleTickCounter = 0;
-      this.broadcastSnapshot();
+      if (this.playingTickCounter % PLAYING_SNAPSHOT_TICK_INTERVAL === 0) {
+        this.broadcastSnapshot();
+      }
+      this.playingTickCounter += 1;
     } else {
+      this.playingTickCounter = 0;
       if (this.idleTickCounter % IDLE_SNAPSHOT_TICK_INTERVAL === 0) {
         this.broadcastSnapshot();
       }
