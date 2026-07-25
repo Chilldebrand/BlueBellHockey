@@ -42,6 +42,38 @@ Source links (download only from official Pixabay):
 `https://pixabay.com/music/beats-positive-hip-hop-184768/`, and
 `https://pixabay.com/music/beats-hip-hop-old-school-208627/`.
 
+**AWAITING USER VERDICT — dangle retention + momentum knockdowns (2026-07-24, committed
+locally, NOT pushed).** Two playtest asks, both fixed in the sim.
+
+(1) **A hard deke no longer knocks the puck off your own stick.** Ripping the stick fully across
+moves the blade ~78 units in ONE tick while the tethered puck physically cannot follow, so
+`separation > carryBreakDistance` (96) fired and the skill-stick's signature move read as a
+fumble. New `bladeSweepDistance` (stick.ts) + `PUCK_CONFIG.carryDangleAllowance` (3): the carry
+tolerance forgives `sweep × allowance` on top of the normal break distance. Scaled by the
+blade's OWN sweep, so it forgives nothing when the stick is still — a puck genuinely left
+behind by body movement or a turn breaks at exactly the old distance (both directions tested).
+Verified: full -1→+1 and +1→-1 swings, repeated, never lose possession.
+
+(2) **Knockdowns: a small fast skater can now flatten a big balanced one.** Report was "a lot of
+hits, a small amount of knockdowns", and it was arithmetic — `force = (closing + base) ×
+powerScale` maxed out around 1380 for rook-rocket (power 2) while a balance-5 target's
+threshold is 1560, so that knockdown was IMPOSSIBLE at any speed. Root cause of the general
+rarity: the 07-13 +30% (`knockdownForce` 1000→1300) was calibrated against the old 840 turbo
+ceiling, then the 07-21 10% pace cut (turbo 840→756) silently took another ~9% out of every
+hit. Fix keeps `knockdownForce` at 1300 (so cruise hits stay stumbles) and adds a MOMENTUM
+SURGE in actions.ts: `max(0, closingSpeed - momentumSurgeSpeed 700) × momentumSurgeScale 3.2`,
+added to the body force and applied OUTSIDE `powerScale` — momentum belongs to velocity, not
+build. Below 700 closing speed the formula is byte-identical to before (a test asserts cruise
+still stumbles and a standstill press still only shoves). Alignment discounts closing speed
+BEFORE the threshold, so a glancing brush at full tilt is still not a knockdown. Measured table
+(aligned, moving target): cruise 504 = stumble everywhere; 620 = stumble everywhere;
+rook(pow2,spd5) at his 779 ceiling = KNOCKDOWN on dash-iron(bal5); kip(pow3) KDs bal3 from 720
+and bal5 at 770; dash(pow5) KDs from 720 and is the only one who flattens a BRACED balance-5.
+All knobs in TUNING.check / TUNING.puck → Feel Lab. Verified: typecheck, 273 core / 102 server
+/ 279 client, two-client smoke. **USER EYEBALLS OWED:** knockdown frequency in a real match
+(this is a big swing — full-turbo aligned hits now reliably flatten), whether dekes feel secure
+now, and whether braced-tank immunity at `anchorResistMultiplier` 1.2 still feels right.
+
 **AWAITING USER VERDICT — goalie deke bite (2026-07-24, committed locally, NOT pushed).** User
 asked to explore making goalies bite on dekes in front of the net. Measured first: with a fixed
 rig (lone away carrier, everyone else chased up ice, dangle → snap back → wrist shot at the

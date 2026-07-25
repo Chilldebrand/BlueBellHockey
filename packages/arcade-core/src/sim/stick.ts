@@ -110,6 +110,24 @@ export function bladeWorldPosition(
 }
 
 /**
+ * How far the blade itself swept this tick, ignoring body motion. Rotation
+ * preserves length, so the raw local delta is the world distance.
+ *
+ * The carry tether uses this to tell a DANGLE apart from an over-dangle: when
+ * the stick rips across, the puck physically cannot keep pace with the blade
+ * for a few ticks, and without this a hard deke read as losing the puck.
+ */
+export function bladeSweepDistance(
+  skater: SkaterEntity,
+  config: StickConfig = STICK_CONFIG
+): number {
+  return Math.hypot(
+    (skater.stick.localY - skater.stick.prevLocalY) * config.forwardRange,
+    (skater.stick.localX - skater.stick.prevLocalX) * config.lateralRange
+  );
+}
+
+/**
  * World-space blade velocity over the last tick: body motion plus the blade's
  * own sweep. Drives poke direction and adds bite to gathered pucks.
  */

@@ -10,6 +10,7 @@ import {
 } from "./actions.js";
 import { clearPendingRelease } from "./gestures.js";
 import {
+  bladeSweepDistance,
   bladeWorldPosition,
   bladeWorldVelocity,
   carryRestWorldPosition
@@ -58,6 +59,16 @@ export interface PuckConfig {
   readonly carryMaxAccel: number;
   /** Blade-to-puck distance beyond which possession breaks (over-dangled). */
   readonly carryBreakDistance: number;
+  /**
+   * Multiples of the blade's own sweep this tick that are forgiven on top of
+   * carryBreakDistance. A hard dangle rips the blade across faster than the
+   * tethered puck can physically follow, and without this allowance the very
+   * move the skill stick exists for read as coughing the puck up. Scaled by
+   * the sweep, so it only ever forgives separation the STICK created — a puck
+   * left behind by body movement or a turn still breaks at the normal
+   * distance.
+   */
+  readonly carryDangleAllowance: number;
   /** Opponent blade within this of a carried puck pokes it loose. */
   readonly pokeRadius: number;
   /**
@@ -129,6 +140,7 @@ export const PUCK_CONFIG: PuckConfig = {
   carryStiffness: 19,
   carryMaxAccel: 34000,
   carryBreakDistance: 96,
+  carryDangleAllowance: 3,
   pokeRadius: 34,
   pokePrecisionRadius: 22,
   pokeAlignmentMin: 0.55,
@@ -330,10 +342,17 @@ function stepCarriedPuck(
   const toBladeY = blade.y - puck.position.y;
   const separation = Math.hypot(toBladeX, toBladeY);
   // Handling stat = puck security: soft hands keep the puck on the blade
-  // through harder dangles before it slips loose.
+  // through harder dangles before it slips loose. Separation the stick itself
+  // just created is forgiven (see carryDangleAllowance) — ripping the blade
+  // across IS the deke, not a fumble.
   const carryTolerance =
     config.carryBreakDistance *
-    characterStatMultiplier(carrier.characterId, "handling", HANDLING_STAT_SPREAD);
+      characterStatMultiplier(
+        carrier.characterId,
+        "handling",
+        HANDLING_STAT_SPREAD
+      ) +
+    bladeSweepDistance(carrier) * config.carryDangleAllowance;
 
   if (separation > carryTolerance) {
     // Over-dangled: the puck slips off the blade and rolls loose.

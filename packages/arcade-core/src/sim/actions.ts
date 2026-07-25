@@ -26,6 +26,20 @@ export interface CheckConfig {
   readonly baseCheckForce: number;
   /** Force multiplier per point of checker `power` above/below 3. */
   readonly powerStatScale: number;
+  /**
+   * Closing speed above which a check stops being a body-position contest and
+   * becomes a collision. Set above an aligned cruise hit so ordinary contact
+   * still just stumbles — you have to genuinely be flying.
+   */
+  readonly momentumSurgeSpeed: number;
+  /**
+   * Force per unit of closing speed above momentumSurgeSpeed. Deliberately
+   * applied OUTSIDE powerStatScale: momentum belongs to the puck-carrier's
+   * velocity, not their build, so a light speedster at full flight can put a
+   * heavy, well-balanced skater on the ice — which a pure power-scaled formula
+   * made arithmetically impossible.
+   */
+  readonly momentumSurgeScale: number;
   /** Threshold multiplier per point of target `balance` above/below 3. */
   readonly balanceStatScale: number;
   /** Targets moving slower than this are braced/anchored. */
@@ -64,17 +78,25 @@ export const CHECK_CONFIG: CheckConfig = {
   stumbleMs: 390,
   knockdownMs: 960,
   // NHL-style hitting: a standstill press only bumps (force 130), an aligned
-  // cruise hit (~780) stumbles + can strip, and knockdowns need a genuine
+  // cruise hit (~770) stumbles + can strip, and knockdowns take a genuine
   // freight-train hit (see hit.test.ts table). knockdownForce was 1000 until
-  // 2026-07-13; raised 30% by user request — a neutral turbo hit (~1180) now
-  // only stumbles, so flattening someone takes a power edge (power 4-5), a
-  // weak-balance victim (balance < 3), or the Big Hit powerup.
+  // 2026-07-13, when it was raised 30% by user request.
+  //
+  // Playtest 2026-07-24: "a lot of hits, a small amount of knockdowns" — that
+  // 30% was calibrated against the old 840 turbo ceiling, and the 2026-07-21
+  // 10% pace cut (turbo 840 → 756) then quietly took another ~9% out of every
+  // hit, leaving knockdowns near-impossible without Big Hit. Rather than drop
+  // the threshold (which would have cheapened cruise hits too), the momentum
+  // surge below puts the missing force back at the TOP of the speed range
+  // only, so flying at someone is what flattens them.
   stumbleForce: 520,
   knockdownForce: 1300,
   puckStripForce: 600,
   slideSpeed: 380,
   baseCheckForce: 130,
   powerStatScale: 0.12,
+  momentumSurgeSpeed: 700,
+  momentumSurgeScale: 3.2,
   balanceStatScale: 0.1,
   anchorSpeed: 140,
   anchorResistMultiplier: 1.2,
@@ -267,10 +289,18 @@ function resolveHit(
   const powerScale = 1 + (hitterStats.power - 3) * config.powerStatScale;
   const flickScale =
     config.flickPowerFloor + (1 - config.flickPowerFloor) * attemptPower;
+  // Closing speed: raw pace discounted by how squarely he is lined up, so a
+  // glancing brush at full flight is still only a brush.
+  const closingSpeed = magnitude(hitter.velocity) * (0.75 + alignment * 0.5);
+  const bodyForce = (closingSpeed + config.baseCheckForce) * powerScale;
+  // Above the surge speed the collision itself carries the hit, no power stat
+  // applied — this is the term that lets a small skater at full tilt flatten
+  // someone who out-muscles him, and it needs the same square alignment.
+  const surgeForce =
+    Math.max(0, closingSpeed - config.momentumSurgeSpeed) *
+    config.momentumSurgeScale;
   const force =
-    (magnitude(hitter.velocity) * (0.75 + alignment * 0.5) +
-      config.baseCheckForce) *
-    powerScale *
+    (bodyForce + surgeForce) *
     flickScale *
     (bulldozing ? BULLDOZER_FORCE_MULTIPLIER : 1);
 

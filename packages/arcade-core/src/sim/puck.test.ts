@@ -412,6 +412,43 @@ describe("puck simulation", () => {
     expect(snapY).toBeCloseTo(post - PUCK_CONFIG.snapPlacementMargin, 0);
   });
 
+  it("keeps the puck on the blade through a hard side-to-side dangle", () => {
+    // Playtest 2026-07-24: ripping the stick fully across popped the puck
+    // loose, so the hardest deke was self-defeating. The blade outruns the
+    // tethered puck by more than carryBreakDistance for a few ticks, which is
+    // dangling, not over-dangling.
+    const world = playingWorld();
+    const shooter = world.skaters[0];
+    world.puck.carrierSlotId = shooter.id;
+    world.puck.position = { ...bladeWorldPosition(shooter) };
+
+    let tick = 0;
+    for (const stickX of [-1, 1, -1, 1]) {
+      for (let held = 0; held < 12; held += 1) {
+        tick += 1;
+        stepWorld(world, [inputFrame(shooter.id, tick, { stickX })], 16);
+        expect(world.puck.carrierSlotId).toBe(shooter.id);
+      }
+    }
+  });
+
+  it("still strips a puck genuinely left behind by the skater", () => {
+    // The dangle allowance is scaled by the blade's OWN sweep, so it forgives
+    // nothing when the stick is still — a puck dragged away from a stationary
+    // blade is over-dangled and comes loose exactly as before.
+    const world = playingWorld();
+    const shooter = world.skaters[0];
+    world.puck.carrierSlotId = shooter.id;
+    world.puck.position = {
+      x: shooter.position.x + PUCK_CONFIG.carryBreakDistance + 220,
+      y: shooter.position.y
+    };
+
+    stepWorld(world, [inputFrame(shooter.id, 1)], 16);
+
+    expect(world.puck.carrierSlotId).toBeNull();
+  });
+
   it("keeps the puck at the feet through a slap windup instead of dragging it back", () => {
     const world = playingWorld();
     const shooter = world.skaters[0];
