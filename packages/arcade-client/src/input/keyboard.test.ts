@@ -5,10 +5,13 @@ import {
 } from "./keyboard.js";
 
 describe("keyboardStateFromPressedKeys", () => {
-  it("activates the held powerup with Q", () => {
+  it("backskates with Q", () => {
+    // Q used to fire a held powerup; pickups have auto-activated since
+    // 2026-07-13, so the key was bound to nothing the sim reads.
     const input = keyboardStateFromPressedKeys(new Set(["KeyQ"]));
 
-    expect(input.usePowerup).toBe(true);
+    expect(input.skateBackward).toBe(true);
+    expect(input.usePowerup).toBe(false);
   });
 
   it("clears held gameplay keys when settings suspend live input", () => {

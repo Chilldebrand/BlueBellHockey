@@ -1278,6 +1278,7 @@ function getClientInputFrame(message: unknown): InputFrame | null {
     pass: candidate.pass === true,
     check: candidate.check === true,
     turbo: candidate.turbo === true,
+    skateBackward: candidate.skateBackward === true,
     poke: candidate.poke === true,
     dive: candidate.dive === true,
     usePowerup: candidate.usePowerup === true

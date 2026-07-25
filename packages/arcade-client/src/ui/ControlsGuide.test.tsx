@@ -15,12 +15,13 @@ describe("ControlsGuide", () => {
     expect(html).toContain("B · Shoulder check");
     expect(html).toContain("X · Hip check");
     expect(html).toContain("Click (L3) · Turbo");
+    expect(html).toContain("LT · Backskate");
   });
 
   it("lists every keyboard and mouse binding", () => {
     const html = renderToStaticMarkup(<ControlsGuide />);
 
-    for (const key of ["W", "A", "S", "D", "Shift", "Mouse", "Space", "F", "G", "R", "V"]) {
+    for (const key of ["W", "A", "S", "D", "Shift", "Q", "Mouse", "Space", "F", "G", "R", "V"]) {
       expect(html).toContain(`<kbd>${key}</kbd>`);
     }
     expect(html).toContain("Body check");

@@ -104,7 +104,10 @@ export function keyboardStateFromPressedKeys(
     check: pressed.has("KeyG"),
     poke: pressed.has("KeyR"),
     dive: pressed.has("KeyV"),
-    usePowerup: pressed.has("KeyQ"),
+    // Q was the held-powerup key until pickups auto-activated (2026-07-13),
+    // leaving it bound to a control the sim ignores. It is the keyboard's
+    // LT: reachable without leaving WASD, so it takes the backskate.
+    skateBackward: pressed.has("KeyQ"),
     turbo: pressed.has("ShiftLeft") || pressed.has("ShiftRight")
   };
 }

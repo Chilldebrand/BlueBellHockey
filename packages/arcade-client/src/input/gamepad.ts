@@ -16,7 +16,7 @@ export interface GamepadLike {
  *   A / RT (R2) = pass (offense) / switch skater (defense); hold to charge
  *   B  = shoulder check      X = hip check   (both body checks here)
  *   LB = block shot (dive)   RB = poke check
- *   L3 = skate/hustle (turbo)
+ *   LT (L2) = backskate      L3 = skate/hustle (turbo)
  * Passing is aimed with the left stick — there is no target-cycle button.
  */
 export function gamepadStateFromGamepad(
@@ -43,6 +43,7 @@ export function gamepadStateFromGamepad(
       gamepad.buttons[2]?.pressed === true, // X — hip check
     dive: gamepad.buttons[4]?.pressed === true, // LB — block shot
     poke: gamepad.buttons[5]?.pressed === true, // RB — poke check
+    skateBackward: gamepad.buttons[6]?.pressed === true, // LT / L2 — backskate
     turbo: gamepad.buttons[10]?.pressed === true // L3 — hustle
   };
 }

@@ -49,6 +49,16 @@ export interface SkaterMovementConfig {
   readonly windupSpeedMultiplier: number;
   /** Speed cap multiplier while stumbling (hit recovery / check whiff). */
   readonly stumbleSpeedMultiplier: number;
+  /** Top-speed multiplier while backskating — you give up pace to face the play. */
+  readonly backwardSpeedMultiplier: number;
+  /** Acceleration multiplier while backskating (C-cuts, not crossovers). */
+  readonly backwardAccelerationMultiplier: number;
+  /**
+   * Turn-rate multiplier while backskating. Pivoting the body on your heels is
+   * slower than carving forward, so reversing which way you are retreating
+   * costs a beat — that beat is what an attacker cuts around.
+   */
+  readonly backwardTurnRateMultiplier: number;
 }
 
 // Sustained multiplier applied to top speed + acceleration while the
@@ -85,7 +95,10 @@ export const SKATER_MOVEMENT_CONFIG: SkaterMovementConfig = {
   turboMinActivation: 0.08,
   knockdownDrag: 3.05,
   windupSpeedMultiplier: 0.62,
-  stumbleSpeedMultiplier: 0.55
+  stumbleSpeedMultiplier: 0.55,
+  backwardSpeedMultiplier: 0.72,
+  backwardAccelerationMultiplier: 0.7,
+  backwardTurnRateMultiplier: 0.8
 };
 
 /**
@@ -127,8 +140,14 @@ export function stepSkater(
 
   const move = normalizedMovement(input);
   const hasInput = magnitude(move) > 0;
+  // Backskate: travel the way the stick pushes while the body stays turned
+  // the other way. Nobody hustles backwards, so turbo is simply off while it
+  // is held (and the meter refills, as it does any time turbo is inactive).
+  const backward = input?.skateBackward === true;
   const turboActive =
-    input?.turbo === true && skater.turboMeter >= config.turboMinActivation;
+    !backward &&
+    input?.turbo === true &&
+    skater.turboMeter >= config.turboMinActivation;
 
   skater.turboMeter = clamp(
     skater.turboMeter +
@@ -144,18 +163,25 @@ export function stepSkater(
     config.maxSpeed *
     boost *
     (turboActive ? config.turboMaxSpeedMultiplier : 1) *
+    (backward ? config.backwardSpeedMultiplier : 1) *
     (skater.gesture.phase === "windup" ? config.windupSpeedMultiplier : 1) *
     (skater.contactState === "stumbling" ? config.stumbleSpeedMultiplier : 1);
   const speed = magnitude(skater.velocity);
   let braking = false;
 
   if (hasInput) {
-    const desired = angleOf(move);
+    // The body aims OPPOSITE the push while backskating, and thrust then runs
+    // out through the skater's back — so everything below (turn, alignment,
+    // braking) is the same contest, just measured against the reversed body
+    // angle. Facing is what the stick, checks, and shots all key off, which is
+    // exactly why retreating this way keeps your stick pointed at the play.
+    const desired = backward ? angleOf(move) + Math.PI : angleOf(move);
     const speedFactor = maxSpeed > 0 ? clamp(speed / maxSpeed, 0, 1) : 1;
     const turnRate =
       config.turnRate *
       (1 - speedFactor * (1 - config.highSpeedTurnRetention)) *
-      (turboActive ? config.turboTurnRateMultiplier : 1);
+      (turboActive ? config.turboTurnRateMultiplier : 1) *
+      (backward ? config.backwardTurnRateMultiplier : 1);
 
     skater.facing = turnToward(skater.facing, desired, turnRate * dt);
 
@@ -166,9 +192,11 @@ export function stepSkater(
         config.acceleration *
         boost *
         (turboActive ? config.turboAccelerationMultiplier : 1) *
+        (backward ? config.backwardAccelerationMultiplier : 1) *
         alignment;
-      skater.velocity.x += Math.cos(skater.facing) * thrust * dt;
-      skater.velocity.y += Math.sin(skater.facing) * thrust * dt;
+      const push = backward ? -1 : 1;
+      skater.velocity.x += Math.cos(skater.facing) * push * thrust * dt;
+      skater.velocity.y += Math.sin(skater.facing) * push * thrust * dt;
     } else if (alignment < -0.35) {
       // Stick pulled against the body: dig in and stop hard.
       braking = true;

@@ -42,6 +42,25 @@ Source links (download only from official Pixabay):
 `https://pixabay.com/music/beats-positive-hip-hop-184768/`, and
 `https://pixabay.com/music/beats-hip-hop-old-school-208627/`.
 
+**SHIPPED, AWAITING USER VERDICT — backskating (2026-07-25).** Hold **LT/L2** (gamepad) or **Q**
+(keyboard) to glide in the direction you push while the body stays turned the other way — the
+defenceman's retreat, stick pointed at the play. New optional `InputFrame.skateBackward`
+threaded client → wire → server whitelist (`getClientInputFrame`) → sim. In `stepSkater` the
+desired FACING becomes `angleOf(move) + π` and thrust runs out through the skater's back
+(`push = -1`); everything downstream (turn rate, alignment, braking, anisotropic drag, checks,
+stick, shots) is unchanged and keys off facing as before, which is exactly why your stick stays
+up-ice while retreating. Costs: `backwardSpeedMultiplier` 0.72, `backwardAccelerationMultiplier`
+0.7, `backwardTurnRateMultiplier` 0.8, and turbo is FORCED OFF while held (nobody hustles
+backwards; the meter refills instead of draining). Engaging it while already moving forward
+costs a real ~0.4s 180° pivot — that is deliberate, not a bug. Absent/false the flag leaves
+skating byte-identical (asserted). Bots never set it. Q was the dead held-powerup binding
+(pickups have auto-activated since 2026-07-13), so nothing was displaced. `ControlsGuide.tsx`
+gained an `LT · Backskate` callout + the Q row; verified LIVE in the settings overlay via the
+preview browser (label renders, zero SVG text overlaps, nothing out of the viewBox, no console
+errors). Verified: typecheck, 276 core / 102 server / 280 client, two-client smoke.
+**USER EYEBALLS OWED:** backskate pace and pivot feel with a real pad, whether LT conflicts with
+anything in your grip, and whether the retreat is useful on defense at 0.72 speed.
+
 **SHIPPED, AWAITING USER VERDICT — dangle retention + momentum knockdowns (2026-07-24,
 `c2a3eea`, pushed).** Two playtest asks, both fixed in the sim.
 
@@ -720,8 +739,11 @@ with `docs/workorders/WO-AI-00-tactical-context.md`, then follow the dependency 
 ## Controls (current)
 Gamepad: Left stick skate, **Right stick = skill stick** (up-flick = wrist shot with puck, HIT
 attempt without; pull back + flick = slap), **A / RT / R2 = pass (hold to charge) / manual switch
-when not carrying**, B/X = body check, RB poke, LB dive, L3 hustle.
-Keyboard: WASD move, IJKL/mouse stick, Space simple shot, F pass, G check, R poke, V dive, Shift turbo.
+when not carrying**, B/X = body check, RB poke, LB dive, **LT/L2 backskate**, L3 hustle.
+Keyboard: WASD move, IJKL/mouse stick, Space simple shot, F pass, G check, R poke, V dive,
+**Q backskate**, Shift turbo. (Q was the dead held-powerup key before 2026-07-24.)
+The controls reference in the settings overlay (`ui/ControlsGuide.tsx`) mirrors these three input
+modules by hand — update it whenever a binding changes.
 Shots auto-aim at the net; LEFT stick at release places them (sides/high/low).
 
 ## Known next steps / open questions

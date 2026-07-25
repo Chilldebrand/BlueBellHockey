@@ -14,6 +14,10 @@ const KEYBOARD_MOUSE_BINDINGS: readonly KeyBinding[] = [
   { keys: ["W", "A", "S", "D"], action: "Skate (arrow keys work too)" },
   { keys: ["Shift"], action: "Turbo" },
   {
+    keys: ["Q"],
+    action: "Backskate — hold to glide where you push while facing the play"
+  },
+  {
     keys: ["Mouse"],
     action:
       "Skill stick — flick up: wrist · straight back, flick up: slap · side then back: snap"
@@ -47,6 +51,15 @@ interface Callout {
 }
 
 const CALLOUTS: readonly Callout[] = [
+  {
+    label: "LT · Backskate",
+    points: [
+      [257, 66],
+      [152, 66]
+    ],
+    labelAt: [10, 66],
+    anchor: "start"
+  },
   {
     label: "LB · Dive / block shot",
     points: [

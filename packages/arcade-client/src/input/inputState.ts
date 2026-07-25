@@ -11,6 +11,8 @@ export interface ArcadeInputState {
   readonly pass: boolean;
   readonly check: boolean;
   readonly turbo: boolean;
+  /** Backskate: glide the way you push while staying turned toward the play. */
+  readonly skateBackward: boolean;
   readonly poke: boolean;
   readonly dive: boolean;
   readonly usePowerup: boolean;
@@ -26,6 +28,7 @@ export function createNeutralInputState(): ArcadeInputState {
     pass: false,
     check: false,
     turbo: false,
+    skateBackward: false,
     poke: false,
     dive: false,
     usePowerup: false
@@ -57,6 +60,7 @@ export function createInputFrame({
     pass: input.pass,
     check: input.check,
     turbo: input.turbo,
+    skateBackward: input.skateBackward,
     poke: input.poke,
     dive: input.dive,
     usePowerup: input.usePowerup
@@ -78,6 +82,7 @@ export function mergeInputStates(
     pass: primary.pass || secondary.pass,
     check: primary.check || secondary.check,
     turbo: primary.turbo || secondary.turbo,
+    skateBackward: primary.skateBackward || secondary.skateBackward,
     poke: primary.poke || secondary.poke,
     dive: primary.dive || secondary.dive,
     usePowerup: primary.usePowerup || secondary.usePowerup

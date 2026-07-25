@@ -30,6 +30,12 @@ export interface InputFrame {
    * system it once cycled is gone. Tolerated on the wire, ignored by the sim.
    */
   readonly switchTarget?: boolean;
+  /**
+   * Backskate (LT / Q): glide in the direction being pushed while the body
+   * stays turned the other way — the defenceman's retreat, stick out front.
+   * Costs top speed and acceleration, and you cannot hustle while holding it.
+   */
+  readonly skateBackward?: boolean;
   /** Poke check: lunge the blade forward at the puck (defense). */
   readonly poke?: boolean;
   /** Block shot: dive/lay out in the facing direction (defense). */

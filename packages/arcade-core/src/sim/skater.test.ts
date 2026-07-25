@@ -100,6 +100,85 @@ describe("skater movement", () => {
     );
   });
 
+  it("backskates the way the stick pushes while the body faces the other way", () => {
+    const world = playingWorld();
+    const skater = world.skaters[0]; // home: spawns facing +x
+    const startX = skater.position.x;
+
+    // Push toward -x (retreating down ice) with backskate held.
+    for (let tick = 0; tick < 12; tick += 1) {
+      stepWorld(
+        world,
+        [inputFrame(skater.id, tick + 1, { moveX: -1, skateBackward: true })],
+        100
+      );
+    }
+
+    // Travelling -x…
+    expect(skater.position.x).toBeLessThan(startX);
+    expect(skater.velocity.x).toBeLessThan(0);
+    // …while still squared up the way he came from, which is the whole point:
+    // his stick and any check stay pointed at the play.
+    expect(Math.cos(skater.facing)).toBeGreaterThan(0.9);
+  });
+
+  it("costs top speed to backskate, and hustle is unavailable", () => {
+    // All three start at centre ice driving +x, already squared the way that
+    // input implies (backskating +x means facing -x), so no one burns the
+    // window on the 180° pivot and no one reaches the boards. The character's
+    // speed stat then cancels out of the ratio.
+    const run = (overrides: Partial<InputFrame>) => {
+      const world = playingWorld();
+      const skater = world.skaters[0];
+      skater.position = { x: RINK_CONFIG.width / 2, y: RINK_CONFIG.height / 2 };
+      skater.facing = overrides.skateBackward === true ? Math.PI : 0;
+      // Clear the lane: nobody to bump into and no puck to pick up, so the
+      // only thing shaping the run is the movement model.
+      for (const other of world.skaters) {
+        if (other.id !== skater.id) {
+          other.position = { x: 200, y: 200 };
+        }
+      }
+      world.puck.position = { x: 200, y: 1400 };
+      for (let tick = 0; tick < 12; tick += 1) {
+        stepWorld(world, [inputFrame(skater.id, tick + 1, { moveX: 1, ...overrides })], 100);
+      }
+      return world;
+    };
+
+    const cruise = run({});
+    const back = run({ skateBackward: true });
+    const turboBack = run({ skateBackward: true, turbo: true });
+    const id = cruise.skaters[0].id;
+
+    expect(speedOf(back, id) / speedOf(cruise, id)).toBeCloseTo(
+      SKATER_MOVEMENT_CONFIG.backwardSpeedMultiplier,
+      2
+    );
+    // Holding turbo while backskating changes nothing — and because turbo
+    // never engaged, the meter is full rather than drained.
+    expect(speedOf(turboBack, id)).toBeCloseTo(speedOf(back, id), 6);
+    expect(turboBack.skaters[0].turboMeter).toBe(1);
+  });
+
+  it("leaves forward skating untouched when the flag is absent", () => {
+    const withFlag = playingWorld();
+    const without = playingWorld();
+    const id = withFlag.skaters[0].id;
+
+    for (let tick = 0; tick < 20; tick += 1) {
+      stepWorld(
+        withFlag,
+        [inputFrame(id, tick + 1, { moveX: 1, moveY: 0.4, skateBackward: false })],
+        100
+      );
+      stepWorld(without, [inputFrame(id, tick + 1, { moveX: 1, moveY: 0.4 })], 100);
+    }
+
+    expect(withFlag.skaters[0].position).toEqual(without.skaters[0].position);
+    expect(withFlag.skaters[0].facing).toBe(without.skaters[0].facing);
+  });
+
   it("glides on after input is released, decaying gradually", () => {
     const world = playingWorld();
     const skater = world.skaters[0];
