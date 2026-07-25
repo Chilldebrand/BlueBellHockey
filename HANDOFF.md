@@ -42,6 +42,34 @@ Source links (download only from official Pixabay):
 `https://pixabay.com/music/beats-positive-hip-hop-184768/`, and
 `https://pixabay.com/music/beats-hip-hop-old-school-208627/`.
 
+**AWAITING USER VERDICT — goalie deke bite (2026-07-24, committed locally, NOT pushed).** User
+asked to explore making goalies bite on dekes in front of the net. Measured first: with a fixed
+rig (lone away carrier, everyone else chased up ice, dangle → snap back → wrist shot at the
+vacated corner, 24 seeds) a deke only ever beat the goalie from INSIDE the crease (x≈320) and
+at one razor-thin timing at x≈380; from the slot out it was 2-7/24. Cause: the 07-23 angle-cut
+positioning compresses a full stick dangle (~144 units of puck travel) to ~20-40% of that at
+the goalie's plane, i.e. well inside his 84 reach. Fix in `trackPuckInCrease` (goalie.ts),
+gated by new pure `dekeBiteFactor(world, goalie, config)` — nonzero ONLY for an ATTACKING
+skater CARRYING the puck, ramped linearly from 1 at the goal mouth to 0 at `biteZoneDepth`, so
+shots in flight, rebounds, net-front scrambles and his own D behind the net are untouched, and
+outside the zone tracking is bit-identical to before. Two knobs, both ramp-scaled:
+`biteLagBoost` 1.5 (extra multiples of `reactionDelayMs` in tight — he over-reads a moving
+puck, so a dangle drags him off his angle and the catch-up slide is longer/faster) and
+`biteLungeAccel` 4200 / `biteRecoverAccel` 1700 (slow to stop, fast to go — reversing a live
+slide is what the deke buys). ALL knobs in GOALIE_CONFIG → TUNING.goalie → Feel Lab.
+Deliberately keyed off puck MOTION only: park the puck wide and he squares back onto the angle
+line (a test asserts this), so there is no stand-still position that beats him. Measured after:
+dekes work across the whole front of the net (x≈320-380, most timings), still fail from x≥440,
+and the control case — same shot, same spot, moved slowly — stays 1/24 at EVERY distance, so an
+honest shooter's odds are unchanged. Bots emit `stickX: 0` and never dangle, so this is a
+human-only tool; the AI cannot use it on your net. Verified: typecheck, 268 core / 102 server /
+279 client, two-client smoke. **USER EYEBALLS OWED:** whether dekes now feel rewarding without
+being automatic, whether the goalie's read/hesitation looks right rather than twitchy, and
+whether the shootout mode's solo-rush difficulty is fixed by this (it was already flagged as
+possibly needing a nerf). Crank `biteLagBoost` / widen `biteZoneDepth` in Feel Lab for more.
+NOTE (pre-existing, unchanged): a full -1→+1 stick swing in one tick exceeds
+`carryBreakDistance` 96 and pops the puck loose — hard dekes become loose-puck scrambles.
+
 **LATEST SHIPPED — Shootout mode (2026-07-24, approved plan).** Solo mode from the main menu
 (below Free Skate): pick a shooter (reuses CharacterSelect, Done = start), spawn at CENTER ICE
 with the puck, five ONE-SHOT attempts on the standard away goalie, respawn at center after

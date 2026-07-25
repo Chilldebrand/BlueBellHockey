@@ -76,6 +76,39 @@ export interface GoalieConfig {
   readonly missChanceFloor: number;
   /** Miss chance of the hardest save (full-speed shot at the reach edge). */
   readonly missChanceCap: number;
+  /**
+   * Distance from the goal line inside which an ATTACKING carrier makes the
+   * goalie read the dangle instead of calmly playing the angle. Ramped: full
+   * effect at the goal mouth, nothing at the zone edge, so nothing snaps as a
+   * carrier crosses in. Both bite knobs below are scaled by that same ramp, so
+   * outside this zone goalie tracking is bit-for-bit what it always was.
+   */
+  readonly biteZoneDepth: number;
+  /**
+   * Extra multiples of reactionDelayMs applied against a deker in tight — he
+   * over-reads a moving puck, so a dangle drags him further off his angle and
+   * the catch-up slide when it settles is longer and faster. That slide is the
+   * thing you beat by pulling the puck back.
+   *
+   * Deliberately keyed off puck MOTION only: park the puck out to one side and
+   * the lag term vanishes and he squares up on his angle again, so there is no
+   * standing-still position that beats him — you have to actually move it.
+   */
+  readonly biteLagBoost: number;
+  /**
+   * Lateral acceleration while COMMITTING in tight (starting or continuing a
+   * push toward the puck). Explosive, like a real post push — he answers a
+   * dangle fast, which is exactly what makes him baitable.
+   */
+  readonly biteLungeAccel: number;
+  /**
+   * Lateral acceleration while REVERSING in tight (the puck went back the
+   * other way while he is still sliding). Deliberately sluggish: he has to
+   * kill the slide and reset his edge, and that is the window the deke buys.
+   * Slow to stop, fast to go — so a deke only works if you pull it back WHILE
+   * he is moving. A lazy dangle he has already settled on is still stopped.
+   */
+  readonly biteRecoverAccel: number;
 }
 
 export const GOALIE_CONFIG: GoalieConfig = {
@@ -97,7 +130,16 @@ export const GOALIE_CONFIG: GoalieConfig = {
   reboundMinSpeed: 320,
   reactionDelayMs: 120,
   missChanceFloor: 0.02,
-  missChanceCap: 0.15
+  missChanceCap: 0.15,
+  // Playtest 2026-07-24: dekes did nothing. Angle-cut positioning compressed a
+  // dangle to a fraction of its travel, so a deke only ever beat him from
+  // inside the crease. These extend "a deke beats him" across the whole front
+  // of the net while leaving perimeter dekes useless and — measured — leaving
+  // an honest shooter's odds against him completely unchanged.
+  biteZoneDepth: 300,
+  biteLagBoost: 1.5,
+  biteLungeAccel: 4200,
+  biteRecoverAccel: 1700
 };
 
 export type GoalieSaveType = "pad" | "body" | "glove" | "blocker" | "cover";
@@ -133,6 +175,7 @@ export function stepGoalies(
       goalie,
       world.puck.position,
       world.puck.velocity,
+      dekeBiteFactor(world, goalie, config),
       dtMs,
       config
     );
@@ -145,10 +188,40 @@ export function stepGoalies(
   }
 }
 
+/**
+ * How hard this goalie is reading a dangle right now, 0..1.
+ *
+ * Only an ATTACKING skater CARRYING the puck in tight makes him bite: a deke
+ * is a carried-puck move, so shots in flight, rebounds, net-front scrambles
+ * and his own defencemen cycling behind the net all keep the pure angle cut
+ * and the old symmetric acceleration. Ramps linearly with depth so nothing
+ * jumps as the carrier crosses the zone edge. Pure + deterministic.
+ */
+export function dekeBiteFactor(
+  world: WorldState,
+  goalie: GoalieEntity,
+  config: GoalieConfig = GOALIE_CONFIG
+): number {
+  const carrierId = world.puck.carrierSlotId;
+  if (!carrierId) {
+    return 0;
+  }
+
+  const carrier = world.skaters.find((skater) => skater.id === carrierId);
+  if (!carrier || carrier.teamId === goalie.teamId) {
+    return 0;
+  }
+
+  const depth = Math.abs(world.puck.position.x - goalLineX(goalie.teamId));
+
+  return clamp(1 - depth / Math.max(config.biteZoneDepth, 1), 0, 1);
+}
+
 function trackPuckInCrease(
   goalie: GoalieEntity,
   puckPosition: Vec2,
   puckVelocity: Vec2,
+  biteFactor: number,
   dtMs: number,
   config: GoalieConfig
 ): void {
@@ -156,7 +229,13 @@ function trackPuckInCrease(
   // ago, estimated from its current velocity. A hot shot or cross-crease
   // pass leaves him a beat behind (far side opens); slow puck movement
   // barely lags, so he keeps his angle.
-  const lagSeconds = config.reactionDelayMs / 1000;
+  //
+  // Against a deker in tight that read is deliberately over-cooked: the dangle
+  // drags him further off his angle, and when it settles he has a longer, much
+  // faster catch-up slide to make. Beating him means pulling the puck back
+  // while that slide is still running.
+  const lagSeconds =
+    (config.reactionDelayMs * (1 + config.biteLagBoost * biteFactor)) / 1000;
   const laggedX = puckPosition.x - puckVelocity.x * lagSeconds;
   const laggedY = puckPosition.y - puckVelocity.y * lagSeconds;
   const goalieX = goalie.teamId === "home" ? config.homeX : config.awayX;
@@ -190,14 +269,28 @@ function trackPuckInCrease(
   // (dekes) and a cold start can't instantly hit top speed (cross-crease
   // one-timers). Arrival braking (v² = 2·a·d) keeps him from ringing around
   // the target under the accel cap.
+  //
+  // In tight that momentum turns asymmetric — SLOW TO STOP, FAST TO GO. He
+  // commits to a dangle explosively (lungeAccel) but has to kill the slide and
+  // reset his edge to answer the puck coming back (recoverAccel). So the deke
+  // that beats him is the one pulled back WHILE he is still sliding; a dangle
+  // he has already settled on is just a shot into a set goalie. Both accels
+  // ease back to the plain lateralAccel as the bite ramps out, so play outside
+  // the zone is unchanged.
   const dtSeconds = dtMs / 1000;
+  const commitAccel =
+    config.lateralAccel +
+    (config.biteLungeAccel - config.lateralAccel) * biteFactor;
+  const recoverAccel =
+    config.lateralAccel +
+    (config.biteRecoverAccel - config.lateralAccel) * biteFactor;
   const distanceToTarget = targetY - goalie.position.y;
-  const brakeSpeed = Math.sqrt(
-    2 * config.lateralAccel * Math.abs(distanceToTarget)
-  );
+  const brakeSpeed = Math.sqrt(2 * commitAccel * Math.abs(distanceToTarget));
   const desiredVelocity =
     Math.sign(distanceToTarget) * Math.min(config.lateralSpeed, brakeSpeed);
-  const maxVelocityStep = config.lateralAccel * dtSeconds;
+  // Reversing = the puck is now on the other side of him than he is moving.
+  const isReversing = desiredVelocity * goalie.velocity.y < 0;
+  const maxVelocityStep = (isReversing ? recoverAccel : commitAccel) * dtSeconds;
   const velocity = clamp(
     desiredVelocity,
     goalie.velocity.y - maxVelocityStep,

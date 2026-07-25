@@ -7,6 +7,8 @@ import {
   RINK_CONFIG,
   bladeWorldPosition,
   createWorld,
+  dekeBiteFactor,
+  goalLineX,
   goalieHoldPosition,
   goalieSizeMultiplier,
   saveMissChance,
@@ -333,6 +335,146 @@ describe("goalie momentum", () => {
     expect(homeGoalieOf(world).velocity.y).toBeGreaterThan(
       GOALIE_CONFIG.lateralSpeed - GOALIE_CONFIG.lateralAccel * 0.016 - 1e-6
     );
+  });
+});
+
+describe("goalie deke bite", () => {
+  /**
+   * Park an away carrier square in front of the home net with everyone else
+   * chased far up ice, so what happens next is purely deker vs goalie.
+   */
+  function dekeSetup(world: WorldState, carrierX: number) {
+    const shooter = world.skaters.find((s) => s.id === "away-skater-1")!;
+    shooter.position = { x: carrierX, y: RINK_CONFIG.height / 2 };
+    shooter.facing = Math.PI;
+    world.puck.carrierSlotId = shooter.id;
+    world.puck.position = { ...bladeWorldPosition(shooter) };
+    for (const skater of world.skaters) {
+      if (skater.id !== shooter.id) {
+        skater.position = { x: 2200, y: skater.position.y };
+      }
+    }
+    return shooter;
+  }
+
+  /**
+   * One attempt on the home goalie from `carrierX`.
+   *
+   * `deke` walks the puck hard to one side, holds it there `dangleTicks`, then
+   * snaps it back and shoots the side he vacated. `slow` eases the puck to that
+   * SAME final spot and shoots the SAME corner, just gently enough for any
+   * goalie to stay with it — so the pair isolates "beaten by the move" from
+   * "the shot simply came from somewhere else".
+   */
+  function attempt(options: {
+    readonly carrierX: number;
+    readonly dangleTicks?: number;
+    readonly slow?: boolean;
+  }): WorldState {
+    const world = playingWorld();
+    const shooter = dekeSetup(world, options.carrierX);
+    let sequence = 0;
+    const step = (overrides: Partial<InputFrame>) => {
+      sequence += 1;
+      stepWorld(world, [inputFrame(shooter.id, sequence, overrides)], 16);
+    };
+
+    for (let i = 0; i < 20; i += 1) step({ stickX: 0 });
+    if (options.slow) {
+      for (let i = 0; i < 40; i += 1) step({ stickX: (0.5 * (i + 1)) / 40 });
+      for (let i = 0; i < 25; i += 1) step({ stickX: 0.5 });
+    } else {
+      for (let i = 0; i < (options.dangleTicks ?? 18); i += 1) step({ stickX: -1 });
+      for (let i = 0; i < 4; i += 1) step({ stickX: 0.5 });
+    }
+
+    shooter.gesture.pendingReleaseType = "wrist";
+    shooter.gesture.pendingReleasePower = 0.9;
+    step({ stickX: 0.5, moveY: -1 });
+    for (let i = 0; i < 45; i += 1) stepWorld(world, [], 16);
+
+    return world;
+  }
+
+  it("only bites for an attacking carrier in tight", () => {
+    const world = playingWorld();
+    const goalie = homeGoalieOf(world);
+    const shooter = dekeSetup(world, 320);
+
+    // Carried by an attacker at the goal mouth → full bite.
+    world.puck.position = { x: goalLineX("home"), y: RINK_CONFIG.height / 2 };
+    expect(dekeBiteFactor(world, goalie)).toBeCloseTo(1, 6);
+
+    // Ramped down with depth, and gone at the zone edge.
+    world.puck.position = {
+      x: goalLineX("home") + GOALIE_CONFIG.biteZoneDepth / 2,
+      y: RINK_CONFIG.height / 2
+    };
+    expect(dekeBiteFactor(world, goalie)).toBeCloseTo(0.5, 6);
+    world.puck.position = {
+      x: goalLineX("home") + GOALIE_CONFIG.biteZoneDepth + 10,
+      y: RINK_CONFIG.height / 2
+    };
+    expect(dekeBiteFactor(world, goalie)).toBe(0);
+
+    // A loose puck in tight is a scramble, not a deke: no bite.
+    world.puck.position = { x: goalLineX("home"), y: RINK_CONFIG.height / 2 };
+    world.puck.carrierSlotId = null;
+    expect(dekeBiteFactor(world, goalie)).toBe(0);
+
+    // Nor does his own defenceman cycling in tight pull him off his angle.
+    const defender = world.skaters.find((s) => s.teamId === "home")!;
+    defender.position = { ...shooter.position };
+    world.puck.carrierSlotId = defender.id;
+    expect(dekeBiteFactor(world, goalie)).toBe(0);
+  });
+
+  it("gets deked out in front of the net, but stays with the same shot moved slowly", () => {
+    // Identical shot, identical spot: only the speed of the move differs.
+    expect(attempt({ carrierX: 380, dangleTicks: 18 }).score.away).toBe(1);
+    expect(attempt({ carrierX: 380, slow: true }).score.away).toBe(0);
+  });
+
+  it("cannot be deked from out at the top of the zone", () => {
+    // Same move from beyond the bite zone: he plays the angle and stops it.
+    expect(attempt({ carrierX: 520, dangleTicks: 18 }).score.away).toBe(0);
+    expect(attempt({ carrierX: 520, dangleTicks: 32 }).score.away).toBe(0);
+  });
+
+  it("squares back up on a puck parked out to one side", () => {
+    // The bite reads MOVEMENT, so holding the puck wide is not a free goal:
+    // once it stops moving he settles right back onto the angle line, which is
+    // the whole reason there is no stand-still position that beats him.
+    const world = playingWorld();
+    const shooter = dekeSetup(world, 380);
+    for (let tick = 1; tick <= 80; tick += 1) {
+      stepWorld(world, [inputFrame(shooter.id, tick, { stickX: -1 })], 16);
+    }
+
+    const goalie = homeGoalieOf(world);
+    const netCenter = { x: goalLineX("home"), y: RINK_CONFIG.height / 2 };
+    const span = netCenter.x - world.puck.position.x;
+    const angleY =
+      world.puck.position.y +
+      (netCenter.y - world.puck.position.y) *
+        ((goalie.position.x - world.puck.position.x) / span);
+
+    expect(goalie.position.y).toBeCloseTo(angleY, 0);
+  });
+
+  it("leaves tracking outside the bite zone exactly as it was", () => {
+    const world = playingWorld();
+    const shooter = dekeSetup(world, 900);
+    const baseline = homeGoalieOf(world).position.y;
+
+    for (let tick = 1; tick <= 20; tick += 1) {
+      stepWorld(world, [inputFrame(shooter.id, tick, { stickX: -1 })], 16);
+    }
+
+    // From out here the goalie plays the pure angle: a full stick dangle moves
+    // him barely at all, and never at lunge acceleration.
+    expect(dekeBiteFactor(world, homeGoalieOf(world))).toBe(0);
+    expect(Math.abs(homeGoalieOf(world).position.y - baseline)).toBeLessThan(40);
   });
 });
 
