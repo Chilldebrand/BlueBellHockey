@@ -77,8 +77,10 @@ function buildDefaults(): MutableTuning {
       intentSwitchHysteresis: 0.15
     },
     // Arcade powerups are now live (speed, hard-shot, freeze, big-hit,
-    // mini/giant goalie + banana-peel hazards). Character specials stay
-    // dormant until that system is designed out.
+    // mini/giant goalie + banana-peel hazards). Character specials are parked
+    // (user decision 2026-07-25): the config in config/specials.ts and the
+    // sim hooks stay, but nothing activates or displays them — they're held
+    // for a possible later game mode.
     flags: {
       powerupsEnabled: true,
       specialsEnabled: false

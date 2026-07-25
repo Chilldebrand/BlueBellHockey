@@ -6,7 +6,6 @@ export function ControllerPrompt(): JSX.Element {
       <span>Shoot</span>
       <span>Check</span>
       <span>Turbo</span>
-      <span>Special</span>
     </section>
   );
 }

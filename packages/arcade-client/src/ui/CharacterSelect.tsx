@@ -1,6 +1,5 @@
 import {
   ARCADE_CHARACTERS,
-  CHARACTER_SPECIALS,
   CHARACTER_STAT_KEYS,
   type CharacterId
 } from "@bbh/arcade-core";
@@ -14,10 +13,6 @@ export interface CharacterSelectProps {
   readonly onChooseCharacter: (characterId: CharacterId) => void;
   readonly onClose: () => void;
 }
-
-const SPECIAL_BY_ID = new Map(
-  CHARACTER_SPECIALS.map((special) => [special.id, special])
-);
 
 /**
  * Dumb character picker for whichever slot the lobby is editing. Stays open
@@ -41,7 +36,6 @@ export function CharacterSelect({
       </div>
       <div className="character-grid">
         {ARCADE_CHARACTERS.map((character) => {
-          const special = SPECIAL_BY_ID.get(character.specialId);
           const selected = character.id === selectedCharacterId;
 
           return (
@@ -58,9 +52,6 @@ export function CharacterSelect({
                   {character.jerseyNumber}
                 </span>
               </div>
-              <span className="character-card-special">
-                {special?.name ?? character.specialId}
-              </span>
               <small>{character.silhouette}</small>
               <div className="stat-grid" aria-label={`${character.displayName} stats`}>
                 {CHARACTER_STAT_KEYS.map((key) => (

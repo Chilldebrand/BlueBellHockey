@@ -1707,13 +1707,6 @@ input {
   text-shadow: 0 0 12px rgba(255, 223, 110, 0.6);
 }
 
-.character-card-special {
-  color: #ffdf6e;
-  display: block;
-  font-size: 12px;
-  margin-top: 2px;
-}
-
 .character-card small {
   color: #8fb8e0;
   display: block;

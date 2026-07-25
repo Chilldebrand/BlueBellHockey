@@ -42,6 +42,20 @@ Source links (download only from official Pixabay):
 `https://pixabay.com/music/beats-positive-hip-hop-184768/`, and
 `https://pixabay.com/music/beats-hip-hop-old-school-208627/`.
 
+**PARKED — character specials, held for a later game mode (user decision 2026-07-25).** Each of
+the 12 arcade characters owns a one-line special (`packages/arcade-core/src/config/specials.ts`:
+Rocket Burst, Screen Spark, Wall Check, Thread Pass, Ice Hook, Rebound Rain, Blue-Line Laser,
+Corner Crush, Crease Ghost, Glove Flash, Pad Surge, Mask Focus — all `chargeRequired: 1`,
+6400 ms cooldown). They were never wired to gameplay (`flags.specialsEnabled: false`), and as of
+this decision they must not display anywhere either: the special name is gone from the
+character-select cards and "Special" is gone from `ControllerPrompt`. The config, the
+`specialCharge` field, `sim/specials.ts`, the `specialUse` VFX label, and the unmounted
+`ui/SpecialMeter.tsx` all remain in place on purpose — do NOT delete them, and do NOT re-surface
+them in the UI without the user asking. The pre-rewrite 10-character cast had a richer version of
+this idea ("ultimates": Afterburner, Shockwave Check, Cannon, Vision, Magnet, Overdrive, Freight
+Train, Phase, Barrage, Deep Freeze) at `git show 411cf8a:packages/shared/src/config/ultimates.ts`
+— that is the reference if the later game mode gets designed.
+
 **SHIPPED — halved in-play snapshot rate (2026-07-25).** User is now playing the Railway deploy
 with friends, so the long-standing "snapshot bandwidth before real strangers play" item came due.
 MEASURED (don't re-estimate): a live full-world snapshot is **8,981 bytes of JSON** — at the old

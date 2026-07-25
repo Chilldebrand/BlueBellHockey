@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { CharacterSelect } from "./CharacterSelect.js";
 
 describe("CharacterSelect", () => {
-  it("renders original characters, stats, specials, and selected state", () => {
+  it("renders original characters, stats, and selected state", () => {
     const html = renderToStaticMarkup(
       <CharacterSelect
         selectedCharacterId="rook-rocket"
@@ -16,7 +16,8 @@ describe("CharacterSelect", () => {
 
     expect(html).toContain("Pick for Ada");
     expect(html).toContain("Rook Rocket");
-    expect(html).toContain("Rocket Burst");
+    // Character specials are parked for a later game mode — not surfaced here.
+    expect(html).not.toContain("Rocket Burst");
     expect(html).toContain("speed");
     expect(html).toContain("Selected");
     expect(html).toContain("Done");
