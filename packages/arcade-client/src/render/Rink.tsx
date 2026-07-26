@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { CanvasTexture, Shape, ShapeGeometry, ExtrudeGeometry, DoubleSide } from "three";
 import { RINK_CONFIG, goalLineX, netBackX } from "@bbh/arcade-core";
+import type { ViewOrientation } from "./viewOrientation.js";
 
 const BOARD_THICKNESS = 36;
 const BOARD_HEIGHT = 52;
@@ -67,7 +68,12 @@ function useGlassGeometry(): ExtrudeGeometry {
   }, []);
 }
 
-export function Rink(): JSX.Element {
+export function Rink({
+  viewOrientation = 1
+}: {
+  /** Spins the centre-ice logo with the camera so it never reads upside-down. */
+  readonly viewOrientation?: ViewOrientation;
+} = {}): JSX.Element {
   const ice = useIceGeometry();
   const boards = useBoardsGeometry();
   const glass = useGlassGeometry();
@@ -86,7 +92,7 @@ export function Rink(): JSX.Element {
       <RinkLine x={goalLineX("home")} color="#ff4f5e" width={6} />
       <RinkLine x={goalLineX("away")} color="#ff4f5e" width={6} />
       <FaceoffMarkings />
-      <CenterIceLogo />
+      <CenterIceLogo viewOrientation={viewOrientation} />
       <GoalCrease
         x={goalLineX("home") + RINK_CONFIG.goalieDepth}
       />
@@ -239,7 +245,11 @@ function NetMaterial(): JSX.Element {
  * A blue Liberty-Bell painted at center ice. Drawn to an offscreen canvas (no
  * external asset) and mapped onto a flat plane inside the center circle.
  */
-function CenterIceLogo(): JSX.Element {
+function CenterIceLogo({
+  viewOrientation
+}: {
+  readonly viewOrientation: ViewOrientation;
+}): JSX.Element {
   const texture = useMemo(() => {
     const size = 512;
     const cx = size / 2;
@@ -299,7 +309,14 @@ function CenterIceLogo(): JSX.Element {
   return (
     <mesh
       position={[RINK_CONFIG.width / 2, 6, RINK_CONFIG.height / 2]}
-      rotation={[-Math.PI / 2, 0, -Math.PI / 2]}
+      // In-plane spin (applied before the lay-flat X rotation in XYZ order):
+      // add a half turn for the flipped view so the bell stays upright for
+      // whoever is watching rather than standing on its head.
+      rotation={[
+        -Math.PI / 2,
+        0,
+        -Math.PI / 2 + (viewOrientation === -1 ? Math.PI : 0)
+      ]}
     >
       <planeGeometry args={[360, 360]} />
       <meshStandardMaterial map={texture} transparent />

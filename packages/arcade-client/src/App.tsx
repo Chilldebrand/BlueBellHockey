@@ -62,12 +62,7 @@ import {
   loadAudioPreferences,
   type AudioPreferences
 } from "./audio/preferences.js";
-import {
-  loadControlPreferences,
-  saveControlPreferences,
-  type ControlPreferences
-} from "./input/controlPreferences.js";
-import { transformStickForTeam } from "./input/stickControls.js";
+import { viewOrientationForTeam } from "./render/viewOrientation.js";
 import { HUD } from "./ui/HUD.js";
 import { BootSplash } from "./ui/BootSplash.js";
 import { ControllerPrompt } from "./ui/ControllerPrompt.js";
@@ -126,8 +121,6 @@ export function App({
   const [audioPreferences, setAudioPreferences] = useState<AudioPreferences>(() =>
     loadAudioPreferences()
   );
-  const [controlPreferences, setControlPreferences] =
-    useState<ControlPreferences>(() => loadControlPreferences());
   const audioRef = useRef(audio);
   const consumedWorldCursorRef = useRef<{
     readonly tick: number;
@@ -357,14 +350,6 @@ export function App({
     audioRef.current.setPreferences(next);
   }, []);
 
-  const handleControlPreferencesChange = useCallback(
-    (next: ControlPreferences) => {
-      setControlPreferences(next);
-      saveControlPreferences(next);
-    },
-    []
-  );
-
   const handleOpenSettings = useCallback(() => {
     setSettingsOpen(true);
   }, []);
@@ -380,6 +365,9 @@ export function App({
   // input, highlight, and camera target it; the skater slot stays ours.
   const localGoalieId = localSlot?.controlledGoalieId ?? null;
   const localControlledEntityId = localGoalieId ?? localSlotId;
+  // Everyone attacks UP their own screen: the away client's whole rig is
+  // yawed 180 degrees. Camera and movement mapping must share this one value.
+  const viewOrientation = viewOrientationForTeam(localTeamId);
 
   useEffect(() => {
     // Local-sim screens consume audio through their own onWorldUpdate bridge;
@@ -428,18 +416,11 @@ export function App({
             gamepadStateFromGamepad(navigator.getGamepads?.()[0] ?? null)
           );
       const frame = createInputFrame({
-        input: {
-          ...input,
-          stickY: transformStickForTeam(
-            input.stickY,
-            localTeamId,
-            controlPreferences.alwaysUpStickControls,
-            input.isAccessibilityShotGesture === true
-          )
-        },
+        input,
         playerId: playerSessionId,
         slotId: localControlledEntityId,
-        sequence: (inputSequenceRef.current += 1)
+        sequence: (inputSequenceRef.current += 1),
+        viewOrientation
       });
 
       // Goalie control renders pure authoritative snapshots — no local
@@ -460,12 +441,12 @@ export function App({
       window.clearInterval(intervalId);
     };
   }, [
-    controlPreferences.alwaysUpStickControls,
     localControlledEntityId,
     localSlotId,
     localTeamId,
     settingsOpen,
-    state.playerSessionId
+    state.playerSessionId,
+    viewOrientation
   ]);
 
   // Madden-style control switching (and a goalie grant starting or ending)
@@ -550,9 +531,7 @@ export function App({
         <SettingsOverlay
           open={settingsOpen}
           preferences={audioPreferences}
-          controlPreferences={controlPreferences}
           onChange={handleAudioPreferencesChange}
-          onControlPreferencesChange={handleControlPreferencesChange}
           onClose={handleCloseSettings}
         />
       </>
@@ -622,6 +601,7 @@ export function App({
           predictedLocalSkater={predictedLocalSkater}
           predictedPuck={predictedPuck}
           highlightColorByEntityId={highlightColorByEntityId}
+          viewOrientation={viewOrientation}
         />
         <Postgame
           world={state.currentWorld}
@@ -643,9 +623,7 @@ export function App({
         <SettingsOverlay
           open={settingsOpen}
           preferences={audioPreferences}
-          controlPreferences={controlPreferences}
           onChange={handleAudioPreferencesChange}
-          onControlPreferencesChange={handleControlPreferencesChange}
           onClose={handleCloseSettings}
           onExitToMenu={handleExitToMenu}
         />
@@ -675,6 +653,7 @@ export function App({
         predictedLocalSkater={predictedLocalSkater}
         predictedPuck={predictedPuck}
         highlightColorByEntityId={highlightColorByEntityId}
+        viewOrientation={viewOrientation}
       />
       {state.phase === "playing" ? null : (
         <>
@@ -700,9 +679,7 @@ export function App({
       <SettingsOverlay
         open={settingsOpen}
         preferences={audioPreferences}
-        controlPreferences={controlPreferences}
         onChange={handleAudioPreferencesChange}
-        onControlPreferencesChange={handleControlPreferencesChange}
         onClose={handleCloseSettings}
         onExitToMenu={handleExitToMenu}
       />

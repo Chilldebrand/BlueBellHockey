@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { RINK_CONFIG, type Vec2 } from "@bbh/arcade-core";
+import type { ViewOrientation } from "./viewOrientation.js";
 
 export interface CameraTargetInput {
   /**
@@ -29,32 +30,55 @@ export function computeCameraTarget({
 }
 
 /**
- * North-south presentation: the camera sits behind the home goal line side
- * (-x of the target) looking up-ice, so sim +x — home's attacking direction —
+ * North-south presentation: the camera sits behind the DEFENDING goal line
+ * side of the target looking up-ice, so the viewer's own attacking direction
  * is up-screen and the goals are top and bottom. Height and distance are
  * FIXED — the camera translates to follow the puck but never zooms.
+ *
+ * `orientation` 1 sits it at -x (sim +x up-screen — home attacks up); -1 yaws
+ * the whole rig 180 degrees to sit at +x, putting sim -x up-screen so AWAY
+ * attacks up on their own screen. Screen-right mirrors with it (+y at 1,
+ * -y at -1), which is why input has to carry the same sign.
  */
-export function computeCameraPosition(target: Vec2): {
+export function computeCameraPosition(
+  target: Vec2,
+  orientation: ViewOrientation = 1
+): {
   readonly x: number;
   readonly y: number;
   readonly z: number;
 } {
   // Playtest 2026-07-23: pulled back 5% (760/940 → 798/987) to show more ice.
   return {
-    x: Math.round(target.x - 798),
+    x: Math.round(target.x - 798 * orientation),
     y: 987,
     z: Math.round(target.y)
   };
 }
 
-export function CameraRig({ puck }: { readonly puck: Vec2 }): null {
+export function CameraRig({
+  puck,
+  orientation = 1
+}: {
+  readonly puck: Vec2;
+  readonly orientation?: ViewOrientation;
+}): null {
   const camera = useThree((state) => state.camera);
   const smoothedPosition = useRef<{ x: number; y: number; z: number } | null>(null);
   const smoothedTarget = useRef<Vec2 | null>(null);
+  const smoothedOrientation = useRef<ViewOrientation>(orientation);
 
   useFrame((_state, delta) => {
     const target = computeCameraTarget({ puck });
-    const position = computeCameraPosition(target);
+    const position = computeCameraPosition(target, orientation);
+
+    // Flipping ends (lobby team change) must CUT, not ease: easing would sweep
+    // the rig ~1600 units across the rink, through the ice and the far boards.
+    if (smoothedOrientation.current !== orientation) {
+      smoothedOrientation.current = orientation;
+      smoothedPosition.current = null;
+      smoothedTarget.current = null;
+    }
 
     // Ease everything — follow, punch-in, and punch-out — so the camera
     // never snaps between framings.

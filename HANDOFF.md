@@ -42,6 +42,42 @@ Source links (download only from official Pixabay):
 `https://pixabay.com/music/beats-positive-hip-hop-184768/`, and
 `https://pixabay.com/music/beats-hip-hop-old-school-208627/`.
 
+**SHIPPED, AWAITING USER VERDICT — every client attacks UP-screen (2026-07-26).** User: "the
+opposing team should have the point of view of going up on their screen as well, rather than down…
+this should be hardcoded, people don't ever want to go down." Teams and the HUD are UNCHANGED —
+only the camera moved. New `render/viewOrientation.ts` owns the single value (`1` classic framing,
+`-1` for away) and `viewOrientationForTeam(localTeamId)` in App.tsx feeds BOTH the camera and the
+input mapping — they must never disagree. `computeCameraPosition(target, orientation)` sits the rig
+at `target.x - 798 * orientation`, i.e. a true 180° yaw: sim -x becomes up-screen for away, and
+screen-right mirrors to sim -y, so `createInputFrame` multiplies BOTH movement axes by the same
+orientation. Purely client presentation — the sim, the server, and the wire never see it (the flip
+lands before prediction and send, exactly like the team stick flip it replaces), so both clients
+still drive identical world-space frames; the smoke and every determinism guarantee are untouched.
+
+REMOVED as a consequence (all now impossible-to-need, not merely unused): the away `stickY`
+inversion (`input/stickControls.ts`), the `alwaysUpStickControls` preference + its whole
+`input/controlPreferences.ts` module, the Settings checkbox, and
+`ArcadeInputState.isAccessibilityShotGesture` (its ONLY consumer was protecting the Space gesture
+from that inversion). The skill stick is body-relative and rotates by facing, so with the camera
+behind your own net on both ends your skater faces up-screen either way and raw stick-forward is
+screen-up for everyone — the compensation had nothing left to compensate for. **This closes two
+"known remaining findings" below:** the away-team opposite-flick problem and the keyboard+gamepad
+merge dropping the accessibility flag.
+
+Rode along so the flipped view isn't a second-class one: the camera CUTS instead of easing when
+orientation changes (a lobby team switch would otherwise sweep the rig ~1600 units through the ice);
+the key light negates with the rig (a directional light aims at the origin, so this is a 180° yaw)
+keeping shadows falling the same way relative to the viewer; the centre-ice bell gets a half-turn so
+it is never upside-down; and the disc boost badges follow the camera-side edge. Off-screen arrows,
+rink markings and the four-sided bowl needed nothing — they project through the live camera or are
+symmetric. Free Skate/Shootout/spectating take the default `1` and are byte-identical.
+Verified: typecheck, 276 core / 103 server / 281 client, two-client smoke, prod build, and a live
+preview walk (menu → Settings → Free Skate: canvas mounts, zero console errors, no gap where the
+checkbox was). **USER EYEBALLS OWED — needs two browsers on OPPOSITE teams:** that away genuinely
+reads as attacking up, that movement/strafe are not inverted for the away player with a real pad,
+that the stick still shoots the way it looks, the cut when someone switches teams in the lobby, and
+the centre-ice logo + shadow direction on the away screen.
+
 **PARKED — character specials, held for a later game mode (user decision 2026-07-25).** Each of
 the 12 arcade characters owns a one-line special (`packages/arcade-core/src/config/specials.ts`:
 Rocket Burst, Screen Spark, Wall Check, Thread Pass, Ice Hook, Rebound Rain, Blue-Line Laser,
@@ -411,10 +447,10 @@ mattered were FIXED the same day in four pushed commits:
   consider connecting in parallel with audio init.
 - GLB cloned materials are never disposed (latent leak; GLB bodies still OFF via
   `GLTF_SKATER_BODIES_ENABLED = false`).
-- Keyboard+gamepad merge can drop `isAccessibilityShotGesture` when the gamepad stick dominates
-  (one-frame away-team shot inversion, rare).
-- Away-team analog players physically flick opposite windup/release directions from home (design
-  consequence of the team-aware flip — decide deliberately).
+- ~~Keyboard+gamepad merge can drop `isAccessibilityShotGesture`~~ — **RESOLVED 2026-07-26:** the
+  field is gone with the away stick flip (see the up-screen camera entry at the top).
+- ~~Away-team analog players physically flick opposite windup/release directions from home~~ —
+  **RESOLVED 2026-07-26:** both teams now watch their own attack up-screen, so the flip is gone.
 - ogg loader requires `content-type: audio/*`; `application/ogg` servers fall back to mp3.
 - npm audit: 19 vulns (1 critical, 1 high) — all in the deferred vitest 4 / vite 8 /
   colyseus 0.17 major bumps. Colyseus matters more now that a public deploy exists.

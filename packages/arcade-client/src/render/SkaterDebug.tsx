@@ -8,6 +8,7 @@ import type {
 import { CharacterModel } from "./CharacterModel.js";
 import { PowerupIcon } from "./Powerups.js";
 import type { SkaterAnimationState } from "./animation/clipMap.js";
+import type { ViewOrientation } from "./viewOrientation.js";
 
 export interface SkaterDebugProps {
   readonly id: string;
@@ -39,6 +40,8 @@ export interface SkaterDebugProps {
    * Only rendered when the disc itself renders (human-controlled skaters).
    */
   readonly activeBoosts?: readonly PowerupType[];
+  /** Keeps the boost badges on whichever disc edge faces the camera. */
+  readonly viewOrientation?: ViewOrientation;
   readonly showVectors?: boolean;
 }
 
@@ -93,6 +96,7 @@ export function SkaterDebug({
   bladeOffset,
   windupDepth = 0,
   activeBoosts = [],
+  viewOrientation = 1,
   showVectors = false
 }: SkaterDebugProps): JSX.Element {
   return (
@@ -111,15 +115,16 @@ export function SkaterDebug({
         </mesh>
       ) : null}
       {/* Active-boost badges on the disc's camera-side edge (the camera sits
-          at -X looking up-ice): the same procedural icons as the pickups,
-          shrunk, so the effect is instantly recognizable on whoever holds it. */}
+          at -X looking up-ice, or +X for a flipped away view): the same
+          procedural icons as the pickups, shrunk, so the effect is instantly
+          recognizable on whoever holds it. */}
       {highlightColor
         ? activeBoosts.map((type, index) => (
             <group
               key={type}
               name={`boost-badge:${type}`}
               position={[
-                -((isLocal ? 56 : 50) - 16),
+                -((isLocal ? 56 : 50) - 16) * viewOrientation,
                 6,
                 (index - (activeBoosts.length - 1) / 2) * 26
               ]}

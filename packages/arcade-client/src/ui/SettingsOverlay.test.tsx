@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_AUDIO_PREFERENCES } from "../audio/preferences.js";
-import { DEFAULT_CONTROL_PREFERENCES } from "../input/controlPreferences.js";
 
 const keyboardListeners = new Map<
   string,
@@ -123,7 +122,7 @@ describe("SettingsOverlay", () => {
     });
   });
 
-  it("renders an accessible modal with audio sliders, control toggle, and a close button while open", () => {
+  it("renders an accessible modal with audio sliders and a close button while open", () => {
     withFakeDocument(() => {
       const tree = SettingsOverlay({
         open: true,
@@ -148,11 +147,6 @@ describe("SettingsOverlay", () => {
         "Gameplay",
         "Music"
       ]);
-      expect(
-        inputs.some(
-          (input) => input.props["aria-label"] === "Always Up Stick Controls"
-        )
-      ).toBe(true);
       expect(buttons.some((button) => button.props.children === "Close")).toBe(true);
     });
   });
@@ -189,32 +183,22 @@ describe("SettingsOverlay", () => {
     });
   });
 
-  it("toggles the Always Up Stick Controls checkbox", () => {
+  it("no longer offers an Always Up Stick Controls toggle", () => {
+    // Every client now watches their own team attack up-screen, so there is
+    // no downhill view left for the old stick flip to compensate for.
     withFakeDocument(() => {
-      const onControlPreferencesChange = vi.fn();
       const tree = SettingsOverlay({
         open: true,
         preferences: DEFAULT_AUDIO_PREFERENCES,
-        controlPreferences: DEFAULT_CONTROL_PREFERENCES,
         onChange: vi.fn(),
-        onControlPreferencesChange,
         onClose: vi.fn()
       });
-      const checkbox = findAllByType(tree, "input").find(
-        (input) => input.props["aria-label"] === "Always Up Stick Controls"
-      );
 
-      if (!checkbox) {
-        throw new Error("Expected Always Up Stick Controls checkbox");
-      }
-
-      (checkbox.props.onChange as (event: { currentTarget: { checked: boolean } }) => void)(
-        { currentTarget: { checked: true } }
-      );
-
-      expect(onControlPreferencesChange).toHaveBeenCalledWith({
-        alwaysUpStickControls: true
-      });
+      expect(
+        findAllByType(tree, "input").find(
+          (input) => input.props["aria-label"] === "Always Up Stick Controls"
+        )
+      ).toBeUndefined();
     });
   });
 

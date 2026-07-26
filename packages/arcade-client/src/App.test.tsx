@@ -247,7 +247,7 @@ describe("App", () => {
     expect(reconnectPreviousRoom).toHaveBeenCalledTimes(1);
   });
 
-  it("uses the same away-team transformed frame for local prediction and session input", () => {
+  it("uses the same flipped-view frame for local prediction and session input", () => {
     const world = createWorld(13, "arcade3v3");
     const sendInput = vi.fn();
     const audio = {
@@ -309,11 +309,14 @@ describe("App", () => {
 
     expect(sendInput).toHaveBeenCalledTimes(1);
     expect(predictedFrames).toEqual([sendInput.mock.calls[0][0]]);
+    // Away's camera is yawed 180 degrees, so BOTH screen axes mirror: pushing
+    // up-screen (moveY -0.5) drives toward -x, and screen-right goes to -y.
+    // The skill stick is body-relative and passes through untouched.
     expect(sendInput.mock.calls[0][0]).toMatchObject({
-      moveX: 0.5,
-      moveY: 0.25,
+      moveX: -0.5,
+      moveY: -0.25,
       stickX: 0.5,
-      stickY: -0.75,
+      stickY: 0.75,
       pass: true
     });
   });

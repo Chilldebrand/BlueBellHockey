@@ -25,6 +25,7 @@ import { BananaPeels, Powerups } from "./Powerups.js";
 import { Rink } from "./Rink.js";
 import { SkaterDebug } from "./SkaterDebug.js";
 import { Vfx } from "./Vfx.js";
+import type { ViewOrientation } from "./viewOrientation.js";
 
 export interface SceneProps {
   readonly currentWorld: WorldState | null;
@@ -51,6 +52,12 @@ export interface SceneProps {
    * (Free Skate) falls back to the classic blue home vs red away.
    */
   readonly teamIdentities?: Readonly<Record<TeamId, TeamIdentityId>>;
+  /**
+   * 1 = classic framing (sim +x up-screen, home attacks up); -1 yaws the rig
+   * 180 degrees so the AWAY viewer attacks up their own screen too. Local-sim
+   * screens (Free Skate, Shootout) are always home and take the default.
+   */
+  readonly viewOrientation?: ViewOrientation;
 }
 
 export function Scene({
@@ -62,7 +69,8 @@ export function Scene({
   predictedPuck = null,
   highlightColorByEntityId = {},
   debugOverlays = false,
-  teamIdentities
+  teamIdentities,
+  viewOrientation = 1
 }: SceneProps): JSX.Element | null {
   if (!currentWorld) {
     return null;
@@ -141,11 +149,19 @@ export function Scene({
           far: 4500
         }}
       >
-        <CameraRig puck={cameraAnchor} />
+        <CameraRig puck={cameraAnchor} orientation={viewOrientation} />
         <OffscreenArrowTracker skaters={trackedSkaters} enabled={arrowsEnabled} />
         <ambientLight intensity={0.95} />
-        <directionalLight position={[320, 900, 460]} intensity={1.25} castShadow />
-        <Rink />
+        {/* The key light mirrors with the rig (a directional light aims at the
+            origin, so negating the position rotates it 180 degrees about Y),
+            keeping shadows falling the same way relative to the viewer on
+            both ends instead of toward the flipped camera. */}
+        <directionalLight
+          position={[320 * viewOrientation, 900, 460 * viewOrientation]}
+          intensity={1.25}
+          castShadow
+        />
+        <Rink viewOrientation={viewOrientation} />
         <ArenaShell
           events={currentWorld.eventQueue}
           nowMs={currentWorld.time.nowMs}
@@ -196,6 +212,7 @@ export function Scene({
                   : 0
               }
               activeBoosts={activeBoostTypesForSlot(currentWorld, skater.id)}
+              viewOrientation={viewOrientation}
             />
           );
         })}
