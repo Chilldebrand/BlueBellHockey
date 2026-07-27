@@ -14,6 +14,7 @@ import {
 } from "./modelValidation.js";
 import type { GoalieAnimationState } from "./animation/clipMap.js";
 import { getHeadgearColor } from "./headgearColor.js";
+import { lerp3, segmentBetween, type Point3 } from "./stickGeometry.js";
 
 export interface GoalieModelProps {
   readonly teamId: TeamId;
@@ -100,9 +101,58 @@ export function GoalieModel({
         <boxGeometry args={[12, 16, 18]} />
         <meshStandardMaterial color="#f8fafc" />
       </mesh>
-      <mesh position={[23, 29, 8]} rotation={[0.5, 0.2, -0.42]} castShadow>
-        <boxGeometry args={[4, 6, 58]} />
-        <meshStandardMaterial color="#4b5563" />
+      <GoalieStick />
+    </group>
+  );
+}
+
+// Goalie local frame: +X lateral (the blocker side is +X), +Y up, +Z down-ice
+// toward the shooter. The butt sits at the blocker hand; the shaft drops
+// forward to a heel on the ice, and the blade sweeps back across the crease.
+const GOALIE_STICK_BUTT: Point3 = [25, 36, -2];
+const GOALIE_STICK_HEEL: Point3 = [19, 5, 22];
+// Toe end of the blade, swept toward the middle of the crease.
+const GOALIE_BLADE_TOE: Point3 = [-9, 5, 25];
+// The paddle is the widened lower stretch of shaft, from here down to the heel.
+const GOALIE_PADDLE_T = 0.46;
+
+/**
+ * The goalie stick, built from the same pieces as the skater stick
+ * (StickAssembly in CharacterModel) — shaft, rounded heel, swept flat blade —
+ * only heavier, plus the wide paddle a goalie stick has where a skater's shaft
+ * stays thin. It used to be a single 4x6x58 box, which read as a plain rod.
+ *
+ * Cross sections are quoted against the skater's so the family resemblance is
+ * deliberate: shaft 2.6 -> 4.4, blade 1.75x3.4 -> 3.2x5.6, heel r2.8 -> r4.4.
+ */
+function GoalieStick(): JSX.Element {
+  const paddleTop = lerp3(GOALIE_STICK_BUTT, GOALIE_STICK_HEEL, GOALIE_PADDLE_T);
+  const shaft = segmentBetween(GOALIE_STICK_BUTT, paddleTop);
+  const paddle = segmentBetween(paddleTop, GOALIE_STICK_HEEL);
+  const blade = segmentBetween(GOALIE_STICK_HEEL, GOALIE_BLADE_TOE);
+
+  return (
+    <group name="goalie-stick">
+      {/* Upper shaft — the part the blocker hand holds. */}
+      <mesh position={shaft.position} rotation={shaft.rotation} castShadow>
+        <boxGeometry args={[4.4, shaft.length, 4.4]} />
+        <meshStandardMaterial color="#3a3f47" roughness={0.5} />
+      </mesh>
+      {/* Paddle: wide across the lateral axis so it presents a blocking face
+          down-ice, thin front-to-back like the real thing. */}
+      <mesh position={paddle.position} rotation={paddle.rotation} castShadow>
+        <boxGeometry args={[11.5, paddle.length, 4.2]} />
+        <meshStandardMaterial color="#6b7280" roughness={0.45} />
+      </mesh>
+      {/* Rounded heel blending paddle into blade, as on the skater stick. */}
+      <mesh position={[...GOALIE_STICK_HEEL]} castShadow>
+        <sphereGeometry args={[4.4, 10, 8]} />
+        <meshStandardMaterial color="#6b7280" roughness={0.45} />
+      </mesh>
+      {/* Flat blade lying on the ice, swept out to one side from the heel. */}
+      <mesh position={blade.position} rotation={blade.rotation} castShadow>
+        <boxGeometry args={[3.2, blade.length, 5.6]} />
+        <meshStandardMaterial color="#6b7280" roughness={0.45} />
       </mesh>
     </group>
   );

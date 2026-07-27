@@ -1,13 +1,6 @@
 import { Suspense, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import {
-  CanvasTexture,
-  DoubleSide,
-  Euler,
-  Quaternion,
-  Vector3,
-  type Group
-} from "three";
+import { CanvasTexture, DoubleSide, type Group } from "three";
 import {
   TEAM_PALETTES,
   getCharacterById,
@@ -30,6 +23,7 @@ import {
   type SkaterGltfSource
 } from "./gltf/skaterGltfSource.js";
 import { getHeadgearColor } from "./headgearColor.js";
+import { frontGripT, lerp3, segmentBetween } from "./stickGeometry.js";
 
 // Re-exported for existing importers; the source of truth is skaterManifest.ts.
 export { FIRST_SKATER_MODEL_MANIFEST };
@@ -628,12 +622,20 @@ function LowerLimb({
 // Root frame: +X forward, +Y up, +Z lateral-right (so -Z is left). The butt sits
 // near the chest, slightly left; the shaft crosses down-forward to the blade, so
 // the blade end reads to the right of the butt. Shoulders anchor the arms.
-const STICK_BUTT: [number, number, number] = [2, 22, -3];
+const STICK_BUTT: [number, number, number] = [6, 22, -3];
 const SHOULDER_L: [number, number, number] = [0, 34, -8];
 const SHOULDER_R: [number, number, number] = [0, 34, 8];
 // Where the two hands grip the shaft, as fractions from butt to blade.
 const TOP_HAND_T = 0.16;
 const LOW_HAND_T = 0.42;
+/**
+ * Hands never come back past this (shoulders sit at forward 0), so the arms
+ * always reach FORWARD. Without it a drawn-back blade — every windup and every
+ * backhand pull — dragged both grips behind the shoulders and the arms read as
+ * swinging out behind the player. The butt sits here too so the clamp has
+ * somewhere in front to choke up to.
+ */
+const MIN_GRIP_FORWARD = 6;
 
 /**
  * Two-handed stick: shoulders reach down to hands gripping a shaft that crosses
@@ -648,8 +650,17 @@ function StickAssembly({
   /** Forward-lean pitch of the torso; the shoulder anchors follow it. */
   readonly torsoPitch?: number;
 }): JSX.Element {
-  const topHand = lerp3(STICK_BUTT, bladeLocal, TOP_HAND_T);
-  const lowHand = lerp3(STICK_BUTT, bladeLocal, LOW_HAND_T);
+  // Grips choke up the shaft rather than trailing behind the chest.
+  const topHand = lerp3(
+    STICK_BUTT,
+    bladeLocal,
+    frontGripT(STICK_BUTT[0], bladeLocal[0], TOP_HAND_T, MIN_GRIP_FORWARD)
+  );
+  const lowHand = lerp3(
+    STICK_BUTT,
+    bladeLocal,
+    frontGripT(STICK_BUTT[0], bladeLocal[0], LOW_HAND_T, MIN_GRIP_FORWARD)
+  );
   const shaft = segmentBetween(STICK_BUTT, bladeLocal);
   const leftArm = segmentBetween(pitchShoulder(SHOULDER_L, torsoPitch), topHand);
   const rightArm = segmentBetween(pitchShoulder(SHOULDER_R, torsoPitch), lowHand);
@@ -718,49 +729,6 @@ function pitchShoulder(
   ];
 }
 
-const SEGMENT_UP = new Vector3(0, 1, 0);
-
-/**
- * Transform for a box that spans `from`->`to`: box height axis (Y) is rotated
- * onto the segment direction and centred at the midpoint. Returns the length so
- * the caller can size the box.
- */
-function segmentBetween(
-  from: readonly [number, number, number],
-  to: readonly [number, number, number]
-): {
-  readonly position: [number, number, number];
-  readonly rotation: [number, number, number];
-  readonly length: number;
-} {
-  const a = new Vector3(from[0], from[1], from[2]);
-  const b = new Vector3(to[0], to[1], to[2]);
-  const dir = new Vector3().subVectors(b, a);
-  const length = dir.length() || 0.0001;
-  const mid = new Vector3().addVectors(a, b).multiplyScalar(0.5);
-  const quat = new Quaternion().setFromUnitVectors(
-    SEGMENT_UP,
-    dir.clone().normalize()
-  );
-  const euler = new Euler().setFromQuaternion(quat);
-  return {
-    position: [mid.x, mid.y, mid.z],
-    rotation: [euler.x, euler.y, euler.z],
-    length
-  };
-}
-
-function lerp3(
-  a: readonly [number, number, number],
-  b: readonly [number, number, number],
-  t: number
-): [number, number, number] {
-  return [
-    a[0] + (b[0] - a[0]) * t,
-    a[1] + (b[1] - a[1]) * t,
-    a[2] + (b[2] - a[2]) * t
-  ];
-}
 
 /**
  * Pose convention: the body is authored facing +Z inside the +90° Y forward

@@ -140,6 +140,12 @@ export const PUCK_CONFIG: PuckConfig = {
   carryStiffness: 19,
   carryMaxAccel: 34000,
   carryBreakDistance: 96,
+  // Stays at 3 through the 2026-07-26 lateral reach change. Worth recording,
+  // because it briefly did not: the first pass widened the lateral sweep to
+  // 178 units and needed 4.5+ to hold the puck through a full rip. The final
+  // reach (sweep 151, near the original 144) re-bisected as holding at every
+  // value down to 2, so the shipped forgiveness is unchanged rather than
+  // quietly loosened.
   carryDangleAllowance: 3,
   pokeRadius: 34,
   pokePrecisionRadius: 22,

@@ -42,6 +42,64 @@ Source links (download only from official Pixabay):
 `https://pixabay.com/music/beats-positive-hip-hop-184768/`, and
 `https://pixabay.com/music/beats-hip-hop-old-school-208627/`.
 
+**SHIPPED, AWAITING USER VERDICT — stick reach, arms forward, real goalie stick (2026-07-26).**
+Three user asks in one batch.
+
+(1) **Lateral stick reach is now ASYMMETRIC.** `StickConfig.lateralRange` (one number, 72) is gone,
+replaced by `lateralRangeRight` 39.5 / `lateralRangeLeft` 111.7, read through a new pure
+`lateralBladeOffset(localX, config)`. Measured from the body centre the extents are **+84 forehand**
+and **-67.2 backhand** (80% of the forehand reach, as asked). `restLateral` stays 44.5 on purpose —
+the right-handed forehand cradle is a deliberate old design decision, and solving a single
+symmetric range for these extents would have flattened it to ~9.9 and killed it. The two ranges
+meet at localX 0 so the curve is continuous (tested). `bladeSweepDistance` and `bladeWorldVelocity`
+now take the lateral delta as a DIFFERENCE OF OFFSETS rather than delta-x times a range, which is
+what makes a sweep crossing the centre come out right.
+
+**TOOK TWO PASSES — the lesson is worth keeping.** The first pass cut the right end 15%
+(116.5 -> 99) and opened the left to -79.2, which is exactly what was asked, but the user played it
+and reported the stick reaching FURTHER right, not less. It wasn't: measured, every deflection on
+the right was shorter (full 116.5 -> 99, half 80.5 -> 71.8) and a world-space check confirmed no
+flipped sign anywhere. The culprit was the TOTAL SWEEP growing 144 -> 178, because the old stick
+never crossed the body at all (it bottomed out at -27.5) and suddenly swung to -79.2. A much wider
+arc reads as more reach even when the end point is closer. Second pass took another 15% off the
+right (99 -> 84) with the left tracking at 80% (-67.2), which lands the sweep at 151 — near the
+original 144. **If reach is ever tuned again, watch the total sweep, not just the extents.**
+
+`carryDangleAllowance` STAYS AT 3, but only after a detour worth recording. At the first pass's
+178-unit sweep a full rip lost the puck: the blade leaves the puck further behind while the
+single-tick sweep the forgiveness is scaled by decays just as fast. Probed with the break
+disabled, the true separation peaked at 129 and the tether reeled it back in fine (worst ratio
+0.88), so it was only ever a marginal threshold crossing; bisection put the hold point at 4.5.
+At the FINAL 151-unit sweep it re-bisected as holding all the way down to 2, so the shipped
+forgiveness is unchanged rather than quietly loosened. Either way the honest case never moved —
+the term is scaled by the blade's OWN sweep, so a puck left behind by body movement (sweep ~0)
+breaks at exactly `carryBreakDistance`, and that test still passes.
+
+(2) **Arms stay in front of the chest.** Hands ride the butt->blade line, so a drawn-back blade
+(every windup, every backhand pull; at full pull the blade is 35 model-units BEHIND the body)
+dragged both grips behind the shoulders and the arms read as swinging out backwards. New pure
+`frontGripT` clamps the grip's FRACTION along the shaft — not the resulting point — so butt, hands
+and blade stay collinear and the gloves stay ON the shaft; the hands simply choke up toward the
+butt as the blade goes back, which is what a player does anyway. `STICK_BUTT` moved forward 2 -> 6
+so the clamp has somewhere in front to choke up to.
+
+(3) **The goalie stick is a stick.** It was one `4x6x58` box — a rod. Now built from the same
+primitives as the skater stick (shaft, rounded heel, swept flat blade) plus the wide **paddle** a
+goalie stick has, with cross sections deliberately quoted against the skater's so the family
+resemblance is intentional: shaft 2.6 -> 4.4, blade 1.75x3.4 -> 3.2x5.6, heel r2.8 -> r4.4. The
+shared primitives moved out of CharacterModel into a new pure `render/stickGeometry.ts`
+(`segmentBetween` / `lerp3` / `frontGripT`), which is also what makes them unit-testable without a
+canvas.
+
+NOTE: (1) is an arcade-core change, so ONLINE play needs `npm run build:arcade-core` + an
+arcade-server restart (done here). Free Skate aliases core src and picks it up from HMR.
+Verified: typecheck, 282 core / 103 server / 295 client, two-client smoke, prod build, clean
+fresh-load Free Skate walk with a console.error hook installed before mount (zero errors).
+**USER EYEBALLS OWED:** the forehand reach at +84 (this is the second cut — the first was rejected
+as still too long), whether the backhand at -67.2 overreaches, whether dekes still hold the puck,
+the arms through a full windup and a hard backhand pull, and the goalie stick from the gameplay
+camera. All the knobs are in TUNING.stick / TUNING.puck -> Feel Lab.
+
 **SHIPPED, AWAITING USER VERDICT — continuous arena bowl, no more black boxes (2026-07-26).**
 User: "I just see black boxes but I want the full environment to be a stadium without it looking
 like an unfinished product."

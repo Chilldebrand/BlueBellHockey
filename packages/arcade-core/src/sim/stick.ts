@@ -12,8 +12,25 @@ export interface StickConfig {
   readonly restLateral: number;
   /** Extra forward reach at full stick deflection (negative pulls behind). */
   readonly forwardRange: number;
-  /** Lateral reach at full stick deflection. */
-  readonly lateralRange: number;
+  /**
+   * Lateral travel from the rest offset at full stick deflection, per side.
+   * Split because the reach is deliberately ASYMMETRIC: the carry sits off to
+   * the right (restLateral), so a single range would either cramp the
+   * backhand side or throw the forehand side miles out.
+   *
+   * What these two numbers buy, measured from the body centre:
+   *   forehand/right extent = restLateral + lateralRangeRight = +84
+   *   backhand/left  extent = restLateral - lateralRangeLeft  = -67.2
+   *
+   * 2026-07-26 (user): right reach cut 15% (116.5 -> 99), then cut another
+   * 15% on playtest (99 -> 84) because it still reached too far. The left
+   * tracks it at 80% of the right reach throughout (-27.5 -> -67.2), so the
+   * stick crosses the body on the backhand instead of barely clearing the hip.
+   * Total sweep is 151.2, close to the original 144 — the first pass widened
+   * it to 178 and that extra arc is what read as MORE reach, not less.
+   */
+  readonly lateralRangeRight: number;
+  readonly lateralRangeLeft: number;
   /** How fast the blade eases toward the stick sample (per second). */
   readonly bladeLerpRate: number;
   /** Extra forward reach while a poke-check lunge is live. */
@@ -28,7 +45,8 @@ export const STICK_CONFIG: StickConfig = {
   restOffset: 22,
   restLateral: 44.5,
   forwardRange: 78,
-  lateralRange: 72,
+  lateralRangeRight: 39.5,
+  lateralRangeLeft: 111.7,
   bladeLerpRate: 34,
   pokeReachBonus: 58
 };
@@ -59,6 +77,19 @@ export function updateStick(
 }
 
 /**
+ * Lateral blade offset for a stick sample. The two ranges meet at localX 0
+ * (the rest carry), so the curve is continuous — sweeps that cross the middle
+ * do not jump.
+ */
+export function lateralBladeOffset(
+  localX: number,
+  config: StickConfig = STICK_CONFIG
+): number {
+  const range = localX >= 0 ? config.lateralRangeRight : config.lateralRangeLeft;
+  return config.restLateral + localX * range;
+}
+
+/**
  * Blade offset from the body center in body space (x forward, y lateral).
  * Pass the sim time to include a live poke-check lunge in the reach.
  */
@@ -71,7 +102,7 @@ export function bladeBodyOffset(
 
   return {
     x: config.restOffset + skater.stick.localY * config.forwardRange + pokeBonus,
-    y: config.restLateral + skater.stick.localX * config.lateralRange
+    y: lateralBladeOffset(skater.stick.localX, config)
   };
 }
 
@@ -123,7 +154,20 @@ export function bladeSweepDistance(
 ): number {
   return Math.hypot(
     (skater.stick.localY - skater.stick.prevLocalY) * config.forwardRange,
-    (skater.stick.localX - skater.stick.prevLocalX) * config.lateralRange
+    lateralSweep(skater, config)
+  );
+}
+
+/**
+ * Lateral distance the blade actually moved this tick. Taken as a DIFFERENCE
+ * of offsets rather than delta x range, because the two lateral ranges differ
+ * — a sweep that crosses the centre travels at one rate on the backhand side
+ * and another on the forehand side.
+ */
+function lateralSweep(skater: SkaterEntity, config: StickConfig): number {
+  return (
+    lateralBladeOffset(skater.stick.localX, config) -
+    lateralBladeOffset(skater.stick.prevLocalX, config)
   );
 }
 
@@ -143,7 +187,7 @@ export function bladeWorldVelocity(
   const sweep = rotate(
     {
       x: (skater.stick.localY - skater.stick.prevLocalY) * config.forwardRange,
-      y: (skater.stick.localX - skater.stick.prevLocalX) * config.lateralRange
+      y: lateralSweep(skater, config)
     },
     skater.facing
   );
