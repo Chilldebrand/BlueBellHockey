@@ -27,12 +27,16 @@ export interface StandSpec {
   readonly topHeight: number;
 }
 
-export interface CornerSpec {
-  readonly id: "corner-sw" | "corner-se" | "corner-nw" | "corner-ne";
-  readonly center: { readonly x: number; readonly z: number };
-  readonly sizeX: number;
-  readonly sizeZ: number;
-  readonly height: number;
+/**
+ * The flat ring of floor between the outside of the boards and the first row
+ * of seats — the "apron" a real rink has its benches and photographers on.
+ * Four boxes; the x-running pair spans the full width so the corners are
+ * covered exactly once (see `bowlRowLength`).
+ */
+export interface ApronSpec {
+  readonly innerDepth: number;
+  readonly outerDepth: number;
+  readonly thickness: number;
 }
 
 export interface ArenaWallSpec {
@@ -46,8 +50,9 @@ export interface ArenaWallSpec {
 
 export interface ArenaLayout {
   readonly stands: readonly [StandSpec, StandSpec, StandSpec, StandSpec];
-  readonly corners: readonly CornerSpec[];
+  readonly apron: ApronSpec;
   readonly wall: ArenaWallSpec;
+  readonly rink: { readonly width: number; readonly height: number };
 }
 
 /**
@@ -64,10 +69,22 @@ export const STAND_ROW_COUNT = 10;
 export const STAND_ROW_RISE = 34;
 export const STAND_ROW_DEPTH = 34;
 export const STAND_BASE_HEIGHT = 40;
-/** How far each stand stops short of the rink corner (leaves concourse gaps). */
-export const STAND_CORNER_CUT = 320;
 
-export const CORNER_BLOCK_HEIGHT = 200;
+/**
+ * Every row is longer than the one in front of it, because the bowl is a set
+ * of nested rectangular rings: stepping back one row moves the ring out by
+ * rowDepth on BOTH ends of the run.
+ *
+ * This is what makes the bowl continuous. It used to be four separate stands
+ * cut 320 short of each rink corner, with a near-black concourse block parked
+ * in each diagonal gap — and those blocks sit exactly in the top-left and
+ * top-right of the gameplay frame, which is what read as unfinished black
+ * boxes. Now the x-running rows run corner to corner and the z-running rows
+ * fill only the middle, so the four rings tile the whole bowl with no gap and
+ * no double-covered corner (which would z-fight on the shared top face).
+ */
+export const STAND_ROW_LENGTH_GROWTH = 2 * STAND_ROW_DEPTH;
+
 export const WALL_MARGIN = 40;
 export const WALL_HEIGHT = 470;
 export const WALL_THICKNESS = 20;
@@ -81,11 +98,6 @@ export const ARENA_MAX_STRUCTURE_HEIGHT = 560;
 
 const STAND_DEPTH = STAND_ROW_COUNT * STAND_ROW_DEPTH;
 const STAND_TOP_HEIGHT = STAND_BASE_HEIGHT + STAND_ROW_COUNT * STAND_ROW_RISE;
-const MIN_STAND_LENGTH = 120;
-
-function standLength(edgeExtent: number): number {
-  return Math.max(MIN_STAND_LENGTH, edgeExtent - 2 * STAND_CORNER_CUT);
-}
 
 export function computeArenaLayout(rink: {
   readonly width: number;
@@ -101,13 +113,18 @@ export function computeArenaLayout(rink: {
     topHeight: STAND_TOP_HEIGHT
   };
 
+  // Row-0 lengths. The x-running pair reaches past the rink corners by one
+  // full row depth so it owns the corner squares; the z-running pair stops at
+  // the footprint edge where that coverage begins. `bowlRowLength` grows both
+  // by STAND_ROW_LENGTH_GROWTH per row, which keeps the tiling exact all the
+  // way up the rake.
   const stands: readonly [StandSpec, StandSpec, StandSpec, StandSpec] = [
     {
       id: "south",
       axis: "x",
       direction: -1,
       centerAlong: width / 2,
-      length: standLength(width),
+      length: width + 2 * (STAND_SETBACK + STAND_ROW_DEPTH),
       innerEdge: -STAND_SETBACK,
       ...base
     },
@@ -116,7 +133,7 @@ export function computeArenaLayout(rink: {
       axis: "x",
       direction: 1,
       centerAlong: width / 2,
-      length: standLength(width),
+      length: width + 2 * (STAND_SETBACK + STAND_ROW_DEPTH),
       innerEdge: height + STAND_SETBACK,
       ...base
     },
@@ -125,7 +142,7 @@ export function computeArenaLayout(rink: {
       axis: "z",
       direction: -1,
       centerAlong: height / 2,
-      length: standLength(height),
+      length: height + 2 * STAND_SETBACK,
       innerEdge: -STAND_SETBACK,
       ...base
     },
@@ -134,48 +151,13 @@ export function computeArenaLayout(rink: {
       axis: "z",
       direction: 1,
       centerAlong: height / 2,
-      length: standLength(height),
+      length: height + 2 * STAND_SETBACK,
       innerEdge: width + STAND_SETBACK,
       ...base
     }
   ];
 
-  // Dark concourse blocks filling the diagonal gaps between stand ends. They
-  // reach exactly to the rink footprint corner (never inside it) and out to
-  // the stands' outer extent.
   const outerExtent = STAND_SETBACK + STAND_DEPTH;
-  const cornerSize = outerExtent;
-  const cornerOffset = -outerExtent / 2;
-  const corners: readonly CornerSpec[] = [
-    {
-      id: "corner-sw",
-      center: { x: cornerOffset, z: cornerOffset },
-      sizeX: cornerSize,
-      sizeZ: cornerSize,
-      height: CORNER_BLOCK_HEIGHT
-    },
-    {
-      id: "corner-se",
-      center: { x: width - cornerOffset, z: cornerOffset },
-      sizeX: cornerSize,
-      sizeZ: cornerSize,
-      height: CORNER_BLOCK_HEIGHT
-    },
-    {
-      id: "corner-nw",
-      center: { x: cornerOffset, z: height - cornerOffset },
-      sizeX: cornerSize,
-      sizeZ: cornerSize,
-      height: CORNER_BLOCK_HEIGHT
-    },
-    {
-      id: "corner-ne",
-      center: { x: width - cornerOffset, z: height - cornerOffset },
-      sizeX: cornerSize,
-      sizeZ: cornerSize,
-      height: CORNER_BLOCK_HEIGHT
-    }
-  ];
 
   const wall: ArenaWallSpec = {
     minX: -(outerExtent + WALL_MARGIN),
@@ -186,7 +168,24 @@ export function computeArenaLayout(rink: {
     thickness: WALL_THICKNESS
   };
 
-  return { stands, corners, wall };
+  return {
+    stands,
+    apron: {
+      innerDepth: BOARD_RING_DEPTH,
+      outerDepth: STAND_SETBACK,
+      thickness: 3
+    },
+    wall,
+    rink: { width, height }
+  };
+}
+
+/**
+ * Length of one stand's row `row`, in the direction the stand runs. Row 0 is
+ * the shortest; every step back adds a row depth at each end.
+ */
+export function bowlRowLength(stand: StandSpec, row: number): number {
+  return stand.length + row * STAND_ROW_LENGTH_GROWTH;
 }
 
 /** Outer facing-axis extent of a stand (its back edge coordinate). */

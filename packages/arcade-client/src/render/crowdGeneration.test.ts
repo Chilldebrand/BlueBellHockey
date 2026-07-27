@@ -2,12 +2,14 @@ import { RINK_CONFIG } from "@bbh/arcade-core";
 import { describe, expect, it } from "vitest";
 import {
   ARENA_MAX_STRUCTURE_HEIGHT,
+  bowlRowLength,
   computeArenaLayout,
   standOuterEdge
 } from "./arenaLayout.js";
 import {
   ARENA_CROWD_SEED,
   BRIGHT_APPAREL_COLORS,
+  cornerTurn,
   FULL_DETAIL_FAN_CAP,
   generateCrowd,
   NEUTRAL_APPAREL_COLORS,
@@ -61,8 +63,11 @@ describe("generateCrowd", () => {
         expect(facing).toBeGreaterThan(stand.innerEdge);
         expect(facing).toBeLessThan(outer);
       }
-      expect(along).toBeGreaterThan(stand.centerAlong - stand.length / 2 - 10);
-      expect(along).toBeLessThan(stand.centerAlong + stand.length / 2 + 10);
+      // Rows grow outward up the rake, so the widest legal span is the LAST
+      // row's — that is exactly the corner seating the continuous bowl added.
+      const widestRun = bowlRowLength(stand, stand.rowCount - 1);
+      expect(along).toBeGreaterThan(stand.centerAlong - widestRun / 2 - 10);
+      expect(along).toBeLessThan(stand.centerAlong + widestRun / 2 + 10);
       expect(fan.position.y).toBeLessThan(ARENA_MAX_STRUCTURE_HEIGHT);
       expect(fan.position.y).toBeGreaterThanOrEqual(stand.baseHeight);
     }
@@ -71,8 +76,50 @@ describe("generateCrowd", () => {
   it("stays under the full-detail cap with a substantial bowl population", () => {
     const crowd = generateCrowd(LAYOUT, ARENA_CROWD_SEED, "full");
 
-    expect(crowd.spectators.length).toBeLessThanOrEqual(FULL_DETAIL_FAN_CAP);
+    // STRICTLY below: hitting the cap truncates whichever stands generate
+    // last, which shows up in game as one side of the bowl sitting empty.
+    expect(crowd.spectators.length).toBeLessThan(FULL_DETAIL_FAN_CAP);
     expect(crowd.spectators.length).toBeGreaterThan(1200);
+  });
+
+  it("seats fans around the corners, past both ends of the rink footprint", () => {
+    const crowd = generateCrowd(LAYOUT, ARENA_CROWD_SEED, "full");
+    const south = crowd.spectators.filter((fan) => fan.standId === "south");
+
+    // The old bowl cut every stand 320 short of the corner and parked a black
+    // block in the gap; the continuous bowl must actually put people there.
+    expect(south.some((fan) => fan.position.x < 0)).toBe(true);
+    expect(south.some((fan) => fan.position.x > RINK_CONFIG.width)).toBe(true);
+  });
+
+  it("turns corner seats toward the rink and leaves the rest square on", () => {
+    const stand = LAYOUT.stands.find((candidate) => candidate.id === "south")!;
+    const width = RINK_CONFIG.width;
+    const overshoot = 400;
+
+    expect(cornerTurn(stand, width / 2, width, overshoot)).toBe(0);
+
+    // South fans face +z (yaw 0). Past the +x end they need a -x component,
+    // which is a negative yaw; past the -x end, the mirror image.
+    const pastFarEnd = cornerTurn(stand, width + overshoot, width, overshoot);
+    const pastNearEnd = cornerTurn(stand, -overshoot, width, overshoot);
+
+    expect(Math.sin(pastFarEnd)).toBeLessThan(0);
+    expect(Math.sin(pastNearEnd)).toBeGreaterThan(0);
+    expect(pastFarEnd).toBe(-pastNearEnd);
+  });
+
+  it("ramps the corner turn with distance round the bend", () => {
+    const stand = LAYOUT.stands.find((candidate) => candidate.id === "east")!;
+    const height = RINK_CONFIG.height;
+
+    const justPast = Math.abs(cornerTurn(stand, height + 40, height, 400));
+    const wellPast = Math.abs(cornerTurn(stand, height + 400, height, 400));
+
+    expect(justPast).toBeGreaterThan(0);
+    expect(wellPast).toBeGreaterThan(justPast);
+    // Never so far round that a fan has their back to the ice.
+    expect(wellPast).toBeLessThan(Math.PI / 4);
   });
 
   it("halves density in reduced detail, drops accessories, and keeps all four stands", () => {

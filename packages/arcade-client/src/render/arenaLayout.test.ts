@@ -2,8 +2,11 @@ import { RINK_CONFIG } from "@bbh/arcade-core";
 import { describe, expect, it } from "vitest";
 import {
   ARENA_MAX_STRUCTURE_HEIGHT,
+  bowlRowLength,
   computeArenaLayout,
   STAND_CLEARANCE,
+  STAND_ROW_DEPTH,
+  STAND_SETBACK,
   standOuterEdge
 } from "./arenaLayout.js";
 
@@ -71,23 +74,51 @@ describe("computeArenaLayout", () => {
     }
   });
 
-  it("keeps corner blocks outside the rink footprint", () => {
+  // The bowl is nested rectangular rings. Each row's x-running pair must own
+  // the corner squares outright and its z-running pair must stop exactly where
+  // that coverage starts: any shortfall is a black corner void (the bug this
+  // replaced), any excess is two coplanar top faces fighting for the depth
+  // buffer.
+  it("tiles every row corner-to-corner with no gap and no overlap", () => {
     for (const rink of [RINK_CONFIG, ARBITRARY_RINK]) {
       const layout = computeArenaLayout(rink);
+      const xRunner = layout.stands.find((stand) => stand.axis === "x")!;
+      const zRunner = layout.stands.find((stand) => stand.axis === "z")!;
 
-      expect(layout.corners).toHaveLength(4);
-      for (const corner of layout.corners) {
-        const minX = corner.center.x - corner.sizeX / 2;
-        const maxX = corner.center.x + corner.sizeX / 2;
-        const minZ = corner.center.z - corner.sizeZ / 2;
-        const maxZ = corner.center.z + corner.sizeZ / 2;
-        // Each block must not reach into the footprint interior: at least one
-        // axis extent stays entirely at or beyond a footprint edge.
-        const outsideX = maxX <= 0 || minX >= rink.width;
-        const outsideZ = maxZ <= 0 || minZ >= rink.height;
-        expect(outsideX || outsideZ).toBe(true);
-        expect(corner.height).toBeLessThan(ARENA_MAX_STRUCTURE_HEIGHT);
+      for (let row = 0; row < xRunner.rowCount; row += 1) {
+        const innerOffset = STAND_SETBACK + row * STAND_ROW_DEPTH;
+        const outerOffset = innerOffset + STAND_ROW_DEPTH;
+
+        // The x-running row reaches the ring's OUTER offset past both rink
+        // ends, so it covers the full corner square.
+        expect(bowlRowLength(xRunner, row)).toBe(rink.width + 2 * outerOffset);
+        // The z-running row stops at the ring's INNER offset — precisely the
+        // near edge of what the x-running row already covers.
+        expect(bowlRowLength(zRunner, row)).toBe(rink.height + 2 * innerOffset);
       }
+    }
+  });
+
+  it("grows every row outward so no row is shorter than the one in front", () => {
+    const layout = computeArenaLayout(RINK_CONFIG);
+
+    for (const stand of layout.stands) {
+      for (let row = 1; row < stand.rowCount; row += 1) {
+        expect(bowlRowLength(stand, row)).toBeGreaterThan(
+          bowlRowLength(stand, row - 1)
+        );
+      }
+    }
+  });
+
+  it("keeps the apron between the boards and the first row of seats", () => {
+    for (const rink of [RINK_CONFIG, ARBITRARY_RINK]) {
+      const { apron } = computeArenaLayout(rink);
+
+      expect(apron.innerDepth).toBeLessThan(apron.outerDepth);
+      expect(apron.outerDepth).toBe(STAND_SETBACK);
+      // Thin enough that skaters and the puck are never visually on top of it.
+      expect(apron.thickness).toBeLessThan(10);
     }
   });
 

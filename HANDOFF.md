@@ -42,6 +42,53 @@ Source links (download only from official Pixabay):
 `https://pixabay.com/music/beats-positive-hip-hop-184768/`, and
 `https://pixabay.com/music/beats-hip-hop-old-school-208627/`.
 
+**SHIPPED, AWAITING USER VERDICT — continuous arena bowl, no more black boxes (2026-07-26).**
+User: "I just see black boxes but I want the full environment to be a stadium without it looking
+like an unfinished product."
+
+MEASURED FIRST — do NOT re-derive this, and do not add roof/upper-deck/jumbotron work on top of it.
+A node probe projected arena landmarks through the REAL rig (fov 44, 16:9, y=987, 798 back, ~51°
+pitch) at four puck positions. Result: **the arena is on screen only in the top-left and top-right
+corners of the frame**, plus the far end stand's lower rows when you attack into it (ndc.y 0.51).
+Everything else is out of frame — far end stand top-back ndc.y 1.37-2.20, far wall top 1.57-2.31,
+a ceiling probe at y=560 over centre ice 1.05 and at y=700 1.50. So: **a roof, an upper deck and
+hanging banners would be invisible**, and a centre-hung jumbotron has no sweet spot at all — hang
+it high enough to be out of the sightline and it is never seen, hang it low enough to see and it
+sits between the camera and the puck at centre ice. All four were considered and deliberately NOT
+built. The screenshots under `public/backgrounds/` are a promo camera, NOT the gameplay rig — they
+show far more bowl than you ever see in play, so don't scope arena work from them.
+
+The black boxes were the four corner concourse blocks (`#23272e`, height 200) parked in the gaps
+where each stand stopped `STAND_CORNER_CUT` 320 short of the rink corner — and the probe puts them
+squarely in those top corners (ndc (0.45, 0.85) = IN FRAME with the puck in the corner; ndc x
+∓0.68 at centre ice). Fix: the bowl is now **continuous**. `STAND_CORNER_CUT` and the corner blocks
+are gone; rows are nested rectangular rings via `bowlRowLength(stand, row)` = row-0 length +
+`row * STAND_ROW_LENGTH_GROWTH` (2 x rowDepth, because stepping back a row moves the ring out at
+BOTH ends). The x-running rows run corner to corner and own the corner squares; the z-running rows
+stop exactly where that coverage starts. A test asserts this tiling exactly at every row — a
+shortfall is a black void again, an excess is two coplanar top faces z-fighting.
+
+Also added, all inside the visible band: seat-colour bands on each riser lip (bare grey steps read
+as stairs, not seating), a lighter **apron** ring between the boards and the front row, dasher-level
+**ad panels** ringing the fascia (3 interleaved passes = 3 colours, 1 draw call each), **housings and
+hanger stems** on the light banks (they were bare white bars floating with nothing holding them up),
+banks and aisles now repeating along the run instead of one/two per stand, and an explicit
+`<color attach="background">` — the canvas was transparent, so the PAGE was showing through and
+reading as a hole.
+
+MEASURED counts (don't re-estimate): fans **1550 -> 2897** full detail (south 875 / north 880 /
+west 564 / east 578), 1448 reduced; south row 0 is 2940 long, row 9 is 3552. Caps raised 2000->3400
+and 1000->1800, and the test now asserts STRICTLY below the cap — hitting it truncates whichever
+stands generate last, which shows up in game as one side of the bowl sitting empty. Crowd draw
+calls are unchanged (3 instanced meshes x 4 stands); net arena draw calls +5. Corner seats get a
+ramped `cornerTurn` yaw toward the ice so they aren't staring into the boards; seats inside the
+footprint are bit-identical to before. Verified: typecheck, 276/103/286, prod build, and a clean
+fresh-load walk to Free Skate with a console.error hook installed before mount (zero errors).
+**USER EYEBALLS OWED — this is the one that needs your screen:** the top corners of the frame where
+the black blocks used to be, whether the bowl now reads continuous all the way round, the seat
+colour / ad boards / apron tones, corner fans' facing, and **PerfHud fps before vs after** (the fan
+count nearly doubled; `detail="reduced"` already exists in `ArenaShell` if it costs too much).
+
 **SHIPPED, AWAITING USER VERDICT — every client attacks UP-screen (2026-07-26).** User: "the
 opposing team should have the point of view of going up on their screen as well, rather than down…
 this should be hardcoded, people don't ever want to go down." Teams and the HUD are UNCHANGED —

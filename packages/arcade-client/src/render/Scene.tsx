@@ -149,6 +149,11 @@ export function Scene({
           far: 4500
         }}
       >
+        {/* Explicit arena-dark background. Without one the canvas is
+            transparent and the PAGE shows through wherever the bowl doesn't
+            reach, which reads as a hole rather than as the far side of a
+            dark building. */}
+        <color attach="background" args={["#0b1017"]} />
         <CameraRig puck={cameraAnchor} orientation={viewOrientation} />
         <OffscreenArrowTracker skaters={trackedSkaters} enabled={arrowsEnabled} />
         <ambientLight intensity={0.95} />

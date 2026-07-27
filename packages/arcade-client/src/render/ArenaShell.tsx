@@ -2,6 +2,7 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import { InstancedMesh, Object3D } from "three";
 import { RINK_CONFIG, type WorldEvent } from "@bbh/arcade-core";
 import {
+  bowlRowLength,
   computeArenaLayout,
   STAND_BASE_HEIGHT,
   type ArenaLayout,
@@ -70,24 +71,126 @@ function bleacherInstances(layout: ArenaLayout): BoxInstance[] {
           stand.centerAlong,
           rowFacing(stand, row),
           stand.baseHeight + row * stand.rowRise - stepHeight / 2,
-          stand.length,
+          bowlRowLength(stand, row),
           stepHeight,
           stand.rowDepth
         )
       );
     }
-    // Front fascia closing the gap between the outer floor and the first row.
+    // Front fascia closing the gap between the apron and the first row.
     instances.push(
       standWorld(
         stand,
         stand.centerAlong,
         stand.innerEdge + stand.direction * 3,
         STAND_BASE_HEIGHT / 2,
-        stand.length,
+        bowlRowLength(stand, 0),
         STAND_BASE_HEIGHT,
         6
       )
     );
+  }
+
+  return instances;
+}
+
+/**
+ * Seat-coloured caps sitting on the back lip of each riser. The risers alone
+ * read as bare grey steps; a band of seat colour is what makes a rake look
+ * like seating rather than stairs, and the empty upper rows are exactly where
+ * the eye lands in the top corners of the frame.
+ */
+function seatBandInstances(layout: ArenaLayout): BoxInstance[] {
+  const instances: BoxInstance[] = [];
+
+  for (const stand of layout.stands) {
+    for (let row = 0; row < stand.rowCount; row += 1) {
+      instances.push(
+        standWorld(
+          stand,
+          stand.centerAlong,
+          rowFacing(stand, row) + stand.direction * (stand.rowDepth * 0.3),
+          stand.baseHeight + row * stand.rowRise + 5,
+          bowlRowLength(stand, row),
+          10,
+          stand.rowDepth * 0.34
+        )
+      );
+    }
+  }
+
+  return instances;
+}
+
+/**
+ * The flat ring of floor between the boards and the first row — a real rink's
+ * apron. Sits a hair above the outer floor slab so it reads as its own
+ * surface. The x-running pair spans the corners, matching the bowl's tiling.
+ */
+function apronInstances(layout: ArenaLayout): BoxInstance[] {
+  const { apron, rink } = layout;
+  const { width, height } = rink;
+  const y = apron.thickness / 2;
+  const band = apron.outerDepth - apron.innerDepth;
+  const mid = (apron.innerDepth + apron.outerDepth) / 2;
+  const spanX = width + 2 * apron.outerDepth;
+
+  return [
+    { x: width / 2, y, z: -mid, sizeX: spanX, sizeY: apron.thickness, sizeZ: band },
+    {
+      x: width / 2,
+      y,
+      z: height + mid,
+      sizeX: spanX,
+      sizeY: apron.thickness,
+      sizeZ: band
+    },
+    {
+      x: -mid,
+      y,
+      z: height / 2,
+      sizeX: band,
+      sizeY: apron.thickness,
+      sizeZ: height + 2 * apron.innerDepth
+    },
+    {
+      x: width + mid,
+      y,
+      z: height / 2,
+      sizeX: band,
+      sizeY: apron.thickness,
+      sizeZ: height + 2 * apron.innerDepth
+    }
+  ];
+}
+
+/** Fascia ad panels: repeating boards along the front of the lower bowl. */
+const AD_PANEL_LENGTH = 200;
+const AD_PANEL_GAP = 16;
+
+function adPanelInstances(layout: ArenaLayout, phase: number, stride: number): BoxInstance[] {
+  const instances: BoxInstance[] = [];
+  const pitch = AD_PANEL_LENGTH + AD_PANEL_GAP;
+
+  for (const stand of layout.stands) {
+    const runLength = bowlRowLength(stand, 0);
+    const count = Math.floor(runLength / pitch);
+    const start = stand.centerAlong - (count * pitch) / 2 + pitch / 2;
+
+    for (let index = phase; index < count; index += stride) {
+      instances.push(
+        standWorld(
+          stand,
+          start + index * pitch,
+          // Proud of the fascia face by 2 so it never z-fights it.
+          stand.innerEdge - stand.direction * 2,
+          STAND_BASE_HEIGHT * 0.56,
+          AD_PANEL_LENGTH,
+          STAND_BASE_HEIGHT * 0.52,
+          4
+        )
+      );
+    }
   }
 
   return instances;
@@ -105,7 +208,7 @@ function railInstances(layout: ArenaLayout): BoxInstance[] {
         stand.centerAlong,
         stand.innerEdge + stand.direction * 2,
         stand.baseHeight + 26,
-        stand.length,
+        bowlRowLength(stand, 0),
         3,
         3
       )
@@ -116,8 +219,13 @@ function railInstances(layout: ArenaLayout): BoxInstance[] {
     const slopeLength = Math.hypot(rise, rakeDepth(stand));
     const tilt =
       Math.atan2(rise, rakeDepth(stand)) * (stand.direction === -1 ? 1 : -1);
-    for (const alongFraction of [-0.25, 0.25]) {
-      const along = stand.centerAlong + stand.length * alongFraction;
+    // Aisles every ~700 units of run, so the longer continuous rows get the
+    // vertical breaks a real bowl has instead of two lonely staircases.
+    const runLength = bowlRowLength(stand, 0);
+    const aisleCount = Math.max(2, Math.round(runLength / 700));
+    for (let aisle = 0; aisle < aisleCount; aisle += 1) {
+      const alongFraction = (aisle + 0.5) / aisleCount - 0.5;
+      const along = stand.centerAlong + runLength * alongFraction;
       const facing = stand.innerEdge + stand.direction * (rakeDepth(stand) / 2);
       const y = stand.baseHeight + rise / 2 - stand.rowRise / 2;
       const base = standWorld(stand, along, facing, y, 12, 3, slopeLength);
@@ -196,29 +304,60 @@ function wallInstances(layout: ArenaLayout): BoxInstance[] {
   ];
 }
 
-function cornerInstances(layout: ArenaLayout): BoxInstance[] {
-  return layout.corners.map((corner) => ({
-    x: corner.center.x,
-    y: corner.height / 2,
-    z: corner.center.z,
-    sizeX: corner.sizeX,
-    sizeY: corner.height,
-    sizeZ: corner.sizeZ
-  }));
+/** Emissive fixture faces — the lit panel a light bank shows from below. */
+function lightBankInstances(layout: ArenaLayout): BoxInstance[] {
+  return layout.stands.flatMap((stand) => {
+    const facing =
+      stand.innerEdge + stand.direction * ((stand.rowCount * stand.rowDepth) / 2);
+    const runLength = bowlRowLength(stand, 0);
+    const count = Math.max(2, Math.round(runLength / 900));
+    const bankLength = (runLength / count) * 0.62;
+
+    return Array.from({ length: count }, (_unused, index) =>
+      standWorld(
+        stand,
+        stand.centerAlong + runLength * ((index + 0.5) / count - 0.5),
+        facing,
+        LIGHT_BANK_HEIGHT,
+        bankLength,
+        10,
+        30
+      )
+    );
+  });
 }
 
-function lightBankInstances(layout: ArenaLayout): BoxInstance[] {
-  return layout.stands.map((stand) =>
-    standWorld(
-      stand,
-      stand.centerAlong,
-      stand.innerEdge + stand.direction * ((stand.rowCount * stand.rowDepth) / 2),
-      LIGHT_BANK_HEIGHT,
-      stand.length * 0.5,
-      10,
-      30
-    )
-  );
+/**
+ * Dark housings and hanger stems around each lit panel. The banks used to be
+ * bare white bars floating in the dark with nothing holding them up.
+ */
+function lightRigInstances(layout: ArenaLayout): BoxInstance[] {
+  const instances: BoxInstance[] = [];
+
+  for (const bank of lightBankInstances(layout)) {
+    const alongIsX = bank.sizeX > bank.sizeZ;
+    // Housing: a slightly larger box wrapped above the emissive face.
+    instances.push({
+      ...bank,
+      y: bank.y + 9,
+      sizeX: bank.sizeX + (alongIsX ? 6 : 8),
+      sizeY: 12,
+      sizeZ: bank.sizeZ + (alongIsX ? 8 : 6)
+    });
+    // Two stems climbing out of frame toward the (unmodelled) roof steel.
+    for (const offset of [-0.3, 0.3]) {
+      instances.push({
+        x: bank.x + (alongIsX ? bank.sizeX * offset : 0),
+        y: bank.y + 46,
+        z: bank.z + (alongIsX ? 0 : bank.sizeZ * offset),
+        sizeX: 5,
+        sizeY: 60,
+        sizeZ: 5
+      });
+    }
+  }
+
+  return instances;
 }
 
 /** One instanced unit-box mesh; every instance is a scaled/tilted box. */
@@ -295,17 +434,26 @@ export function ArenaShell({
     [layout, detail]
   );
   const bleachers = useMemo(() => bleacherInstances(layout), [layout]);
+  const seatBands = useMemo(() => seatBandInstances(layout), [layout]);
+  const apron = useMemo(() => apronInstances(layout), [layout]);
   const rails = useMemo(() => railInstances(layout), [layout]);
   const floor = useMemo(() => floorInstances(layout), [layout]);
   const walls = useMemo(() => wallInstances(layout), [layout]);
-  const corners = useMemo(() => cornerInstances(layout), [layout]);
   const lightBanks = useMemo(() => lightBankInstances(layout), [layout]);
+  const lightRigs = useMemo(() => lightRigInstances(layout), [layout]);
+  // Three interleaved passes so the ring of boards alternates colour without
+  // needing per-instance colours (one draw call each, same as any other box).
+  const adsA = useMemo(() => adPanelInstances(layout, 0, 3), [layout]);
+  const adsB = useMemo(() => adPanelInstances(layout, 1, 3), [layout]);
+  const adsC = useMemo(() => adPanelInstances(layout, 2, 3), [layout]);
 
   return (
     <group name="arena-shell">
-      <InstancedBoxes instances={bleachers} color="#3a4149" roughness={0.95} />
-      <InstancedBoxes instances={corners} color="#23272e" roughness={1} />
-      <InstancedBoxes instances={floor} color="#2c3036" roughness={1} />
+      <InstancedBoxes instances={bleachers} color="#454d57" roughness={0.95} />
+      {/* Seat colour on the riser lips — what turns bare steps into seating. */}
+      <InstancedBoxes instances={seatBands} color="#1f3f6b" roughness={0.75} />
+      <InstancedBoxes instances={apron} color="#6a7079" roughness={0.95} />
+      <InstancedBoxes instances={floor} color="#343941" roughness={1} />
       <InstancedBoxes instances={walls} color="#1a1d23" roughness={1} />
       <InstancedBoxes
         instances={rails}
@@ -313,6 +461,11 @@ export function ArenaShell({
         roughness={0.35}
         metalness={0.7}
       />
+      {/* Dasher-level ad boards ringing the bowl front. */}
+      <InstancedBoxes instances={adsA} color="#c9d3de" roughness={0.6} />
+      <InstancedBoxes instances={adsB} color="#1f5fd0" roughness={0.6} />
+      <InstancedBoxes instances={adsC} color="#b3132b" roughness={0.6} />
+      <InstancedBoxes instances={lightRigs} color="#191c22" roughness={1} />
       {/* Visible fixtures only — emissive meshes, never actual scene lights. */}
       <InstancedBoxes
         instances={lightBanks}
