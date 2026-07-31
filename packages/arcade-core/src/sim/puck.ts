@@ -161,18 +161,33 @@ export const PUCK_CONFIG: PuckConfig = {
   passSpeed: 1634,
   passCatchRadius: 90,
   passCatchMaxRelativeSpeed: 2850,
-  wristShotSpeed: 1040,
-  maxChargedShotSpeed: 1980,
-  snapMaxShotSpeed: 1550,
+  // All three tiers +15% (user, 2026-07-26: shots "just feel slow"). Speed
+  // ONLY — lift is deliberately not scaled with it. Scaling both preserves the
+  // launch angle, which sounds right but measured WORSE: a faster puck reaches
+  // the net sooner, so it has dropped less, and top-shelf attempts sailed over
+  // the bar (wrist 123, snap 116, slap 133 against a bar at 95). Aim is a
+  // target POINT on the goal line, so the horizontal line is untouched by any
+  // of this — placement is identical.
+  wristShotSpeed: 1196,
+  maxChargedShotSpeed: 2277,
+  snapMaxShotSpeed: 1783,
   oneTimerWindowMs: 550,
   oneTimerPowerMultiplier: 1.22,
-  wristLiftSpeed: 660,
+  // 660 -> 620 with the +15% speed bump, for the same reason as the slap trim
+  // below: less flight time means less drop. A top-shelf wrist shot from the
+  // slot arrived at 69 and SCORED (the ceiling is 77); at the faster speed it
+  // arrived at 86 and would have clanged the bar. 620 puts it back at ~71.
+  wristLiftSpeed: 620,
   // A neutral (no-aim) full-power slap must clear the ice yet stay UNDER the
   // crossbar: a shot only scores below height 77 (GOAL_HEIGHT 95 minus the puck
   // radius 18). 860 peaked at ~83 so every neutral slapper clanged the bar; 680
   // peaks at ~52 (one-timers ~69) — scores clean, and only aiming UP now risks
   // the crossbar for a top-shelf attempt.
-  slapLiftSpeed: 680,
+  // 680 -> 645 with the +15% speed bump. Less flight time means less drop, and
+  // measured, the one case that crossed the bar was a long full-power slap
+  // aimed top-shelf: 89 -> 98 against a bar at 95. This trim puts it back
+  // under (~93) while leaving every other slap comfortably clear.
+  slapLiftSpeed: 645,
   shotPlacementMargin: 30,
   snapPlacementMargin: 12,
   releasePickupCooldownMs: 220,

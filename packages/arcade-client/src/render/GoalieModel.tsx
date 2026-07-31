@@ -1,3 +1,5 @@
+import { useMemo } from "react";
+import { CanvasTexture } from "three";
 import {
   TEAM_PALETTES,
   type TeamId,
@@ -15,6 +17,13 @@ import {
 import type { GoalieAnimationState } from "./animation/clipMap.js";
 import { getHeadgearColor } from "./headgearColor.js";
 import { lerp3, segmentBetween, type Point3 } from "./stickGeometry.js";
+import {
+  buildMaskVents,
+  maskUvToFace,
+  MASK_CHEVRONS,
+  MASK_EYES,
+  type MaskHole
+} from "./goalieMask.js";
 
 export interface GoalieModelProps {
   readonly teamId: TeamId;
@@ -56,6 +65,10 @@ export function GoalieModel({
   manifest = FIRST_GOALIE_MODEL_MANIFEST
 }: GoalieModelProps): JSX.Element {
   const validation = validateModelManifest(manifest, "goalie");
+  const palette = uniform ?? TEAM_PALETTES[teamId].uniform;
+  // Above the validation guard: hooks cannot sit behind an early return, or
+  // the hook order changes between a valid and an invalid manifest.
+  const maskTexture = useGoalieMaskTexture(palette.jersey);
 
   if (!validation.valid) {
     return (
@@ -68,7 +81,6 @@ export function GoalieModel({
     );
   }
 
-  const palette = uniform ?? TEAM_PALETTES[teamId].uniform;
   const pose = goaliePose(animationState);
 
   return (
@@ -89,6 +101,29 @@ export function GoalieModel({
         <sphereGeometry args={[16, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.62]} />
         <meshStandardMaterial color={getHeadgearColor(palette)} />
       </mesh>
+      {/* Retro fibreglass mask over the face. The cap opens toward +Z, which
+          is down-ice: the +90 deg X rotation aims the pole (the middle of the
+          face) at the shooter. */}
+      {maskTexture ? (
+        <mesh position={[0, 51, 2]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+          <sphereGeometry
+            args={[16.4, 28, 20, 0, Math.PI * 2, 0, Math.PI * 0.46]}
+          />
+          <meshStandardMaterial map={maskTexture} roughness={0.42} />
+        </mesh>
+      ) : null}
+      {/* Retention straps around the shell edge. */}
+      {[-1, 1].map((side) => (
+        <mesh
+          key={side}
+          position={[side * 15.2, 52, -1]}
+          rotation={[0, 0, side * 0.2]}
+          castShadow
+        >
+          <boxGeometry args={[3.4, 7, 5]} />
+          <meshStandardMaterial color="#16181d" roughness={0.8} />
+        </mesh>
+      ))}
       <mesh position={[-15, 14, 0]} castShadow>
         <boxGeometry args={[11, 23, 22]} />
         <meshStandardMaterial color="#f8fafc" />
@@ -97,10 +132,7 @@ export function GoalieModel({
         <boxGeometry args={[11, 23, 22]} />
         <meshStandardMaterial color="#f8fafc" />
       </mesh>
-      <mesh position={[-23, 30, 0]} rotation={[0, 0, 0.18]} castShadow>
-        <boxGeometry args={[12, 16, 18]} />
-        <meshStandardMaterial color="#f8fafc" />
-      </mesh>
+      <CatchGlove accent={palette.jersey} />
       <GoalieStick />
     </group>
   );
@@ -153,6 +185,158 @@ function GoalieStick(): JSX.Element {
       <mesh position={blade.position} rotation={blade.rotation} castShadow>
         <boxGeometry args={[3.2, blade.length, 5.6]} />
         <meshStandardMaterial color="#6b7280" roughness={0.45} />
+      </mesh>
+    </group>
+  );
+}
+
+const MASK_SHELL = "#e9e3d1";
+const MASK_HOLE = "#241f1a";
+const MASK_SIZE = 256;
+
+/** Face space (-1..1, +y up) -> pixel coords on the face-space scratch canvas. */
+function facePixel(value: number, axis: "x" | "y"): number {
+  const normalized = axis === "x" ? value * 0.5 + 0.5 : 0.5 - value * 0.5;
+  return normalized * MASK_SIZE;
+}
+
+function paintHole(ctx: CanvasRenderingContext2D, hole: MaskHole): void {
+  ctx.beginPath();
+  ctx.ellipse(
+    facePixel(hole.x, "x"),
+    facePixel(hole.y, "y"),
+    (hole.r * MASK_SIZE) / 2,
+    ((hole.r * hole.stretch) * MASK_SIZE) / 2,
+    0,
+    0,
+    Math.PI * 2
+  );
+  ctx.fill();
+}
+
+/**
+ * Paints the retro mask, then remaps it onto the polar UVs of a sphere cap.
+ *
+ * Two canvases on purpose: the mask is authored in ordinary face space (where
+ * "a chevron above the eye" is something you can write down), then resampled
+ * into the cap's u = angle / v = distance-from-pole layout. Painting straight
+ * into polar would mean pre-distorting every shape by hand.
+ */
+function useGoalieMaskTexture(accent: string): CanvasTexture | null {
+  return useMemo(() => {
+    if (typeof document === "undefined") {
+      return null;
+    }
+
+    const face = document.createElement("canvas");
+    face.width = MASK_SIZE;
+    face.height = MASK_SIZE;
+    const fctx = face.getContext("2d");
+    if (!fctx) {
+      return null;
+    }
+
+    fctx.fillStyle = MASK_SHELL;
+    fctx.fillRect(0, 0, MASK_SIZE, MASK_SIZE);
+
+    fctx.fillStyle = accent;
+    for (const chevron of MASK_CHEVRONS) {
+      fctx.beginPath();
+      chevron.forEach(([x, y], index) => {
+        const px = facePixel(x, "x");
+        const py = facePixel(y, "y");
+        if (index === 0) {
+          fctx.moveTo(px, py);
+        } else {
+          fctx.lineTo(px, py);
+        }
+      });
+      fctx.closePath();
+      fctx.fill();
+    }
+
+    fctx.fillStyle = MASK_HOLE;
+    for (const vent of buildMaskVents()) {
+      paintHole(fctx, vent);
+    }
+    for (const eye of MASK_EYES) {
+      paintHole(fctx, eye);
+    }
+
+    // Resample into the cap's polar layout. Canvas row 0 is uv.y = 1 (three
+    // flips textures by default), which is the pole — i.e. the middle of the
+    // face — so the radius grows with the row index.
+    const source = fctx.getImageData(0, 0, MASK_SIZE, MASK_SIZE);
+    const outWidth = MASK_SIZE * 2;
+    const outHeight = MASK_SIZE;
+    const out = document.createElement("canvas");
+    out.width = outWidth;
+    out.height = outHeight;
+    const octx = out.getContext("2d");
+    if (!octx) {
+      return null;
+    }
+    const target = octx.createImageData(outWidth, outHeight);
+
+    for (let row = 0; row < outHeight; row += 1) {
+      const radius = row / (outHeight - 1);
+      for (let col = 0; col < outWidth; col += 1) {
+        const { x, y } = maskUvToFace(col / (outWidth - 1), radius);
+        const sx = Math.min(MASK_SIZE - 1, Math.max(0, Math.round(facePixel(x, "x"))));
+        const sy = Math.min(MASK_SIZE - 1, Math.max(0, Math.round(facePixel(y, "y"))));
+        const from = (sy * MASK_SIZE + sx) * 4;
+        const to = (row * outWidth + col) * 4;
+        target.data[to] = source.data[from]!;
+        target.data[to + 1] = source.data[from + 1]!;
+        target.data[to + 2] = source.data[from + 2]!;
+        target.data[to + 3] = 255;
+      }
+    }
+
+    octx.putImageData(target, 0, 0);
+    const texture = new CanvasTexture(out);
+    texture.anisotropy = 4;
+    return texture;
+  }, [accent]);
+}
+
+/**
+ * Catch glove (trapper) on the non-stick hand — a cupped mitt with a laced
+ * pocket, not the cube it used to be. Built to read at gameplay distance:
+ * the silhouette is the cup and the dark pocket ring facing the shooter.
+ */
+function CatchGlove({ accent }: { readonly accent: string }): JSX.Element {
+  return (
+    <group name="catch-glove" position={[-25, 30, 4]} rotation={[0, 0.35, 0.18]}>
+      {/* Cuff around the wrist. */}
+      <mesh position={[0, -11, -3]} castShadow>
+        <boxGeometry args={[11, 12, 15]} />
+        <meshStandardMaterial color="#1b1e24" roughness={0.75} />
+      </mesh>
+      {/* Backhand: the padded cup, squashed into a mitt rather than a ball. */}
+      <mesh scale={[0.72, 1.12, 1]} castShadow>
+        <sphereGeometry args={[14, 16, 12]} />
+        <meshStandardMaterial color="#23272e" roughness={0.7} />
+      </mesh>
+      {/* Pocket rim facing the shooter — the ring that reads as a catcher. */}
+      <mesh position={[0, 1, 8]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+        <torusGeometry args={[10.5, 2.6, 8, 20]} />
+        <meshStandardMaterial color="#15181d" roughness={0.6} />
+      </mesh>
+      {/* Webbing sunk inside the rim. */}
+      <mesh position={[0, 1, 6.4]}>
+        <circleGeometry args={[10, 18]} />
+        <meshStandardMaterial color="#0d0f12" roughness={0.95} />
+      </mesh>
+      {/* Team flash on the cuff so the two goalies still read apart. */}
+      <mesh position={[0, -11, 4.6]}>
+        <boxGeometry args={[11.4, 3.4, 1.2]} />
+        <meshStandardMaterial color={accent} roughness={0.5} />
+      </mesh>
+      {/* Thumb running up the inside edge. */}
+      <mesh position={[-7.5, 4, 3]} rotation={[0.3, 0, 0.5]} castShadow>
+        <capsuleGeometry args={[3, 9, 4, 8]} />
+        <meshStandardMaterial color="#23272e" roughness={0.7} />
       </mesh>
     </group>
   );

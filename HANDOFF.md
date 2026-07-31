@@ -42,6 +42,59 @@ Source links (download only from official Pixabay):
 `https://pixabay.com/music/beats-positive-hip-hop-184768/`, and
 `https://pixabay.com/music/beats-hip-hop-old-school-208627/`.
 
+**SHIPPED, AWAITING USER VERDICT — shots 15% faster, accuracy held (2026-07-26).** User: shots
+"feel slow", speed up all tiers 15% "but make sure this doesnt make the shots any less accurate".
+`wristShotSpeed` 1040 -> 1196, `snapMaxShotSpeed` 1550 -> 1783, `maxChargedShotSpeed` 1980 -> 2277.
+
+Horizontal accuracy is untouched by construction: aim resolves to a TARGET POINT on the goal line
+(`shotPlacementMargin` / `snapPlacementMargin`) and the shot direction is origin->target, so speed
+never enters the line. The accuracy risk is VERTICAL, and it is real — a faster puck reaches the net
+sooner, so it has dropped less on arrival.
+
+MEASURED arrival height at the goal line (crossbar 95; a shot only SCORES below 77, the bar minus
+the puck radius). The obvious move — scale lift with speed to preserve launch angle — is WRONG, and
+measurably so: it sends top-shelf attempts clean over the bar (wrist 123, snap 116, slap 133).
+Speed-only was close but had two regressions, both fixed by trimming lift DOWN:
+- `wristLiftSpeed` 660 -> 620: a top-shelf wrist from the slot arrived at 69 and SCORED; at the new
+  speed it arrived at 86 (bar territory). Now ~71, i.e. back to scoring.
+- `slapLiftSpeed` 680 -> 645: a long full-power slap aimed top-shelf went 89 (clangs the bar) ->
+  98 (sails OVER). Now 86 — the same outcome as before.
+Final table, arrival height by tier at 400/700 units, full top-shelf aim: wrist 71 / -150, snap
+83 / 47, slap 80 / 86. Nothing crosses the bar and nothing that used to score stopped scoring;
+snap and slap top-shelf attempts land slightly LOWER than before, i.e. marginally closer to going
+in. Note the pre-existing design intent, unchanged: a full top-shelf aim is a RISKY attempt for
+snap/slap (that is what the old slapLiftSpeed comment means), while a neutral shot scores clean.
+
+**SHIPPED, AWAITING USER VERDICT — retro goalie mask + real catch glove (2026-07-26).** User sent
+reference images: a vintage fibreglass goalie mask and a Bauer catch glove. Both built as GENERIC
+equipment in that style — team-coloured, no branding, no reproduction of the film mask or the
+product's markings.
+
+**Mask.** New pure `render/goalieMask.ts` holds the layout in FACE SPACE (origin at the middle of
+the mask, radius 1 at the rim): two eye openings, ~54 deterministically scattered ventilation ovals
+laid out in rings, and four painted chevrons (brow V over each eye, slash down each cheek), all
+mirrored across the centre line. `GoalieModel` paints that to a canvas and then RESAMPLES it into
+the polar UVs of a sphere cap — three hands a cap `u = angle, v = distance from pole`, so authoring
+the face directly in that space would mean pre-distorting every shape by hand. Canvas row 0 is
+uv.y 1 (three flips textures), which is the pole, i.e. the middle of the face. Chevrons take the
+team jersey colour so the two goalies still read apart; black retention straps sit at the shell
+edge. The vent scatter uses the same deterministic mixer as the crowd — no Math.random.
+
+**Catch glove.** Was a single white box on the non-stick hand. Now a cupped mitt: squashed-sphere
+backhand, torus pocket rim facing the shooter (the ring is what reads as a catcher at gameplay
+distance), sunken dark webbing, wrist cuff, thumb, and a team-colour flash on the cuff.
+
+Tests cover what is testable without a canvas: vents stay inside the shell (containment checks the
+whole OVAL, not just its centre — a tall vent near the rim spilled off the edge until it did),
+never drill through an eye, come out deterministic, and the eyes/chevrons mirror. The uv remap
+round-trips. The canvas path itself was exercised live in the browser (54 vents, 10.4% of the face
+dark). NOTE: `useGoalieMaskTexture` must stay ABOVE the manifest-validation early return in
+`GoalieModel` — hooks cannot sit behind a conditional return.
+Verified: typecheck, 292 core / 103 server / 306 client, prod build, live Free Skate mount with
+both goalies and zero console errors. **USER EYEBALLS OWED:** the mask at gameplay distance and in
+close shots, whether the chevrons read at team colours (away red is close to the reference; home
+blue is not), and the glove silhouette from the camera.
+
 **SHIPPED, AWAITING USER VERDICT — playtest batch: graphics option, colour bug, passes, turning
 (2026-07-26).** Four of five items from a playtest round; the fifth (scoring) is MEASURED BUT NOT
 CHANGED — see below, it needs a user decision.
