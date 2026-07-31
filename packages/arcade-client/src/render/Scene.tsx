@@ -58,6 +58,11 @@ export interface SceneProps {
    * screens (Free Skate, Shootout) are always home and take the default.
    */
   readonly viewOrientation?: ViewOrientation;
+  /**
+   * Drops the crowd to half density and turns off real-time shadows. Purely
+   * local presentation — the sim and the match are identical either way.
+   */
+  readonly reducedGraphics?: boolean;
 }
 
 export function Scene({
@@ -70,7 +75,8 @@ export function Scene({
   highlightColorByEntityId = {},
   debugOverlays = false,
   teamIdentities,
-  viewOrientation = 1
+  viewOrientation = 1,
+  reducedGraphics = false
 }: SceneProps): JSX.Element | null {
   if (!currentWorld) {
     return null;
@@ -132,7 +138,10 @@ export function Scene({
   return (
     <section className="arcade-rink-shell" aria-label="Arcade rink debug view">
       <Canvas
-        shadows
+        // Shadows are the single biggest frame cost here: every casting mesh
+        // (bodies, sticks, the whole arena bowl) renders a second time into
+        // the shadow map.
+        shadows={!reducedGraphics}
         camera={{
           position: [520, 1180, 980],
           fov: 44,
@@ -170,6 +179,7 @@ export function Scene({
         <ArenaShell
           events={currentWorld.eventQueue}
           nowMs={currentWorld.time.nowMs}
+          detail={reducedGraphics ? "reduced" : "full"}
         />
         <Powerups pickups={currentWorld.powerupPickups} />
         <BananaPeels peels={currentWorld.bananaPeels} />

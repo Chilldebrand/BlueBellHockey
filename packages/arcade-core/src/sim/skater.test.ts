@@ -199,12 +199,38 @@ describe("skater movement", () => {
     const skater = world.skaters[0];
     expect(skater.facing).toBe(0);
 
-    // Full-left stick asks for a π/2 turn; one 100ms step at standstill can
-    // only cover turnRate * 0.1 radians.
-    stepWorld(world, [inputFrame(skater.id, 1, { moveY: 1 })], 100);
+    // Full-reverse stick asks for a π turn, which is more than one 100ms step
+    // can cover even with the standstill boost — so the cap is what lands.
+    stepWorld(world, [inputFrame(skater.id, 1, { moveX: -1 })], 100);
 
     expect(skater.facing).toBeCloseTo(
-      SKATER_MOVEMENT_CONFIG.turnRate * 0.1,
+      SKATER_MOVEMENT_CONFIG.turnRate *
+        SKATER_MOVEMENT_CONFIG.lowSpeedTurnBoost *
+        0.1,
+      5
+    );
+    expect(Math.abs(skater.facing)).toBeLessThan(Math.PI);
+  });
+
+  it("boosts the standstill pivot but leaves turning at pace alone", () => {
+    // The dead beat before thrust engages (alignment must exceed 0) is what
+    // made a standing direction change feel slow.
+    const standing = playingWorld();
+    const stander = standing.skaters[0];
+    stepWorld(standing, [inputFrame(stander.id, 1, { moveX: -1 })], 100);
+
+    const rolling = playingWorld();
+    const roller = rolling.skaters[0];
+    // Comfortably over any stat-scaled max so speedFactor clamps to exactly 1.
+    roller.velocity = { x: 700, y: 0 };
+    stepWorld(rolling, [inputFrame(roller.id, 1, { moveX: -1 })], 100);
+
+    expect(Math.abs(stander.facing)).toBeGreaterThan(Math.abs(roller.facing));
+    // At full speed the boost is fully faded, so the arc is the old one.
+    expect(Math.abs(roller.facing)).toBeCloseTo(
+      SKATER_MOVEMENT_CONFIG.turnRate *
+        SKATER_MOVEMENT_CONFIG.highSpeedTurnRetention *
+        0.1,
       5
     );
   });
@@ -313,5 +339,73 @@ describe("skater movement", () => {
 
     expect(second.skaters[0]).toEqual(first.skaters[0]);
     expect(second.time).toEqual(first.time);
+  });
+});
+
+describe("backskate transition", () => {
+  function runTransition(): { entry: number; lowest: number; settled: number } {
+    const world = playingWorld();
+    const skater = world.skaters[0];
+    for (const other of world.skaters) {
+      if (other.id !== skater.id) {
+        other.position = { x: 100, y: 100 };
+      }
+    }
+    world.puck.position = { x: 2000, y: 1400 };
+    // Room to run before the end boards, which would otherwise scrub the
+    // speed and make the measurement meaningless.
+    skater.position = { x: 300, y: 780 };
+    skater.velocity = { x: 0, y: 0 };
+
+    let sequence = 0;
+    for (let i = 0; i < 120; i += 1) {
+      sequence += 1;
+      stepWorld(world, [inputFrame(skater.id, sequence, { moveX: 1 })], 16);
+    }
+    const entry = Math.hypot(skater.velocity.x, skater.velocity.y);
+
+    let lowest = entry;
+    for (let i = 0; i < 60; i += 1) {
+      sequence += 1;
+      stepWorld(
+        world,
+        [inputFrame(skater.id, sequence, { moveX: 1, skateBackward: true })],
+        16
+      );
+      lowest = Math.min(lowest, Math.hypot(skater.velocity.x, skater.velocity.y));
+    }
+
+    return {
+      entry,
+      lowest,
+      settled: Math.hypot(skater.velocity.x, skater.velocity.y)
+    };
+  }
+
+  it("settles at the backward speed cap rather than crawling", () => {
+    const { entry, settled } = runTransition();
+
+    expect(settled / entry).toBeGreaterThan(0.85);
+  });
+
+  it("carries speed THROUGH the pivot instead of scrubbing it off", () => {
+    // Two bugs used to gut this: the 180 body reversal read as "stick pulled
+    // against travel" and slammed the brakes on, and the edge grip scrubbed
+    // the velocity while the body was side-on. Measured dip was 21%.
+    const { entry, lowest } = runTransition();
+
+    expect(lowest / entry).toBeGreaterThan(0.7);
+  });
+
+  it("still brakes hard when pulling against travel WITHOUT backskating", () => {
+    const world = playingWorld();
+    const skater = world.skaters[0];
+    skater.position = { x: 800, y: 780 };
+    skater.velocity = { x: 500, y: 0 };
+    skater.facing = 0;
+
+    stepWorld(world, [inputFrame(skater.id, 1, { moveX: -1 })], 100);
+
+    expect(Math.hypot(skater.velocity.x, skater.velocity.y)).toBeLessThan(500);
   });
 });

@@ -113,6 +113,7 @@ describe("goalie-control presentation state", () => {
       clientSlot({
         slotId: "home-skater-2",
         sessionId: "session-b",
+        teamJoinOrder: 2,
         isOwnedByLocalPlayer: false
       }),
       clientSlot({
@@ -131,6 +132,70 @@ describe("goalie-control presentation state", () => {
     // Other humans keep their skater discs; AI slots get nothing.
     expect(map["home-skater-2"]).toBe(PLAYER_HIGHLIGHT_COLORS[1]);
     expect(map["home-skater-3"]).toBeUndefined();
+  });
+
+  it("keeps a player's colour through a control switch", () => {
+    // A switch rewrites two slots: the old one back to a bot, the new one to
+    // the human. Only the slot ID moves — team and join order ride along.
+    const before = buildHighlightColorByEntityId([
+      clientSlot({ sessionId: "session-a", teamJoinOrder: 1 }),
+      clientSlot({
+        slotId: "home-skater-2",
+        kind: "bot",
+        sessionId: null,
+        isOwnedByLocalPlayer: false
+      })
+    ]);
+    const after = buildHighlightColorByEntityId([
+      clientSlot({
+        slotId: "home-skater-1",
+        kind: "bot",
+        sessionId: null,
+        isOwnedByLocalPlayer: false
+      }),
+      clientSlot({ slotId: "home-skater-2", sessionId: "session-a", teamJoinOrder: 1 })
+    ]);
+
+    expect(after["home-skater-2"]).toBe(before["home-skater-1"]);
+  });
+
+  it("never repaints other players while a switch is half-applied", () => {
+    // The two slot rewrites land as separate 50ms schema patches, so the
+    // client really does observe a roster with the switcher missing. Under
+    // the old index-based scheme that shifted everyone after them.
+    const teammate = clientSlot({
+      slotId: "away-skater-1",
+      teamId: "away",
+      sessionId: "session-b",
+      teamJoinOrder: 1,
+      isOwnedByLocalPlayer: false
+    });
+    const settled = buildHighlightColorByEntityId([
+      clientSlot({ sessionId: "session-a", teamJoinOrder: 1 }),
+      teammate
+    ]);
+    const midSwitch = buildHighlightColorByEntityId([teammate]);
+
+    expect(midSwitch["away-skater-1"]).toBe(settled["away-skater-1"]);
+  });
+
+  it("gives all six seats in a full 3v3 a distinct colour", () => {
+    const roster = (["home", "away"] as const).flatMap((teamId) =>
+      [1, 2, 3].map((joinOrder) =>
+        clientSlot({
+          slotId: `${teamId}-skater-${joinOrder}`,
+          teamId,
+          sessionId: `session-${teamId}-${joinOrder}`,
+          teamJoinOrder: joinOrder,
+          isOwnedByLocalPlayer: false
+        })
+      )
+    );
+
+    const colors = Object.values(buildHighlightColorByEntityId(roster));
+
+    expect(colors).toHaveLength(6);
+    expect(new Set(colors).size).toBe(6);
   });
 
   it("maps ready, join order, and room creator directly from the server", () => {

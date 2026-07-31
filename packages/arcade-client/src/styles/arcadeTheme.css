@@ -2030,6 +2030,13 @@ input {
   font-variant-numeric: tabular-nums;
 }
 
+/* Secondary line under a settings row, e.g. what Reduced Graphics trades. */
+.audio-settings-hint {
+  color: #9aa7b8;
+  font-size: 0.82em;
+  line-height: 1.35;
+}
+
 .audio-settings-input {
   accent-color: #77cfff;
   cursor: pointer;

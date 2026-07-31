@@ -246,21 +246,45 @@ export const PLAYER_HIGHLIGHT_COLORS = [
 export function buildHighlightColorByEntityId(
   roster: readonly ClientRosterSlot[]
 ): Record<string, string> {
-  const humans = roster.filter(
-    (slot) => slot.kind === "human" && slot.sessionId
-  );
-  const ordered = [...humans].sort((a, b) => {
-    const byJoinOrder =
-      (a.teamJoinOrder ?? Number.POSITIVE_INFINITY) -
-      (b.teamJoinOrder ?? Number.POSITIVE_INFINITY);
-    return byJoinOrder || a.slotId.localeCompare(b.slotId);
-  });
   const map: Record<string, string> = {};
-  ordered.forEach((slot, index) => {
-    const color = PLAYER_HIGHLIGHT_COLORS[index % PLAYER_HIGHLIGHT_COLORS.length];
+
+  for (const slot of roster) {
+    if (slot.kind !== "human" || !slot.sessionId) {
+      continue;
+    }
+
+    const color = PLAYER_HIGHLIGHT_COLORS[highlightColorIndex(slot)];
     if (color) {
       map[slot.controlledGoalieId ?? slot.slotId] = color;
     }
-  });
+  }
+
   return map;
+}
+
+/**
+ * Palette slot for a human, derived ONLY from facts that survive a control
+ * switch: which team they are on and the order they joined it. Both ride with
+ * the session through `switchHumanControl`, so a player's colour is fixed for
+ * the whole match.
+ *
+ * It deliberately does NOT depend on the player's position in a sorted list.
+ * That was the old scheme and it changed colours mid-match: a control switch
+ * rewrites two roster slots (old one back to a bot, new one to the human) and
+ * those land as separate 50ms schema patches, so the client briefly sees a
+ * roster with one human missing — or one extra. Every INDEX after the gap
+ * shifted, which repainted other players' discs too. Keying off stable
+ * per-session facts makes roster churn unable to move anyone's colour.
+ *
+ * Six colours, six seats in a 3v3: each team takes a block of three, so the
+ * sides can never collide and the first home player stays blue as before.
+ */
+function highlightColorIndex(slot: ClientRosterSlot): number {
+  const seatsPerTeam = PLAYER_HIGHLIGHT_COLORS.length / 2;
+  const seat = Math.min(
+    seatsPerTeam - 1,
+    Math.max(0, (slot.teamJoinOrder ?? 1) - 1)
+  );
+
+  return (slot.teamId === "away" ? seatsPerTeam : 0) + seat;
 }

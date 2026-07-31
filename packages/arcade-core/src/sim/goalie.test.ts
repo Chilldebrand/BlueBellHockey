@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   GIANT_GOALIE_SIZE,
   GOALIE_CONFIG,
@@ -14,6 +14,7 @@ import {
   saveMissChance,
   saveMissRoll,
   stepWorld,
+  TUNING,
   type GoalieEntity,
   type InputFrame,
   type WorldState
@@ -193,6 +194,10 @@ describe("goalie simulation", () => {
   });
 
   it("sweeps the puck path so a rocket cannot tunnel through the goalie", () => {
+    // Continuous-collision test: the subject is whether the sweep catches the
+    // puck at all, not whether he then muffs it, so take the roll out.
+    TUNING.goalie.missChanceCap = 0;
+    TUNING.goalie.missChanceFloor = 0;
     const world = playingWorld();
     const goalie = homeGoalieOf(world);
     // The puck already ended up BEHIND the goalie this tick — its path
@@ -209,6 +214,9 @@ describe("goalie simulation", () => {
     expect(world.stats.saves.home).toBe(1);
     expect(world.puck.velocity.x).toBeGreaterThan(0);
     expect(world.puck.assistCandidateSlotId).toBeNull();
+
+    TUNING.goalie.missChanceCap = GOALIE_CONFIG.missChanceCap;
+    TUNING.goalie.missChanceFloor = GOALIE_CONFIG.missChanceFloor;
   });
 
   it("cuts the angle on a wide carrier instead of parking on the near post", () => {
@@ -556,7 +564,26 @@ describe("goalie miss chance", () => {
   });
 });
 
+/**
+ * Pins the per-shot miss roll out of the way for tests whose subject is REACH
+ * or collision geometry. Without it, a change to missChanceCap silently flips
+ * fixtures that were only ever meant to measure whether the goalie could get
+ * to the puck at all.
+ */
+function withoutMissRoll(): void {
+  beforeEach(() => {
+    TUNING.goalie.missChanceCap = 0;
+    TUNING.goalie.missChanceFloor = 0;
+  });
+  afterEach(() => {
+    TUNING.goalie.missChanceCap = GOALIE_CONFIG.missChanceCap;
+    TUNING.goalie.missChanceFloor = GOALIE_CONFIG.missChanceFloor;
+  });
+}
+
 describe("goalie-resize powerups", () => {
+  withoutMissRoll();
+
   it("scopes the resize to the right goalie by owner team", () => {
     const world = playingWorld();
     // A HOME skater holding both: giant buffs the HOME goalie, mini shrinks

@@ -63,6 +63,11 @@ import {
   type AudioPreferences
 } from "./audio/preferences.js";
 import { viewOrientationForTeam } from "./render/viewOrientation.js";
+import {
+  loadGraphicsPreferences,
+  saveGraphicsPreferences,
+  type GraphicsPreferences
+} from "./render/graphicsPreferences.js";
 import { HUD } from "./ui/HUD.js";
 import { BootSplash } from "./ui/BootSplash.js";
 import { ControllerPrompt } from "./ui/ControllerPrompt.js";
@@ -121,6 +126,8 @@ export function App({
   const [audioPreferences, setAudioPreferences] = useState<AudioPreferences>(() =>
     loadAudioPreferences()
   );
+  const [graphicsPreferences, setGraphicsPreferences] =
+    useState<GraphicsPreferences>(() => loadGraphicsPreferences());
   const audioRef = useRef(audio);
   const consumedWorldCursorRef = useRef<{
     readonly tick: number;
@@ -350,6 +357,14 @@ export function App({
     audioRef.current.setPreferences(next);
   }, []);
 
+  const handleGraphicsPreferencesChange = useCallback(
+    (next: GraphicsPreferences) => {
+      setGraphicsPreferences(next);
+      saveGraphicsPreferences(next);
+    },
+    []
+  );
+
   const handleOpenSettings = useCallback(() => {
     setSettingsOpen(true);
   }, []);
@@ -531,7 +546,9 @@ export function App({
         <SettingsOverlay
           open={settingsOpen}
           preferences={audioPreferences}
+          graphicsPreferences={graphicsPreferences}
           onChange={handleAudioPreferencesChange}
+          onGraphicsPreferencesChange={handleGraphicsPreferencesChange}
           onClose={handleCloseSettings}
         />
       </>
@@ -550,7 +567,9 @@ export function App({
         onOpenSettings={handleOpenSettings}
         settingsOpen={settingsOpen}
         audioPreferences={audioPreferences}
+        graphicsPreferences={graphicsPreferences}
         onAudioPreferencesChange={handleAudioPreferencesChange}
+        onGraphicsPreferencesChange={handleGraphicsPreferencesChange}
         onCloseSettings={handleCloseSettings}
         onWorldUpdate={(world, localEntityId) => {
           consumedWorldCursorRef.current = {
@@ -575,7 +594,9 @@ export function App({
         onOpenSettings={handleOpenSettings}
         settingsOpen={settingsOpen}
         audioPreferences={audioPreferences}
+        graphicsPreferences={graphicsPreferences}
         onAudioPreferencesChange={handleAudioPreferencesChange}
+        onGraphicsPreferencesChange={handleGraphicsPreferencesChange}
         onCloseSettings={handleCloseSettings}
         onWorldUpdate={(world, localEntityId) => {
           consumedWorldCursorRef.current = {
@@ -602,6 +623,7 @@ export function App({
           predictedPuck={predictedPuck}
           highlightColorByEntityId={highlightColorByEntityId}
           viewOrientation={viewOrientation}
+          reducedGraphics={graphicsPreferences.reducedGraphics}
         />
         <Postgame
           world={state.currentWorld}
@@ -623,7 +645,9 @@ export function App({
         <SettingsOverlay
           open={settingsOpen}
           preferences={audioPreferences}
+          graphicsPreferences={graphicsPreferences}
           onChange={handleAudioPreferencesChange}
+          onGraphicsPreferencesChange={handleGraphicsPreferencesChange}
           onClose={handleCloseSettings}
           onExitToMenu={handleExitToMenu}
         />
@@ -654,6 +678,7 @@ export function App({
         predictedPuck={predictedPuck}
         highlightColorByEntityId={highlightColorByEntityId}
         viewOrientation={viewOrientation}
+        reducedGraphics={graphicsPreferences.reducedGraphics}
       />
       {state.phase === "playing" ? null : (
         <>
@@ -679,7 +704,9 @@ export function App({
       <SettingsOverlay
         open={settingsOpen}
         preferences={audioPreferences}
+        graphicsPreferences={graphicsPreferences}
         onChange={handleAudioPreferencesChange}
+        onGraphicsPreferencesChange={handleGraphicsPreferencesChange}
         onClose={handleCloseSettings}
         onExitToMenu={handleExitToMenu}
       />

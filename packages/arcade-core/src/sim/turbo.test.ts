@@ -50,11 +50,32 @@ describe("turbo and assist targeting", () => {
     const turboSkater = turboWorld.skaters[0];
     const normalSkater = normalWorld.skaters[0];
 
-    stepWorld(turboWorld, [input(turboSkater.id, { moveX: 0, moveY: 1, turbo: true })], 100);
-    stepWorld(normalWorld, [input(normalSkater.id, { moveX: 0, moveY: 1, turbo: false })], 100);
+    // Asks for a full 180 so neither run can complete the turn inside the
+    // step — a 90 target now saturates for both once the standstill pivot
+    // boost is in play, which hides the tradeoff instead of measuring it.
+    // Facing is the direct measure of handling; velocity is downstream of it
+    // and confounded by turbo's own acceleration bonus.
+    stepWorld(turboWorld, [input(turboSkater.id, { moveX: -1, turbo: true })], 100);
+    stepWorld(normalWorld, [input(normalSkater.id, { moveX: -1, turbo: false })], 100);
 
-    expect(Math.abs(turboSkater.velocity.y)).toBeLessThan(
-      Math.abs(normalSkater.velocity.y) * 1.1
+    expect(Math.abs(turboSkater.facing)).toBeLessThan(
+      Math.abs(normalSkater.facing)
+    );
+  });
+
+  it("still turns worse under turbo once up to speed", () => {
+    const turboWorld = playingWorld();
+    const normalWorld = playingWorld();
+    const turboSkater = turboWorld.skaters[0];
+    const normalSkater = normalWorld.skaters[0];
+    turboSkater.velocity = { x: 400, y: 0 };
+    normalSkater.velocity = { x: 400, y: 0 };
+
+    stepWorld(turboWorld, [input(turboSkater.id, { moveX: -1, turbo: true })], 100);
+    stepWorld(normalWorld, [input(normalSkater.id, { moveX: -1, turbo: false })], 100);
+
+    expect(Math.abs(turboSkater.facing)).toBeLessThan(
+      Math.abs(normalSkater.facing)
     );
   });
 

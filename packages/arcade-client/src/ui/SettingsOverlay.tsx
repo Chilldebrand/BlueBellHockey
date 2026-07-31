@@ -1,5 +1,9 @@
 import { useEffect, useRef } from "react";
 import type { AudioPreferences } from "../audio/preferences.js";
+import {
+  DEFAULT_GRAPHICS_PREFERENCES,
+  type GraphicsPreferences
+} from "../render/graphicsPreferences.js";
 import { AudioSettings } from "./AudioSettings.js";
 import { ControlsGuide } from "./ControlsGuide.js";
 
@@ -41,7 +45,9 @@ function isRangeInputTarget(target: EventTarget | null): boolean {
 export interface SettingsOverlayProps {
   readonly open: boolean;
   readonly preferences: AudioPreferences;
+  readonly graphicsPreferences?: GraphicsPreferences;
   readonly onChange: (next: AudioPreferences) => void;
+  readonly onGraphicsPreferencesChange?: (next: GraphicsPreferences) => void;
   readonly onClose: () => void;
   /**
    * Renders an "Exit to Main Menu" action. Omit on the main menu itself;
@@ -53,7 +59,9 @@ export interface SettingsOverlayProps {
 export function SettingsOverlay({
   open,
   preferences,
+  graphicsPreferences = DEFAULT_GRAPHICS_PREFERENCES,
   onChange,
+  onGraphicsPreferencesChange = () => undefined,
   onClose,
   onExitToMenu
 }: SettingsOverlayProps): JSX.Element | null {
@@ -121,6 +129,25 @@ export function SettingsOverlay({
           </button>
         </div>
         <AudioSettings value={preferences} onChange={onChange} />
+        <label className="audio-settings-row">
+          <span className="audio-settings-copy">
+            <span className="audio-settings-label">Reduced Graphics</span>
+            <input
+              aria-label="Reduced Graphics"
+              type="checkbox"
+              checked={graphicsPreferences.reducedGraphics}
+              onChange={(event) =>
+                onGraphicsPreferencesChange({
+                  reducedGraphics: event.currentTarget.checked
+                })
+              }
+            />
+          </span>
+          <span className="audio-settings-hint">
+            Thins the crowd and turns off shadows for a higher frame rate.
+            Gameplay is unchanged.
+          </span>
+        </label>
         <ControlsGuide />
         {onExitToMenu ? (
           <button

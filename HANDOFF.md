@@ -42,6 +42,111 @@ Source links (download only from official Pixabay):
 `https://pixabay.com/music/beats-positive-hip-hop-184768/`, and
 `https://pixabay.com/music/beats-hip-hop-old-school-208627/`.
 
+**SHIPPED, AWAITING USER VERDICT — playtest batch: graphics option, colour bug, passes, turning
+(2026-07-26).** Four of five items from a playtest round; the fifth (scoring) is MEASURED BUT NOT
+CHANGED — see below, it needs a user decision.
+
+**Reduced Graphics option.** New `render/graphicsPreferences.ts` (same shape as the audio prefs,
+localStorage `bbh.arcade.graphics.v1`), a Settings checkbox, threaded App -> Scene -> ArenaShell and
+through FreeSkate/ShootoutScreen. Reduced mode does the two things that actually cost frames here:
+crowd `detail="reduced"` (2897 -> 1448 fans) and `shadows={false}` on the Canvas, which is the big
+one — every casting mesh (bodies, sticks, the whole bowl) otherwise renders a second time into the
+shadow map. Sim and gameplay untouched, so a reduced client sees the same match.
+
+**FIXED — players' identity colours changed mid-match.** `buildHighlightColorByEntityId` assigned
+colours by INDEX into a list of humans sorted by (teamJoinOrder, slotId). Both inputs move: a
+control switch rewrites two roster slots (old one back to a bot, new one to the human) and those
+land as SEPARATE 50ms schema patches, so the client genuinely observes a roster with the switcher
+missing — every index after the gap shifted, repainting other players' discs too. Now the palette
+slot is a pure function of facts that survive a switch: team + teamJoinOrder, each team taking a
+block of three (`highlightColorIndex`). First home player stays blue as before. Roster churn can no
+longer move anyone's colour; tests cover the switch, the half-applied switch, and all six seats
+being distinct.
+
+**Passes track properly now.** Two compounding bugs, both making feeds land BEHIND a moving
+receiver. (1) `PASS_LEAD_MAX_SECONDS` was 0.3 — shorter than a real pass takes to arrive, so the
+lead only ever covered part of the flight; now 0.85. (2) flight time was estimated as
+`distance / speed`, ignoring that the puck decelerates: a 800-unit feed at passSpeed 1634 is
+actually airborne ~0.58s, not 0.49s. New pure `passFlightSeconds` inverts the friction curve
+properly. `PASS_LEAD_MAX_DISTANCE` 220 -> 320 because at 220 a near-top-speed receiver on a long
+feed still clamped short — it is back to being a guard against absurd inputs rather than a routine
+limiter. ALSO closes a known finding: `findAimedPassRecipient` now skips knockedDown/frozen
+teammates, so passes stop being aimed at someone who cannot receive them.
+
+**Standing pivots are much snappier.** Root cause was not the turn rate itself (11.5 rad/s at a
+standstill was already the fastest it ever gets) — it is that thrust is gated on `alignment > 0`,
+so a skater changing direction gets NO acceleration until facing is within 90 deg of the stick, and
+only partial thrust after. From a dead stop that is a real dead beat before you move. New
+`lowSpeedTurnBoost` 2.1 / `lowSpeedTurnBoostSpeed` 240 multiplies turn rate at a standstill and
+fades to 1x by 240 (under half of maxSpeed 504), so a 180 drops from ~0.27s to ~0.13s and the broad
+fast arcs that make skating feel grounded are bit-identical.
+
+**NOT CHANGED — scoring. MEASURED, needs a user call (don't re-measure, and don't quietly
+re-tune).** Report was "still not scoring just regular shots that are placed well from time to
+time". Probe: lone shot at the home goalie, everyone else cleared out, goalie allowed to square up
+first, 24 seeds per cell. Goals out of 24:
+- wrist 1040, slot 400 out: **corner 5/24 (21%)**, dead centre 1/24 (4%)
+- wrist from the wing 500: corner 0-3/24; from the point 700: corner 3/24
+- snap 1550: corner 3-5/24 | slap 1980: corner 5-7/24 (best case 29%)
+So placement IS rewarded — corners beat dead centre roughly 5x — but a perfectly placed wrist shot
+from the slot still only goes in about 1 in 5.
+
+**GEOMETRIC LEVERS ARE A DEAD END — this was tried and reverted, do NOT try it again.** The user
+picked "open the corners geometrically" over raising the miss roll, so that was built and measured:
+a `shotLagFactor` committing the goalie to his release-time angle, plus sweeps of `lateralSpeed`
+and `saveReach`. Findings, all on the same 24-seed grid:
+- Unbounded shot lag: wrist shots UNMOVED at 5/24, slap shots **24/24** — the backward
+  extrapolation scales with puck speed, so a bomb rewinds the puck up the ice, the angle cut
+  collapses to net centre and every corner is a goal. That is the automatic-goal bug from
+  2026-07-23 returning.
+- Bounding the lag by distance (`lagMaxOffset`): slaps back to 7/24, wrist still 5/24 — i.e. the
+  lever does NOTHING once it is made safe.
+- `lateralSpeed` 540 -> 460 -> 400 -> 340 -> 280: wrist stays 5/24 at EVERY value.
+- `saveReach` 84 -> 72: wrist still 5/24, slap jumps to 24/24.
+The reason is now clear and worth writing down: on a normal-speed shot the goalie is never
+geometrically beaten. He is already in position with margin, so his slide speed is irrelevant, and
+the only thing reach changes is whether a very fast shot squeaks past — which flips straight to
+automatic. There is no middle ground in the geometry; it is save-everything or concede-everything.
+That is exactly why the 2026-07-23 session built a miss roll in the first place.
+
+**The only knob with a real gradient is `missChanceCap`** (measured, slot-400 corner / slot-400
+centre): 0.15 -> 5/24, 1/24 (current) | 0.20 -> 6/24, 2/24 | 0.25 -> 7/24, 2/24 | 0.30 -> 7/24,
+2/24 | 0.35 -> 8/24, 3/24 | 0.40 -> 8/24, 3/24. Note it is NOT a coin flip: miss chance is
+`floor + (cap - floor) * difficulty` with difficulty 55% crossing-distance-vs-reach + 45% arrival
+speed, so raising the cap widens the corner-vs-centre gap rather than making everything random.
+Also note the ceiling is modest — even at 0.40 a perfect corner from the slot is only 1 in 3, and
+the centre control creeps up too. **SHIPPED at 0.25 (user choice), deliberately short of the 0.35
+they rejected on 2026-07-23.** Grid at the shipped value, out of 24: wrist slot corner 7 / centre 2;
+wrist off-wing corner 5; wrist point corner 7; snap slot corner 7 / centre 3; slap slot corner 8 /
+centre 5. Three goalie tests had to stop depending on the roll — the resize pair and the
+puck-sweep/tunnelling test are about REACH and collision geometry, so they now pin
+missChanceCap/Floor to 0 via a `withoutMissRoll()` helper instead of silently flipping whenever
+this number moves.
+
+**Backskating carries its speed now (user, same round: "way too slow… you should still be able to
+maintain 90% of speed backward. Hockey players do this all the time").** Two real bugs, not just a
+multiplier. (1) Engaging backskate at speed asks the body to spin 180, which is MAXIMUM
+misalignment by design — and the `alignment < -0.35` branch read that as "stick pulled against
+travel, dig in and stop", so the brakes came on for the whole pivot. Now gated on `!backward`;
+release the button to brake. (2) Grip is measured against the BODY axis, so mid-pivot the velocity
+is perpendicular to the body and the edge bite scrubbed it off. New
+`backwardTransitionGripMultiplier` softens grip only while backskating, which models a mohawk
+transition (blades stay along travel while the upper body turns) and self-limits — once settled the
+velocity lies on the body axis so there is no lateral component left to act on.
+`backwardSpeedMultiplier` 0.72 -> 0.9 for the asked-for 90%.
+MEASURED speed retained through a full-pace transition (entry 519): was a dip to **21%**; now
+**~80% through the pivot, 90% settled**. Grip sweep for the record: 0.22 -> 59%, 0.14 -> 68%,
+0.08 -> 75%, 0.05 -> ~80%, 0.0 -> 86% (the remainder is glide drag plus the 0.9 cap), shipped 0.05.
+Regression tests cover the settle, the dip, and that a NON-backskating pull against travel still
+brakes hard. NOTE for anyone re-measuring: give the skater room — a probe that runs him into the
+end boards reads as 1% retained and is measuring the boards, not the transition.
+
+Verified: typecheck, 289 core / 103 server / 298 client, arcade-core rebuilt, two-client smoke, and
+a live preview walk (Settings toggle renders, toggles, persists to localStorage, Free Skate mounts
+with it on, zero console errors). **USER EYEBALLS OWED:** PerfHud fps with Reduced Graphics on vs
+off, whether colours now hold through control switches (needs two browsers), pass leading on a
+teammate breaking up ice, and standing-start turn feel with a real pad.
+
 **SHIPPED, AWAITING USER VERDICT — stick reach, arms forward, real goalie stick (2026-07-26).**
 Three user asks in one batch.
 

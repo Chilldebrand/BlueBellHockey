@@ -26,6 +26,7 @@ import {
   type MouseStickTracker
 } from "../input/mouse.js";
 import { Scene } from "../render/Scene.js";
+import type { GraphicsPreferences } from "../render/graphicsPreferences.js";
 import { AnnouncementBanner } from "./AnnouncementBanner.js";
 import { CharacterSelect } from "./CharacterSelect.js";
 import { SettingsOverlay } from "./SettingsOverlay.js";
@@ -39,7 +40,9 @@ export interface ShootoutScreenProps {
   readonly onOpenSettings?: () => void;
   readonly settingsOpen?: boolean;
   readonly audioPreferences?: AudioPreferences;
+  readonly graphicsPreferences?: GraphicsPreferences;
   readonly onAudioPreferencesChange?: (next: AudioPreferences) => void;
+  readonly onGraphicsPreferencesChange?: (next: GraphicsPreferences) => void;
   readonly onCloseSettings?: () => void;
   readonly onWorldUpdate?: (
     world: WorldState,
@@ -57,7 +60,9 @@ export function ShootoutScreen({
   onOpenSettings,
   settingsOpen = false,
   audioPreferences,
+  graphicsPreferences,
   onAudioPreferencesChange,
+  onGraphicsPreferencesChange,
   onCloseSettings,
   onWorldUpdate
 }: ShootoutScreenProps): JSX.Element {
@@ -193,6 +198,7 @@ export function ShootoutScreen({
         localSlotId={SHOOTOUT_SLOT_ID}
         localGoalieId={null}
         predictedLocalSkater={null}
+        reducedGraphics={graphicsPreferences?.reducedGraphics === true}
         highlightColorByEntityId={{ [SHOOTOUT_SLOT_ID]: "#1f8fff" }}
       />
       <AnnouncementBanner events={world.eventQueue} nowMs={world.time.nowMs} />
@@ -223,7 +229,9 @@ export function ShootoutScreen({
         <SettingsOverlay
           open={settingsOpen}
           preferences={audioPreferences}
+          graphicsPreferences={graphicsPreferences}
           onChange={onAudioPreferencesChange}
+          onGraphicsPreferencesChange={onGraphicsPreferencesChange}
           onClose={onCloseSettings}
           onExitToMenu={onExit}
         />

@@ -130,7 +130,15 @@ export const GOALIE_CONFIG: GoalieConfig = {
   reboundMinSpeed: 320,
   reactionDelayMs: 120,
   missChanceFloor: 0.02,
-  missChanceCap: 0.15,
+  // 0.15 -> 0.25 (user, 2026-07-26): well-placed regular shots weren't going
+  // in. This is the ONLY knob with a real gradient — every geometric lever was
+  // built and measured first and they are all binary (see HANDOFF). It is not
+  // a coin flip either: missChance is floor + (cap - floor) * difficulty, and
+  // difficulty is 55% crossing-distance-vs-reach + 45% arrival speed, so
+  // raising the cap widens the corner-vs-centre gap rather than adding noise.
+  // Measured, slot-400 wrist: corner 5/24 -> 7/24, dead centre 1/24 -> 2/24.
+  // Deliberately short of the 0.35 the user rejected on 2026-07-23.
+  missChanceCap: 0.25,
   // Playtest 2026-07-24: dekes did nothing. Angle-cut positioning compressed a
   // dangle to a fraction of its travel, so a deke only ever beat him from
   // inside the crease. These extend "a deke beats him" across the whole front

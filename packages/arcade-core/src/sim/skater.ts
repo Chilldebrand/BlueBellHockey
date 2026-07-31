@@ -30,6 +30,20 @@ export interface SkaterMovementConfig {
   readonly turnRate: number;
   /** Fraction of turnRate still available at max speed (broad fast arcs). */
   readonly highSpeedTurnRetention: number;
+  /**
+   * Extra turn rate at a dead stop, easing back to 1x by
+   * `lowSpeedTurnBoostSpeed`. This is the pivot-on-the-spot multiplier.
+   *
+   * Why it exists: thrust is gated on `alignment > 0`, so a skater changing
+   * direction gets NO acceleration at all until facing is within 90 deg of
+   * the stick, and only partial thrust after that. From a standstill that is
+   * a real dead beat before you move — which is what "turning is so slow when
+   * you start skating" was. Boosting only the low-speed end fixes the standing
+   * pivot without touching the broad fast arcs that make skating feel grounded.
+   */
+  readonly lowSpeedTurnBoost: number;
+  /** Speed at which the standstill turn boost has fully faded to 1x. */
+  readonly lowSpeedTurnBoostSpeed: number;
   /** Per-second decay pulling an over-cap skater back to max speed. */
   readonly overSpeedDrag: number;
   readonly boardRestitution: number;
@@ -59,6 +73,12 @@ export interface SkaterMovementConfig {
    * costs a beat — that beat is what an attacker cuts around.
    */
   readonly backwardTurnRateMultiplier: number;
+  /**
+   * Lateral-grip multiplier while backskating, so a transition carries its
+   * speed through the pivot instead of the edges scrubbing it off when the
+   * body is briefly side-on to travel.
+   */
+  readonly backwardTransitionGripMultiplier: number;
 }
 
 // Sustained multiplier applied to top speed + acceleration while the
@@ -83,6 +103,11 @@ export const SKATER_MOVEMENT_CONFIG: SkaterMovementConfig = {
   brakeDrag: 7,
   turnRate: 11.5,
   highSpeedTurnRetention: 0.62,
+  // 2.1x at a dead stop: a 180 turn drops from ~0.27s to ~0.13s, so pushing a
+  // new direction from a standstill bites almost immediately. Gone by 240,
+  // which is under half of maxSpeed 504 — real skating arcs are untouched.
+  lowSpeedTurnBoost: 2.1,
+  lowSpeedTurnBoostSpeed: 240,
   overSpeedDrag: 2.4,
   boardRestitution: 0.35,
   boardTangentRetention: 0.86,
@@ -96,9 +121,17 @@ export const SKATER_MOVEMENT_CONFIG: SkaterMovementConfig = {
   knockdownDrag: 3.05,
   windupSpeedMultiplier: 0.62,
   stumbleSpeedMultiplier: 0.55,
-  backwardSpeedMultiplier: 0.72,
+  // 0.72 -> 0.9 (user, 2026-07-26): "hockey players do this all the time" —
+  // a defenceman turning to retreat keeps nearly all their pace. Paired with
+  // not braking through the pivot (see stepSkater), so switching to backwards
+  // at speed now carries the speed instead of scrubbing it.
+  backwardSpeedMultiplier: 0.9,
   backwardAccelerationMultiplier: 0.7,
-  backwardTurnRateMultiplier: 0.8
+  backwardTurnRateMultiplier: 0.8,
+  // Measured dip in entry speed through the pivot: 0.22 -> 59%, 0.14 -> 68%,
+  // 0.08 -> 75%, 0.05 -> ~80%, 0.0 -> 86% (the rest is glide drag and the 0.9
+  // speed cap). 0.05 keeps a little edge bite while retreating.
+  backwardTransitionGripMultiplier: 0.05
 };
 
 /**
@@ -177,9 +210,17 @@ export function stepSkater(
     // exactly why retreating this way keeps your stick pointed at the play.
     const desired = backward ? angleOf(move) + Math.PI : angleOf(move);
     const speedFactor = maxSpeed > 0 ? clamp(speed / maxSpeed, 0, 1) : 1;
+    // Standing pivots get a boost that fades out as you pick up speed, so the
+    // dead beat before thrust engages is short at a standstill and the broad
+    // arcs at pace are exactly as before.
+    const standstill =
+      config.lowSpeedTurnBoostSpeed > 0
+        ? clamp(1 - speed / config.lowSpeedTurnBoostSpeed, 0, 1)
+        : 0;
     const turnRate =
       config.turnRate *
       (1 - speedFactor * (1 - config.highSpeedTurnRetention)) *
+      (1 + (config.lowSpeedTurnBoost - 1) * standstill) *
       (turboActive ? config.turboTurnRateMultiplier : 1) *
       (backward ? config.backwardTurnRateMultiplier : 1);
 
@@ -197,8 +238,15 @@ export function stepSkater(
       const push = backward ? -1 : 1;
       skater.velocity.x += Math.cos(skater.facing) * push * thrust * dt;
       skater.velocity.y += Math.sin(skater.facing) * push * thrust * dt;
-    } else if (alignment < -0.35) {
+    } else if (alignment < -0.35 && !backward) {
       // Stick pulled against the body: dig in and stop hard.
+      //
+      // NOT while backskating. Engaging it at speed asks the body to spin 180
+      // to face the other way, which is maximum misalignment BY DESIGN — and
+      // reading that as "dig in and stop" slammed the brakes on for the whole
+      // pivot, which is why switching to backwards scrubbed nearly all your
+      // pace. A player turning to skate backwards carries their speed through
+      // the transition; release the button to brake.
       braking = true;
     }
   }
@@ -206,7 +254,8 @@ export function stepSkater(
   applyAnisotropicDrag(skater, dt, config, {
     hasInput,
     braking,
-    turboActive
+    turboActive,
+    backward
   });
   capSpeed(skater, maxSpeed, dt, config);
   integrateAndContain(skater, dt, config);
@@ -216,7 +265,12 @@ function applyAnisotropicDrag(
   skater: SkaterEntity,
   dt: number,
   config: SkaterMovementConfig,
-  state: { hasInput: boolean; braking: boolean; turboActive: boolean }
+  state: {
+    hasInput: boolean;
+    braking: boolean;
+    turboActive: boolean;
+    backward: boolean;
+  }
 ): void {
   const forward = fromAngle(skater.facing);
   const along = dot(skater.velocity, forward);
@@ -231,8 +285,18 @@ function applyAnisotropicDrag(
     alongDrag += config.releaseDrag;
   }
 
+  // Grip is measured against the BODY axis, so mid-way through a backskate
+  // pivot the velocity is momentarily perpendicular to the body and the edge
+  // bite scrubs nearly all of it off — measured as a dip to 21% of entry speed
+  // before recovering. A real transition is a mohawk: the blades stay pointed
+  // along travel while the upper body turns, so almost nothing is scrubbed.
+  // Softening grip only while backskating models that. It self-limits: once
+  // the pivot settles the velocity lies on the body axis and there is no
+  // lateral component left for this to act on.
   const grip =
-    config.lateralGrip * (state.turboActive ? config.turboGripMultiplier : 1);
+    config.lateralGrip *
+    (state.turboActive ? config.turboGripMultiplier : 1) *
+    (state.backward ? config.backwardTransitionGripMultiplier : 1);
   const alongScale = expDecay(alongDrag, dt);
   const lateralScale = expDecay(grip, dt);
 

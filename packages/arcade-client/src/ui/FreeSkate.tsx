@@ -25,6 +25,7 @@ import {
   type MouseStickTracker
 } from "../input/mouse.js";
 import { Scene } from "../render/Scene.js";
+import type { GraphicsPreferences } from "../render/graphicsPreferences.js";
 import { AnnouncementBanner } from "./AnnouncementBanner.js";
 import { SettingsOverlay } from "./SettingsOverlay.js";
 
@@ -40,7 +41,9 @@ export interface FreeSkateProps {
   readonly onOpenSettings?: () => void;
   readonly settingsOpen?: boolean;
   readonly audioPreferences?: AudioPreferences;
+  readonly graphicsPreferences?: GraphicsPreferences;
   readonly onAudioPreferencesChange?: (next: AudioPreferences) => void;
+  readonly onGraphicsPreferencesChange?: (next: GraphicsPreferences) => void;
   readonly onCloseSettings?: () => void;
   readonly onWorldUpdate?: (
     world: WorldState,
@@ -58,7 +61,9 @@ export function FreeSkate({
   onOpenSettings,
   settingsOpen = false,
   audioPreferences,
+  graphicsPreferences,
   onAudioPreferencesChange,
+  onGraphicsPreferencesChange,
   onCloseSettings,
   onWorldUpdate
 }: FreeSkateProps): JSX.Element {
@@ -264,6 +269,7 @@ export function FreeSkate({
         localSlotId={localSlotId}
         localGoalieId={localEntityId === localSlotId ? null : localEntityId}
         predictedLocalSkater={null}
+        reducedGraphics={graphicsPreferences?.reducedGraphics === true}
         highlightColorByEntityId={{ [localEntityId]: "#1f8fff" }}
         debugOverlays
       />
@@ -311,7 +317,9 @@ export function FreeSkate({
         <SettingsOverlay
           open={settingsOpen}
           preferences={audioPreferences}
+          graphicsPreferences={graphicsPreferences}
           onChange={onAudioPreferencesChange}
+          onGraphicsPreferencesChange={onGraphicsPreferencesChange}
           onClose={onCloseSettings}
           onExitToMenu={onExit}
         />
