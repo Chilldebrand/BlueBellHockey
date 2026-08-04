@@ -263,10 +263,9 @@ export function buildHighlightColorByEntityId(
 }
 
 /**
- * Palette slot for a human, derived ONLY from facts that survive a control
- * switch: which team they are on and the order they joined it. Both ride with
- * the session through `switchHumanControl`, so a player's colour is fixed for
- * the whole match.
+ * Palette slot for a human, derived from the server's room-wide join order.
+ * The order rides with the session through `switchHumanControl`, so a player's
+ * colour stays fixed when they change which skater they control.
  *
  * It deliberately does NOT depend on the player's position in a sorted list.
  * That was the old scheme and it changed colours mid-match: a control switch
@@ -276,15 +275,10 @@ export function buildHighlightColorByEntityId(
  * shifted, which repainted other players' discs too. Keying off stable
  * per-session facts makes roster churn unable to move anyone's colour.
  *
- * Six colours, six seats in a 3v3: each team takes a block of three, so the
- * sides can never collide and the first home player stays blue as before.
+ * Six colours, six seats in a 3v3. The server numbers humans globally from
+ * 1..6 (not 1..3 per team), so that shared order maps directly to the palette.
  */
 function highlightColorIndex(slot: ClientRosterSlot): number {
-  const seatsPerTeam = PLAYER_HIGHLIGHT_COLORS.length / 2;
-  const seat = Math.min(
-    seatsPerTeam - 1,
-    Math.max(0, (slot.teamJoinOrder ?? 1) - 1)
-  );
-
-  return (slot.teamId === "away" ? seatsPerTeam : 0) + seat;
+  const sharedOrder = Math.max(1, slot.teamJoinOrder ?? 1);
+  return (sharedOrder - 1) % PLAYER_HIGHLIGHT_COLORS.length;
 }

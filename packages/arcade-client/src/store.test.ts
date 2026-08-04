@@ -179,18 +179,22 @@ describe("goalie-control presentation state", () => {
     expect(midSwitch["away-skater-1"]).toBe(settled["away-skater-1"]);
   });
 
-  it("gives all six seats in a full 3v3 a distinct colour", () => {
-    const roster = (["home", "away"] as const).flatMap((teamId) =>
-      [1, 2, 3].map((joinOrder) =>
-        clientSlot({
-          slotId: `${teamId}-skater-${joinOrder}`,
-          teamId,
-          sessionId: `session-${teamId}-${joinOrder}`,
-          teamJoinOrder: joinOrder,
-          isOwnedByLocalPlayer: false
-        })
-      )
-    );
+  it("gives the server's six globally ordered humans distinct colours", () => {
+    // The server assigns one room-wide order (1..6), filling home before away.
+    // This is deliberately not 1..3 per team: that unrealistic fixture hid the
+    // regression where away orders 4, 5, and 6 all clamped to the same colour.
+    const roster = Array.from({ length: 6 }, (_, index) => {
+      const teamId = index < 3 ? "home" : "away";
+      const teamSeat = (index % 3) + 1;
+
+      return clientSlot({
+        slotId: `${teamId}-skater-${teamSeat}`,
+        teamId,
+        sessionId: `session-${index + 1}`,
+        teamJoinOrder: index + 1,
+        isOwnedByLocalPlayer: false
+      });
+    });
 
     const colors = Object.values(buildHighlightColorByEntityId(roster));
 
