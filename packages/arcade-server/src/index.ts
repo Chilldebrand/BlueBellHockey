@@ -55,7 +55,26 @@ export function createArcadeServer(): { readonly app: express.Express; readonly 
   const httpServer = createServer(app);
   const gameServer = registerArcadeRooms(
     new Server({
-      transport: new WebSocketTransport({ server: httpServer })
+      transport: new WebSocketTransport({
+        server: httpServer,
+        // permessage-deflate, negotiated per client — a client that doesn't offer it just gets the
+        // uncompressed stream, so this is backward compatible by construction.
+        //
+        // The in-play world snapshot is ~5.5 KiB of msgpack at 31.25/s per client — ~1.4 Mbit/s
+        // each, ~8.4 Mbit/s for a six-human room (measured: scripts/measure-snapshot-bandwidth.ts).
+        // Per-message deflate takes 80% of that off, and context takeover does better still,
+        // because consecutive snapshots are near-identical and stay in the sliding window. On a
+        // self-hosted uplink that's the difference between rooms fitting comfortably and
+        // saturating — and uplink saturation presents as exactly the jitter players report as lag.
+        perMessageDeflate: {
+          // Level 1 keeps the deflate cost trivial at this message rate; the redundancy between
+          // consecutive snapshots does most of the work regardless of level.
+          zlibDeflateOptions: { level: 1, memLevel: 8 },
+          // Tiny messages (acks, pongs, lobby chatter) aren't worth a deflate round trip.
+          threshold: 512,
+          concurrencyLimit: 10
+        }
+      })
     })
   );
 
