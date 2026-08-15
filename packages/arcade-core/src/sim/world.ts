@@ -271,7 +271,12 @@ export function stepWorld(
 // Events are one-shot cues for VFX/HUD; anything older than this is no longer
 // renderable, so drop it. Without a cap the queue grows for the whole match
 // (and forever in an endless local free-skate world).
-const EVENT_RETENTION_MS = 5000;
+//
+// Exported because the ONLINE client maintains this same rolling window for itself: the server
+// broadcasts each event once (ArcadeRoom.broadcastSnapshot sends only events it hasn't sent
+// before) and the client re-accumulates them under this exact retention rule, so every consumer
+// of world.eventQueue sees the same window whether the world was stepped locally or received.
+export const EVENT_RETENTION_MS = 5000;
 
 function trimEventQueue(world: WorldState): void {
   const cutoff = world.time.nowMs - EVENT_RETENTION_MS;

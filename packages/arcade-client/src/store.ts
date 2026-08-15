@@ -4,12 +4,14 @@ import type {
   TeamId,
   TeamIdentity,
   TeamIdentityId,
+  WorldEvent,
   WorldPhase,
   WorldState
 } from "@bbh/arcade-core";
 import {
   DEFAULT_MATCH_RULES,
   DEFAULT_TEAM_IDENTITIES,
+  EVENT_RETENTION_MS,
   teamIdentityFor
 } from "@bbh/arcade-core";
 import type { ArcadeRoomConnection } from "./net/client.js";
@@ -126,6 +128,42 @@ export function createInitialArcadeClientState(): ArcadeClientState {
   };
 }
 
+/**
+ * Rebuilds the rolling event window the server no longer resends.
+ *
+ * Snapshots carry only the events added since the previous broadcast, but every consumer of
+ * world.eventQueue — VFX, callouts, the announcement banner, the audio cues, the animation
+ * selectors — reads it as a window of the last few seconds, exactly what a locally-stepped world
+ * (Free Skate, Shootout) naturally holds. So the online path re-accumulates arriving events under
+ * the sim's own retention rule (EVENT_RETENTION_MS, judged against the incoming world's clock, the
+ * same clock trimEventQueue uses server-side) and dedupes by id, which makes a redelivered event —
+ * a reconnect replaying the join backlog, say — harmless rather than a double goal horn.
+ *
+ * Returns the incoming queue BY REFERENCE when there is nothing to carry forward, so the reducer
+ * can keep the world object it was handed instead of allocating a copy 31 times a second.
+ */
+export function mergeSnapshotEventQueue(
+  retained: readonly WorldEvent[] | undefined,
+  incoming: WorldState
+): WorldEvent[] {
+  const cutoff = incoming.time.nowMs - EVENT_RETENTION_MS;
+  const incomingIds = new Set(incoming.eventQueue.map((event) => event.id));
+  const carried = (retained ?? []).filter(
+    (event) =>
+      event.atMs >= cutoff &&
+      // No event can postdate the world it belongs to — one that does is from BEFORE a rematch
+      // reset the sim clock, and carrying it forward would replay last match's cues into this one.
+      event.atMs <= incoming.time.nowMs &&
+      !incomingIds.has(event.id)
+  );
+
+  if (carried.length === 0) {
+    return incoming.eventQueue;
+  }
+
+  return [...carried, ...incoming.eventQueue];
+}
+
 export function reduceArcadeClientState(
   state: ArcadeClientState,
   action: ArcadeClientAction
@@ -140,15 +178,26 @@ export function reduceArcadeClientState(
         previousWorld: state.previousWorld,
         inputAcks: state.inputAcks
       };
-    case "world.snapshot":
+    case "world.snapshot": {
+      // The server sends each event exactly once (ArcadeRoom.takeUnsentEvents); the rolling window
+      // every consumer expects is reassembled here, before any of them can see the world.
+      const eventQueue = mergeSnapshotEventQueue(
+        state.currentWorld?.eventQueue,
+        action.world
+      );
+
       return {
         ...state,
         phase: action.world.phase,
         score: action.world.score,
         previousWorld: state.currentWorld,
-        currentWorld: action.world,
+        currentWorld:
+          eventQueue === action.world.eventQueue
+            ? action.world
+            : { ...action.world, eventQueue },
         inputAcks: action.inputAcks ?? state.inputAcks
       };
+    }
     case "connection.error":
       return { ...state, connectionStatus: "error", error: action.message };
     case "connection.left":

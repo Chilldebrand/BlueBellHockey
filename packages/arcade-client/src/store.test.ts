@@ -4,6 +4,7 @@ import {
   buildHighlightColorByEntityId,
   createInitialArcadeClientState,
   mapRoomState,
+  mergeSnapshotEventQueue,
   PLAYER_HIGHLIGHT_COLORS,
   reduceArcadeClientState,
   type ClientRosterSlot,
@@ -259,5 +260,83 @@ describe("goalie-control presentation state", () => {
     expect(buildHighlightColorByEntityId(otherLocalSession)).toEqual(map);
     expect(map["home-skater-1"]).toBe(PLAYER_HIGHLIGHT_COLORS[0]);
     expect(map["home-skater-2"]).toBe(PLAYER_HIGHLIGHT_COLORS[1]);
+  });
+});
+
+describe("mergeSnapshotEventQueue — reassembling the rolling event window", () => {
+  function goalEvent(id: string, atMs: number) {
+    return { id, type: "goal", atMs, sourceSlotId: "home-skater-1" };
+  }
+
+  function worldAt(nowMs: number, events: ReturnType<typeof goalEvent>[]) {
+    const world = createWorld(1, "arcade3v3");
+    world.time = { ...world.time, nowMs };
+    world.eventQueue = events;
+    return world;
+  }
+
+  it("carries retained events forward alongside newly arrived ones", () => {
+    const merged = mergeSnapshotEventQueue(
+      [goalEvent("older", 1_000)],
+      worldAt(2_000, [goalEvent("newer", 2_000)])
+    );
+
+    expect(merged.map((event) => event.id)).toEqual(["older", "newer"]);
+  });
+
+  it("returns the incoming queue by reference when there is nothing to carry", () => {
+    const world = worldAt(2_000, [goalEvent("only", 2_000)]);
+
+    expect(mergeSnapshotEventQueue([], world)).toBe(world.eventQueue);
+    expect(mergeSnapshotEventQueue(undefined, world)).toBe(world.eventQueue);
+  });
+
+  it("drops retained events once they age past the sim's retention window", () => {
+    const merged = mergeSnapshotEventQueue(
+      [goalEvent("ancient", 1_000)],
+      worldAt(10_000, [])
+    );
+
+    expect(merged).toEqual([]);
+  });
+
+  it("dedupes by id so a redelivered event cannot fire its cues twice", () => {
+    const merged = mergeSnapshotEventQueue(
+      [goalEvent("goal-1", 1_900)],
+      worldAt(2_000, [goalEvent("goal-1", 1_900)])
+    );
+
+    expect(merged.map((event) => event.id)).toEqual(["goal-1"]);
+  });
+
+  it("drops events from before a rematch reset the sim clock", () => {
+    // Old match: event at 150s. Rematch: fresh world whose clock is back near zero. Carrying that
+    // event forward would replay last match's goal horn into the new one.
+    const merged = mergeSnapshotEventQueue(
+      [goalEvent("stale-goal", 150_000)],
+      worldAt(32, [])
+    );
+
+    expect(merged).toEqual([]);
+  });
+
+  it("the world.snapshot reducer accumulates events across snapshots", () => {
+    const first = reduceArcadeClientState(createInitialArcadeClientState(), {
+      type: "world.snapshot",
+      world: worldAt(1_000, [goalEvent("goal-1", 1_000)])
+    });
+    const second = reduceArcadeClientState(first, {
+      type: "world.snapshot",
+      world: worldAt(1_032, [goalEvent("hit-1", 1_032)])
+    });
+
+    expect(second.currentWorld?.eventQueue.map((event) => event.id)).toEqual([
+      "goal-1",
+      "hit-1"
+    ]);
+    // previousWorld keeps ITS OWN merged queue from when it was current.
+    expect(second.previousWorld?.eventQueue.map((event) => event.id)).toEqual([
+      "goal-1"
+    ]);
   });
 });
