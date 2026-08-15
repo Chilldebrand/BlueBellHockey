@@ -1,3 +1,6 @@
+import { useRef } from "react";
+import { useFrame } from "@react-three/fiber";
+import type { Group } from "three";
 import type {
   CharacterId,
   PowerupType,
@@ -43,6 +46,16 @@ export interface SkaterDebugProps {
   /** Keeps the boost badges on whichever disc edge faces the camera. */
   readonly viewOrientation?: ViewOrientation;
   readonly showVectors?: boolean;
+  /**
+   * Online remote skaters only: asks the snapshot buffer where this skater should be drawn RIGHT
+   * NOW, and is called every frame rather than every snapshot.
+   *
+   * Passing it is what turns remote motion from a step function into continuous movement. Omitted
+   * for the local player (whose position comes from prediction, which is already frame-fresh) and
+   * for the offline screens (Free Skate, Shootout), where the world is stepped locally and there is
+   * no network timing to reconstruct. When omitted, `position` drives the group exactly as before.
+   */
+  readonly samplePosition?: (id: string) => Vec2 | null;
 }
 
 // Sim plane (x, y) renders as three.js (x, z); yaw θ around +Y rotates the +X
@@ -97,10 +110,33 @@ export function SkaterDebug({
   windupDepth = 0,
   activeBoosts = [],
   viewOrientation = 1,
-  showVectors = false
+  showVectors = false,
+  samplePosition
 }: SkaterDebugProps): JSX.Element {
+  const groupRef = useRef<Group>(null);
+
+  // Drives the skater's position from the frame clock instead of from snapshot arrivals.
+  //
+  // This deliberately writes straight to the three.js object rather than through React state: a
+  // per-frame setState here would re-render this whole subtree 60 times a second, on exactly the
+  // machines least able to afford it. The `position` prop below still applies on every React render
+  // and remains the source of truth whenever sampling isn't available — but a prop written during a
+  // React commit is always overwritten by the next useFrame before anything is drawn, so the two
+  // never fight and there's no one-frame snap back to the raw snapshot.
+  useFrame(() => {
+    if (!samplePosition || !groupRef.current) {
+      return;
+    }
+
+    const sampled = samplePosition(id);
+
+    if (sampled) {
+      groupRef.current.position.set(sampled.x, 10, sampled.y);
+    }
+  });
+
   return (
-    <group position={[position.x, 10, position.y]} name={id}>
+    <group ref={groupRef} position={[position.x, 10, position.y]} name={id}>
       {/* Human-identity disc: rendered ONLY under human-controlled skaters,
           in that human's fixed color (it follows them through control
           switches and never changes for possession). AI gets nothing. */}

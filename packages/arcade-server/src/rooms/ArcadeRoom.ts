@@ -4,6 +4,7 @@ import {
   createWorld,
   DEFAULT_MATCH_RULES,
   DEFAULT_TEAM_IDENTITIES,
+  EVENT_RETENTION_MS,
   isMatchRules,
   isTeamIdentityId,
   KICKED_CLOSE_CODE,
@@ -20,6 +21,7 @@ import {
   type ServerWorldSnapshotMessage,
   type TeamId,
   type TeamIdentityId,
+  type WorldEvent,
   type WorldState
 } from "@bbh/arcade-core";
 import { Room, type Client } from "colyseus";
@@ -185,6 +187,8 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
   private readonly startSimulation: boolean;
   private roster: RoomRosterSlot[] = createRoster();
   private readonly latestInputBySession = new Map<string, InputFrame>();
+  /** Event ids already broadcast (id -> atMs), so each event ships exactly once — see takeUnsentEvents. */
+  private readonly sentEventIds = new Map<string, number>();
   private readonly lastInputSequenceBySession = new Map<string, number>();
   private readonly lastPassBySession = new Map<string, boolean>();
   private readonly pendingManualSwitchBySession = new Map<string, boolean>();
@@ -453,6 +457,11 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
   }
 
   private createFreshWorld(): WorldState {
+    // A fresh world restarts the sim clock AND the tick counter, and event ids embed the tick —
+    // so ids from the previous match can recur. Without this clear, a recurring id would match the
+    // old ledger entry and the new match's event would silently never be broadcast. (The prune in
+    // takeUnsentEvents can't save us: a reset nowMs makes its cutoff negative, so stale ids linger.)
+    this.sentEventIds.clear();
     const world = createWorld(
       this.seedGenerator(),
       this.roomOptions.mode,
@@ -991,11 +1000,48 @@ export class ArcadeRoom extends Room<ArcadeRoomState> {
 
     const message: ServerWorldSnapshotMessage = {
       type: "server.worldSnapshot",
-      world: this.world,
+      // Each event ships exactly once. world.eventQueue is a rolling 5s window (EVENT_RETENTION_MS)
+      // kept for local-sim consumers, and rebroadcasting that whole window 31.25 times a second
+      // meant every event went out ~150 times — the author's own measurement put the queue at ~15%
+      // of eventful-play packets, all of it history after its first delivery. The client rebuilds
+      // the identical rolling window on its side (store.ts mergeSnapshotEventQueue), so every
+      // consumer of world.eventQueue still sees the full 5s. A mid-match joiner starts from the
+      // events after their join instead of replaying up to 5s of stale goal banners — an
+      // improvement, and the audio path already suppressed that backlog anyway.
+      world: { ...this.world, eventQueue: this.takeUnsentEvents() },
       inputAcks
     };
 
     this.broadcast("server.worldSnapshot", message satisfies ArcadeServerMessage);
+  }
+
+  /**
+   * The events added to the world since the last broadcast — tracked by id, not by a timestamp
+   * high-water mark, so two events stamped at the same millisecond can never shadow each other.
+   * The sent-id ledger is pruned by the same retention rule that prunes world.eventQueue itself,
+   * which keeps it bounded and guarantees an id can't be re-sent later: by the time it leaves the
+   * ledger it has also left the queue.
+   */
+  private takeUnsentEvents(): WorldEvent[] {
+    if (!this.world) {
+      return [];
+    }
+
+    const unsent = this.world.eventQueue.filter(
+      (event) => !this.sentEventIds.has(event.id)
+    );
+    for (const event of unsent) {
+      this.sentEventIds.set(event.id, event.atMs);
+    }
+
+    const cutoff = this.world.time.nowMs - EVENT_RETENTION_MS;
+    for (const [id, atMs] of this.sentEventIds) {
+      if (atMs < cutoff) {
+        this.sentEventIds.delete(id);
+      }
+    }
+
+    return unsent;
   }
 
   /**

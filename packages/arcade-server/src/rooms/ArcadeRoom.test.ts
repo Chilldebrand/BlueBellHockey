@@ -2091,3 +2091,90 @@ describe("ArcadeRoom", () => {
     expect(ackedSequences).toContain(41);
   });
 });
+
+describe("ArcadeRoom — event broadcast dedup", () => {
+  function goalEvent(id: string, atMs: number) {
+    return { id, type: "goal", atMs, sourceSlotId: "home-skater-1" };
+  }
+
+  function lastSnapshotEvents(broadcast: ReturnType<typeof vi.spyOn>) {
+    const message = broadcast.mock.calls
+      .filter(([messageType]) => messageType === "server.worldSnapshot")
+      .at(-1)?.[1] as { world: { eventQueue: Array<{ id: string }> } };
+    return message.world.eventQueue.map((event) => event.id);
+  }
+
+  it("broadcasts each world event exactly once, however long it stays in the queue", () => {
+    const room = createTestRoom();
+    const broadcast = vi
+      .spyOn(room, "broadcast")
+      .mockImplementation(() => room as never);
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(client("session-a") as never, { playerName: "Ada" });
+
+    const world = room["world"]!;
+    world.eventQueue.push(goalEvent("goal-1", world.time.nowMs));
+    room["broadcastSnapshot"]();
+    expect(lastSnapshotEvents(broadcast)).toEqual(["goal-1"]);
+
+    // The event is still in the world's rolling window — but it must not ship again.
+    room["broadcastSnapshot"]();
+    expect(lastSnapshotEvents(broadcast)).toEqual([]);
+
+    world.eventQueue.push(goalEvent("goal-2", world.time.nowMs));
+    room["broadcastSnapshot"]();
+    expect(lastSnapshotEvents(broadcast)).toEqual(["goal-2"]);
+  });
+
+  it("the authoritative world object itself keeps its full rolling queue", () => {
+    const room = createTestRoom();
+    vi.spyOn(room, "broadcast").mockImplementation(() => room as never);
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(client("session-a") as never, { playerName: "Ada" });
+
+    const world = room["world"]!;
+    world.eventQueue.push(goalEvent("goal-1", world.time.nowMs));
+    room["broadcastSnapshot"]();
+    room["broadcastSnapshot"]();
+
+    // Only the MESSAGE is filtered; the sim's own queue is untouched by broadcasting.
+    expect(world.eventQueue.map((event) => event.id)).toEqual(["goal-1"]);
+  });
+
+  it("prunes the sent-id ledger on the sim's own retention clock", () => {
+    const room = createTestRoom();
+    vi.spyOn(room, "broadcast").mockImplementation(() => room as never);
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(client("session-a") as never, { playerName: "Ada" });
+
+    const world = room["world"]!;
+    world.eventQueue.push(goalEvent("goal-1", world.time.nowMs));
+    room["broadcastSnapshot"]();
+    expect(room["sentEventIds"].has("goal-1")).toBe(true);
+
+    // Sim time moves past retention; the sim would have trimmed the event too.
+    world.time.nowMs += 10_000;
+    world.eventQueue.length = 0;
+    room["broadcastSnapshot"]();
+    expect(room["sentEventIds"].has("goal-1")).toBe(false);
+  });
+
+  it("a fresh world clears the ledger, so a recurring id still broadcasts after a rematch", () => {
+    const room = createTestRoom();
+    const broadcast = vi
+      .spyOn(room, "broadcast")
+      .mockImplementation(() => room as never);
+    room.onCreate({ quickMatch: true, mode: "arcade3v3" });
+    room.onJoin(client("session-a") as never, { playerName: "Ada" });
+
+    room["world"]!.eventQueue.push(goalEvent("clock-countdown-42-3", room["world"]!.time.nowMs));
+    room["broadcastSnapshot"]();
+    expect(lastSnapshotEvents(broadcast)).toEqual(["clock-countdown-42-3"]);
+
+    // Rematch: new world, restarted tick counter — ids from the old match can legitimately recur.
+    room["world"] = room["createFreshWorld"]();
+    room["world"]!.eventQueue.push(goalEvent("clock-countdown-42-3", room["world"]!.time.nowMs));
+    room["broadcastSnapshot"]();
+    expect(lastSnapshotEvents(broadcast)).toEqual(["clock-countdown-42-3"]);
+  });
+});

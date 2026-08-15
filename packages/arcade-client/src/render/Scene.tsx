@@ -9,9 +9,11 @@ import {
   type TeamId,
   type TeamIdentity,
   type TeamIdentityId,
+  type Vec2,
   type WorldState
 } from "@bbh/arcade-core";
-import { interpolateSkaters } from "../game/interpolation.js";
+import { interpolateSkaterPosition, interpolateSkaters } from "../game/interpolation.js";
+import type { SnapshotSample } from "../game/snapshotBuffer.js";
 import { activeBoostTypesForSlot } from "./activeBoosts.js";
 import { selectGoalieAnimation } from "./animation/goalieAnimation.js";
 import { selectSkaterAnimation } from "./animation/skaterAnimation.js";
@@ -63,7 +65,22 @@ export interface SceneProps {
    * local presentation — the sim and the match are identical either way.
    */
   readonly reducedGraphics?: boolean;
+  /**
+   * Online only: reads the adaptive snapshot buffer (see game/snapshotBuffer.ts) for the moment the
+   * remote world should be drawn at. Omitted by the offline screens (Free Skate, Shootout), which
+   * step the world locally and have no arrival timing to reconstruct.
+   */
+  readonly sampleSnapshot?: () => SnapshotSample | null;
 }
+
+/**
+ * Blend used when there is no snapshot buffer to consult — i.e. the offline screens, whose worlds are
+ * stepped locally every frame, so "previous" and "current" are one sim tick apart and a fixed blend
+ * is harmless. This constant used to be applied ONLINE too, which was the bug: with real snapshots it
+ * froze remote skaters between arrivals and jumped them on arrival, and no amount of bandwidth or
+ * proximity could smooth it, because nothing in the renderer consulted the clock.
+ */
+const LOCAL_SIM_BLEND = 0.75;
 
 export function Scene({
   currentWorld,
@@ -76,7 +93,8 @@ export function Scene({
   debugOverlays = false,
   teamIdentities,
   viewOrientation = 1,
-  reducedGraphics = false
+  reducedGraphics = false,
+  sampleSnapshot
 }: SceneProps): JSX.Element | null {
   if (!currentWorld) {
     return null;
@@ -87,7 +105,19 @@ export function Scene({
     away: teamIdentityFor("away", teamIdentities?.away)
   };
 
-  const skaters = interpolateSkaters(previousWorld, currentWorld, 0.75, localSlotId);
+  // One sample per React render feeds everything that reads positions at render rate (offscreen
+  // arrows, blade offsets, the camera anchor). The per-skater smoothing below re-samples every FRAME
+  // — this is just the coarse pass, kept on the same buffered clock so the two never disagree.
+  const sample = sampleSnapshot?.() ?? null;
+  // Re-reads the buffer on every call — that's the point. SkaterDebug calls this from useFrame, so
+  // each skater resolves its own position against the render clock as it stands at draw time, not
+  // against whatever the last React render happened to see.
+  const sampleRemoteSkaterPosition = sampleSnapshot
+    ? (id: string): Vec2 | null => interpolateSkaterPosition(sampleSnapshot(), id)
+    : undefined;
+  const skaters = sample
+    ? interpolateSkaters(sample.previous, sample.current, sample.alpha, localSlotId)
+    : interpolateSkaters(previousWorld, currentWorld, LOCAL_SIM_BLEND, localSlotId);
   // Prefer the reconciled local skater when it's the carrier (no net lag),
   // otherwise the authoritative carrier — so the blade pocket works in Free
   // Skate (no predicted local skater) as well as online.
@@ -205,6 +235,13 @@ export function Scene({
               uniform={identities[skater.teamId].uniform}
               characterId={skater.characterId}
               position={renderSkater.position}
+              // Remote skaters get their position from the frame clock; the local player keeps
+              // prediction, which is already a frame fresher than any snapshot can be.
+              samplePosition={
+                sampleSnapshot && skater.id !== localSlotId
+                  ? sampleRemoteSkaterPosition
+                  : undefined
+              }
               isLocal={skater.id === localSlotId}
               highlightColor={highlightColorByEntityId[skater.id] ?? null}
               velocity={renderSkater.velocity}
