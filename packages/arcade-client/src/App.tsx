@@ -448,13 +448,7 @@ export function App({
 
     const playerSessionId = state.playerSessionId;
     const isGoalieControlled = localControlledEntityId !== localSlotId;
-    const sendInput = () => {
-      const input = settingsOpen
-        ? createNeutralInputState()
-        : mergeInputStates(
-            keyboardRef.current?.read() ?? createNeutralInputState(),
-            gamepadStateFromGamepad(navigator.getGamepads?.()[0] ?? null)
-          );
+    const sendFrame = (input: ReturnType<typeof createNeutralInputState>) => {
       const frame = createInputFrame({
         input,
         playerId: playerSessionId,
@@ -470,15 +464,45 @@ export function App({
       }
       activeRoomRef.current?.session.sendInput(frame);
     };
+    const sendInput = () => {
+      sendFrame(
+        settingsOpen
+          ? createNeutralInputState()
+          : mergeInputStates(
+              keyboardRef.current?.read() ?? createNeutralInputState(),
+              gamepadStateFromGamepad(navigator.getGamepads?.()[0] ?? null)
+            )
+      );
+    };
     const intervalId = window.setInterval(
       sendInput,
       MATCH_CONFIG.fixedTickMs
     );
 
+    // Browsers clamp background-tab timers to ~1/s, so the interval above effectively stops the
+    // moment the tab is hidden — and the server drives this skater with the LAST frame it received
+    // until told otherwise (latestInputBySession is read every tick). Alt-tab while holding a
+    // direction and, without this, the skater keeps sprinting into the boards for as long as the
+    // tab is hidden. Send one neutral frame at the moment of hiding, so a hidden player coasts to
+    // a stop like a player who let go of the stick. The keyboard tracker's state is irrelevant
+    // while hidden (keyup events don't arrive either) — neutral is the only honest frame.
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        sendFrame(createNeutralInputState());
+      }
+    };
+    // Guarded because the App tests exercise this effect without a DOM; in a browser it's always on.
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", onVisibilityChange);
+    }
+
     sendInput();
 
     return () => {
       window.clearInterval(intervalId);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVisibilityChange);
+      }
     };
   }, [
     localControlledEntityId,
