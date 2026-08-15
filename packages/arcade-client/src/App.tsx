@@ -8,6 +8,7 @@ import {
   type TeamId,
   type TeamIdentityId
 } from "@bbh/arcade-core";
+import { createSnapshotBuffer } from "./game/snapshotBuffer.js";
 import { gamepadStateFromGamepad } from "./input/gamepad.js";
 import {
   createInputFrame,
@@ -136,9 +137,22 @@ export function App({
 
   const reconnectSourceRef = useRef<ArcadeConnectionResult | null>(null);
 
+  // Timing memory for remote-player rendering: snapshots go in stamped with the moment they arrived,
+  // and the renderer asks it — every frame — where the world was a short, self-adjusting while ago.
+  // See game/snapshotBuffer.ts for why that delay can't be a constant.
+  const snapshotBufferRef = useRef(createSnapshotBuffer());
+
+  const sampleSnapshot = useCallback(
+    () => snapshotBufferRef.current.sample(performance.now()),
+    []
+  );
+
   const attachRoom = useCallback((result: ArcadeConnectionResult) => {
     audioRef.current.resetEventCursor();
     consumedWorldCursorRef.current = null;
+    // A new room is a new connection with its own timing; nothing learned about the old one applies,
+    // and stale worlds would be interpolated against for the first frames after joining.
+    snapshotBufferRef.current.reset();
     attachArcadeRoom(activeRoomRef, result, {
       onState: ({ room }) => {
         perfCounters.roomStatePatches += 1;
@@ -148,12 +162,23 @@ export function App({
       onLeave: (message) => dispatch({ type: "connection.left", message }),
       onWorldSnapshot: (world, inputAcks) => {
         perfCounters.worldSnapshots += 1;
+        // Stamped here, at the socket, rather than in the reducer: React may batch or defer a
+        // dispatch, and a timing buffer that measures React's scheduling instead of the network
+        // would adapt to the wrong thing entirely.
+        snapshotBufferRef.current.push(world, performance.now());
         dispatch({ type: "world.snapshot", world, inputAcks });
       }
     });
     reconnectSourceRef.current = result;
     saveReconnectTicket(result.room, result.options);
   }, []);
+
+  // The lobby streams one snapshot every 8th tick and live play every 2nd. Those are different
+  // cadences, not a connection that got better or worse — so the measured delay is forgotten at the
+  // transition rather than left to decay across the opening seconds of a match.
+  useEffect(() => {
+    snapshotBufferRef.current.resetTiming();
+  }, [state.phase]);
 
   useEffect(() => {
     audioRef.current.setPreferences(audioPreferences);
@@ -624,6 +649,7 @@ export function App({
           highlightColorByEntityId={highlightColorByEntityId}
           viewOrientation={viewOrientation}
           reducedGraphics={graphicsPreferences.reducedGraphics}
+          sampleSnapshot={sampleSnapshot}
         />
         <Postgame
           world={state.currentWorld}
@@ -679,6 +705,7 @@ export function App({
         highlightColorByEntityId={highlightColorByEntityId}
         viewOrientation={viewOrientation}
         reducedGraphics={graphicsPreferences.reducedGraphics}
+        sampleSnapshot={sampleSnapshot}
       />
       {state.phase === "playing" ? null : (
         <>

@@ -1,4 +1,5 @@
 import type { SkaterEntity, Vec2, WorldState } from "@bbh/arcade-core";
+import type { SnapshotSample } from "./snapshotBuffer.js";
 
 export interface InterpolatedSkater {
   readonly id: string;
@@ -61,6 +62,37 @@ export function interpolateSkaters(
       facing: interpolateAngle(previousSkater.facing, skater.facing, alpha)
     };
   });
+}
+
+/**
+ * One remote skater's position at the buffered render time (see snapshotBuffer.ts).
+ *
+ * Split out from interpolateSkaters because the renderer calls this per skater PER FRAME, from
+ * inside a useFrame loop, while interpolateSkaters runs once per React render over the whole roster.
+ * Returns null when the skater isn't in the sampled world — it left, or hasn't spawned yet — and the
+ * caller should leave the object wherever it was rather than snapping it to the origin.
+ */
+export function interpolateSkaterPosition(
+  sample: SnapshotSample | null,
+  id: string
+): Vec2 | null {
+  if (!sample) {
+    return null;
+  }
+
+  const current = sample.current.skaters.find((skater) => skater.id === id);
+
+  if (!current) {
+    return null;
+  }
+
+  const previous = sample.previous?.skaters.find((skater) => skater.id === id);
+
+  if (!previous) {
+    return current.position;
+  }
+
+  return interpolateVector(previous.position, current.position, sample.alpha);
 }
 
 function skaterFromCurrent(skater: SkaterEntity): InterpolatedSkater {
